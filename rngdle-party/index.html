@@ -205,14 +205,11 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 body.revealing #soloView .eprow,
 body.revealing #soloView .rollbar,
 body.revealing #soloView .stats,
-body.revealing #partyBar,
 body.revealing .actionbar,
-body.revealing #localGame > .roundtag,
 body.revealing #lpWinner,
-body.revealing #localGame > .panel,
-body.revealing #hostGame > .roundtag,
-body.revealing #hostGame > .panel,
 body.revealing #hWinner,
+body.revealing #localGame > .panel,
+body.revealing #hostGame > .panel,
 body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
 body.revealing #pWinner,
@@ -226,6 +223,15 @@ body:not(.revealing) #localGame > .panel{animation:fadeup .42s ease both}
 /* opacity only — fadeup's translate would shove a fixed bar off the viewport edge */
 @keyframes barfade{0%{opacity:0}100%{opacity:1}}
 body:not(.revealing) .actionbar{animation:barfade .42s ease both}
+
+/* The round tag sits above the grid, so hiding it outright would drop every card
+   when it comes back. Keep its space and just make it invisible. */
+body.revealing #partyBar,
+body.revealing #localGame > .roundtag,
+body.revealing #hostGame > .roundtag{visibility:hidden}
+/* Same reasoning for the per-card rarity row: hold its height from the start so
+   the payoff doesn't shove later grid rows down when it lands. */
+#lpGrid .rarityrow,#hGrid .rarityrow{min-height:22px}
 
 /* The badge tally is a spoiler while badges are still landing. */
 .bksub.pending{opacity:0}
@@ -518,8 +524,9 @@ function sharedSchedule(results){
 /* Reveals the badges one at a time, each with a rarity-scaled chime.
    Resolves true when the last badge has landed, false if a newer roll cancelled it. */
 async function renderBreakdown(result,container,opts={}){
-  const {stagger=true,header=true,schedule=null}=opts;
+  const {stagger=true,header=true,schedule=null,reserve=false}=opts;
   const run=breakdownRun;   // shared token: parallel per-player reveals must not cancel each other
+  container.style.minHeight='';
   container.innerHTML=''; const badges=result.badges; const scoring=revealOrder(result),nested=badges.filter(b=>!b.isScoring);
   if(header){const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';container.appendChild(h);}
   const s=document.createElement('div');s.className='bksub';s.textContent=`${badges.length} BADGE${badges.length===1?'':'S'} EARNED`;container.appendChild(s);
@@ -528,6 +535,15 @@ async function renderBreakdown(result,container,opts={}){
   // above the others and pushes them down, so the list ends sorted best-first.
   const cards=scoring.map(b=>buildBadgeCard(b,nested,result));
   if(!stagger){ cards.forEach(c=>{c.el.classList.add('pop');container.appendChild(slotFor(c.el,true));}); return true; }
+  // In a grid, a row is as tall as its tallest card — so cards growing as badges
+  // land drag every later row down with them. Lay the finished list out once,
+  // measure it, and hold that height. Done in one synchronous pass, so nothing
+  // paints; the reveal then fills space that was already claimed.
+  if(reserve){
+    cards.forEach(c=>container.appendChild(slotFor(c.el,true)));
+    container.style.minHeight=container.offsetHeight+'px';
+    container.querySelectorAll('.badgeslot').forEach(n=>n.remove());
+  }
   await sleep(BADGE_LEAD);
   for(let i=0;i<cards.length;i++){
     const c=cards[i];
@@ -649,7 +665,7 @@ $('#lpRoundSeg').addEventListener('click',e=>{const b=e.target.closest('button')
 function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
   LP.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
     card.innerHTML=`<div class="phead">${lpAvatar(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div>
-      <div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px;min-height:0"></div>
+      <div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px"></div>
       <div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div>
       <div class="pbreak"></div>`;
     grid.appendChild(card); LP.cards[p.name]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rank:card.querySelector('.prank'),brk:card.querySelector('.pbreak')}; });
@@ -677,7 +693,7 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   // build ONE schedule up front: step k waits on the rarest badge any player is
   // landing at step k, and every card uses it. Shorter lists simply run out early.
   const schedule=sharedSchedule(LP.players.map(p=>results[p.name]));
-  await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false,schedule})));
+  await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false,schedule,reserve:true})));
   // apply
   let best=null;
   LP.players.forEach(p=>{ const r=results[p.name],c=LP.cards[p.name]; p.score+=r.totalScore;p.rolls++;
@@ -750,7 +766,7 @@ function hostRender(s){
   if(NET.prevPhase==='lobby' || grid.children.length!==s.players.length || s.phase==='revealing' && grid.dataset.round!==String(s.round)){
     grid.innerHTML=''; NET.hostCards={};
     s.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
-      card.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div><div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px;min-height:0"></div><div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div><div class="pbreak"></div><span class="readytag"></span>`;
+      card.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div><div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px"></div><div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div><div class="pbreak"></div><span class="readytag"></span>`;
       grid.appendChild(card); NET.hostCards[p.pid]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rr:card.querySelector('.rr'),rank:card.querySelector('.prank'),ready:card.querySelector('.readytag'),brk:card.querySelector('.pbreak')}; });
     grid.dataset.round=String(s.round);
   }
@@ -788,7 +804,7 @@ async function hostReveal(s){
   await Promise.all(live.map(p=>revealNumber(NET.hostCards[p.pid].num,p.lastNumber,{sound:false})));
   SFX.spinStop();
   const schedule=sharedSchedule(live.map(p=>results[p.pid]));
-  await Promise.all(live.map(p=>renderBreakdown(results[p.pid],NET.hostCards[p.pid].brk,{header:false,schedule})));
+  await Promise.all(live.map(p=>renderBreakdown(results[p.pid],NET.hostCards[p.pid].brk,{header:false,schedule,reserve:true})));
   let best='common';
   live.forEach(p=>{ const c=NET.hostCards[p.pid];
     applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); c.rar.classList.add('reveal');
