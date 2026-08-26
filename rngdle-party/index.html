@@ -84,6 +84,18 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .child .arm{color:var(--prose-3)}.child .earned{margin-left:auto;font-size:10px;color:var(--prose-3);letter-spacing:.5px}
 .child .cname{text-transform:uppercase;letter-spacing:.4px;font-weight:600}
 
+/* Round controls, pinned to the bottom of the viewport. Badge lists make these
+   pages long, and the next-round action must never be something you hunt for. */
+.actionbar{position:sticky;bottom:0;z-index:30;display:flex;align-items:center;justify-content:center;
+  gap:12px;flex-wrap:wrap;padding:13px 16px;margin:20px -16px 0;
+  background:color-mix(in srgb,var(--background) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--card-line)}
+.actionbar .rollbtn{padding:13px 30px;font-size:15px}
+.actionbar .rollbtn.big{flex:1;min-width:220px;padding:16px;font-size:18px}
+.actionbar .statusbig{margin:0;font-size:13px;flex-basis:100%;text-align:center}
+.actionbar .small{color:var(--prose-3)}
+@media(max-width:520px){.actionbar{gap:9px;padding:11px 12px}}
+
 .partybar{display:flex;align-items:center;gap:10px;margin:16px 0 2px;flex-wrap:wrap}
 .partybar .crumb{color:var(--prose-3);font-size:11px;letter-spacing:.7px;text-transform:uppercase;font-weight:700}
 .partybar .spacer{flex:1}
@@ -187,17 +199,13 @@ body.revealing #soloView .eprow,
 body.revealing #soloView .rollbar,
 body.revealing #soloView .stats,
 body.revealing #partyBar,
+body.revealing .actionbar,
 body.revealing #localGame > .roundtag,
-body.revealing #localGame > .rollbar,
 body.revealing #lpWinner,
 body.revealing #localGame > .panel,
-body.revealing #localGame > .center,
 body.revealing #hostGame > .roundtag,
-body.revealing #hostGame > .center,
 body.revealing #hostGame > .panel,
 body.revealing #hWinner,
-body.revealing #playerGame > .statusbig,
-body.revealing #playerGame .rollbar,
 body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
 body.revealing #pWinner,
@@ -207,9 +215,8 @@ body:not(.revealing) #soloView .eprow,
 body:not(.revealing) #soloView .rollbar,
 body:not(.revealing) #soloView .stats,
 body:not(.revealing) #localGame > .roundtag,
-body:not(.revealing) #localGame > .rollbar,
 body:not(.revealing) #localGame > .panel,
-body:not(.revealing) #localGame > .center{animation:fadeup .42s ease both}
+body:not(.revealing) .actionbar{animation:fadeup .42s ease both}
 
 /* The badge tally is a spoiler while badges are still landing. */
 .bksub.pending{opacity:0}
@@ -338,11 +345,13 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 
       <div id="localGame" class="hidden">
         <div class="roundtag" id="lpRoundTag"></div>
-        <div class="rollbar"><button class="rollbtn big" id="lpRollAll" style="max-width:420px">ROLL EVERYONE</button><div class="norate">● no rate limit · simultaneous</div></div>
         <div class="grid" id="lpGrid"></div>
         <div id="lpWinner"></div>
         <div class="panel"><h3>Leaderboard</h3><div class="lb" id="lpLb"></div></div>
-        <div class="center mt16"><button class="secbtn" id="lpEnd">End game</button><button class="secbtn" id="lpNew" style="margin-left:8px">New party</button></div>
+        <div class="actionbar" id="lpActions">
+          <button class="rollbtn big" id="lpRollAll" style="max-width:420px">ROLL EVERYONE</button>
+          <button class="secbtn" id="lpEnd">End game</button><button class="secbtn" id="lpNew">New party</button>
+        </div>
       </div>
     </div>
 
@@ -377,13 +386,17 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
         </div>
         <div id="hostGame" class="hidden">
           <div class="roundtag" id="hRoundTag"></div>
-          <div class="center"><button class="rollbtn" id="hReveal">Reveal now ▶</button>
-            <div class="small mt8" id="hWaitMsg"></div></div>
           <div class="grid" id="hGrid"></div>
           <div id="hWinner"></div>
           <div class="panel"><h3>Leaderboard</h3><div class="lb" id="hLb"></div></div>
-          <div class="center mt16"><button class="rollbtn" id="hNext">Next round →</button></div>
-          <div class="center mt16"><button class="secbtn" id="hEndGame">End game</button></div>
+          <!-- sticky: with badge lists the page is long, so the round controls
+               must stay reachable without scrolling back to find them -->
+          <div class="actionbar" id="hActions">
+            <span class="small" id="hWaitMsg"></span>
+            <button class="rollbtn" id="hReveal">Reveal now ▶</button>
+            <button class="rollbtn" id="hNext">Next round →</button>
+            <button class="secbtn" id="hEndGame">End game</button>
+          </div>
         </div>
       </div>
 
@@ -407,9 +420,13 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <div class="eprow"><div class="eptotal"><span id="pEP">0</span><span class="ep">EP THIS ROLL</span></div></div>
           </div>
           <div class="pbreak" id="pBreak"></div>
-          <div class="statusbig" id="pStatus">Get ready…</div>
-          <div class="rollbar"><button class="rollbtn big" id="pRoll">TAP TO ROLL</button></div>
           <div class="panel"><h3>Leaderboard</h3><div class="minilb" id="pLb"></div></div>
+          <!-- sticky, for the same reason as the host: the badge list pushes the
+               roll button off screen otherwise -->
+          <div class="actionbar" id="pActions">
+            <div class="statusbig" id="pStatus">Get ready…</div>
+            <button class="rollbtn big" id="pRoll">TAP TO ROLL</button>
+          </div>
           <div id="pWinner"></div>
         </div>
       </div>
@@ -791,7 +808,10 @@ function playerRender(s){
   // status + roll button
   const roll=$('#pRoll'); const status=$('#pStatus');
   if(s.phase==='lobby'){ status.textContent='Waiting for the host to start…'; roll.classList.add('hidden'); }
-  else if(s.phase==='collecting'){ roll.classList.remove('hidden'); if(me.ready){ roll.disabled=true; roll.textContent='LOCKED IN ✓'; status.textContent='Waiting for everyone else…'; } else { roll.disabled=false; roll.textContent='TAP TO ROLL'; status.textContent=`Round ${s.round}${s.mode==='rounds'?' of '+s.target:''} — your move!`; } }
+  else if(s.phase==='collecting'){ roll.classList.remove('hidden');
+    // fresh round: clear last round's card, the host clears its grid the same way
+    if(me.lastNumber==null && $('#pBreak').children.length){ $('#pBreak').innerHTML=''; $('#pDigits').innerHTML=''; $('#pRarity').innerHTML=''; $('#pRarity').classList.remove('reveal'); $('#pEP').textContent='0'; $('#pCard').style.boxShadow='none'; $('#pCard').style.borderColor='var(--outline)'; }
+    if(me.ready){ roll.disabled=true; roll.textContent='LOCKED IN ✓'; status.textContent='Waiting for everyone else…'; } else { roll.disabled=false; roll.textContent='TAP TO ROLL'; status.textContent=`Round ${s.round}${s.mode==='rounds'?' of '+s.target:''} — your move!`; } }
   else if(s.phase==='revealing'){ roll.classList.add('hidden'); status.textContent='Rolling…'; }
   else if(s.phase==='roundEnd'){ roll.classList.add('hidden'); status.textContent=`You're #${rank} of ${s.players.length}. Waiting for next round…`; }
   else if(s.phase==='gameOver'){ roll.classList.add('hidden'); const top=ranked[0]; const won=top.pid===NET.pid; status.textContent=won?'🏆 You win!':`${top.name} wins!`; $('#pWinner').innerHTML=`<div class="winner pop"><div class="t">FINAL</div><div class="n" style="color:${top.color}">${escapeHtml(top.name)} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win(won?'mythic':'rare'); }
