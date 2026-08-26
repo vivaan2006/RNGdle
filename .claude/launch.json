@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rngdle-party",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["rngdle-party/server.js"],
+      "port": 3000
+    }
+  ]
+}
