@@ -179,16 +179,42 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 body.revealing #soloView .eprow,
 body.revealing #soloView .rollbar,
 body.revealing #soloView .stats,
+body.revealing #localGame > .roundtag,
+body.revealing #localGame > .rollbar,
+body.revealing #lpWinner,
+body.revealing #localGame > .panel,
+body.revealing #localGame > .center,
 body.revealing .foot{display:none}
 @keyframes fadeup{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 body:not(.revealing) #soloView .eprow,
 body:not(.revealing) #soloView .rollbar,
-body:not(.revealing) #soloView .stats{animation:fadeup .42s ease both}
+body:not(.revealing) #soloView .stats,
+body:not(.revealing) #localGame > .roundtag,
+body:not(.revealing) #localGame > .rollbar,
+body:not(.revealing) #localGame > .panel,
+body:not(.revealing) #localGame > .center{animation:fadeup .42s ease both}
 
 /* The badge tally is a spoiler while badges are still landing. */
 .bksub.pending{opacity:0}
 @keyframes countin{0%{opacity:0;transform:translateY(-5px)}100%{opacity:1;transform:translateY(0)}}
 .bksub.counted{animation:countin .42s ease both}
+
+/* Local party runs wide: the 720px reading column can't fit badge cards side by
+   side. While the local game is on screen, let it use the full display. */
+body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .wrap,
+body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(1600px,96vw)}
+#localGame .grid{grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
+#localGame .pcard{padding:18px}
+
+/* Per-player badge lists in local party — same reveal, denser so cards stay readable side by side. */
+.pbreak{margin-top:12px;text-align:left}
+.pbreak .bksub{margin-bottom:8px}
+.pbreak .badge{padding:10px 12px;margin-bottom:8px;border-radius:10px}
+.pbreak .badge .desc{display:none}
+.pbreak .badge .top{flex-wrap:wrap;gap:7px}      /* long names must wrap, never clip */
+.pbreak .badge .name{font-size:12.5px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.pbreak .badge .epv{font-size:12px}
+.pbreak .digcell{width:24px;height:29px;font-size:14px}
 
 /* The payoff: rarity + percentile land last, a little larger, with a pop. */
 #soloRarity{gap:14px;min-height:30px}
@@ -380,7 +406,13 @@ const SFX = (function(){
   function lock(i){ if(muted)return; const base=150+i*46; blip(base,.10,'square',.13); setTimeout(()=>blip(base*2,.05,'triangle',.05),8); }
   function win(rarity){ if(muted)return; const idx=Math.max(0,RARITY_ORDER.indexOf(rarity)); const notes=[523,659,784,988,1175,1319,1568]; const count=Math.min(2+idx,7); for(let k=0;k<count;k++) setTimeout(()=>blip(notes[Math.min(k,notes.length-1)],.20,'triangle',.12),k*85); if(idx>=4){ setTimeout(()=>blip(1568,.5,'sawtooth',.06),count*85);} }
   /* one badge landing — richer and brighter the rarer it is */
+  let lastBadgeT=0,lastBadgeIdx=-1;
   function badge(tier){ if(muted)return; const idx=Math.max(0,RARITY_ORDER.indexOf(tier));
+    // In party mode every player's badges land at once; without this they'd stack
+    // into mush. Within a short window only a rarer badge is allowed to speak.
+    const now=performance.now();
+    if(now-lastBadgeT<90 && idx<=lastBadgeIdx) return;
+    lastBadgeT=now; lastBadgeIdx=idx;
     const root=[196,247,294,370,440,554,659][idx];
     blip(root,.13+idx*.03,'triangle',.085);                                   // body
     setTimeout(()=>blip(root*1.5,.15+idx*.04,'triangle',.065),55);            // fifth above
@@ -408,10 +440,10 @@ function cancelBreakdown(){ breakdownRun++; }
 /* Reveals the badges one at a time, each with a rarity-scaled chime.
    Resolves true when the last badge has landed, false if a newer roll cancelled it. */
 async function renderBreakdown(result,container,opts={}){
-  const {stagger=true}=opts;
-  const run=breakdownRun;   // shared token, bumped only by cancelBreakdown()
+  const {stagger=true,header=true}=opts;
+  const run=breakdownRun;   // shared token: parallel per-player reveals must not cancel each other
   container.innerHTML=''; const badges=result.badges; const scoring=badges.filter(b=>b.isScoring),nested=badges.filter(b=>!b.isScoring);
-  const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';container.appendChild(h);
+  if(header){const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';container.appendChild(h);}
   const s=document.createElement('div');s.className='bksub';s.textContent=`${badges.length} BADGE${badges.length===1?'':'S'} EARNED`;container.appendChild(s);
   if(stagger) s.classList.add('pending');   // the tally is a spoiler while they're still landing
   const cards=scoring.map(b=>buildBadgeCard(b,nested,result));
@@ -525,8 +557,9 @@ function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
   LP.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
     card.innerHTML=`<div class="phead">${lpAvatar(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div>
       <div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px;min-height:0"></div>
-      <div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div>`;
-    grid.appendChild(card); LP.cards[p.name]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rank:card.querySelector('.prank')}; });
+      <div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div>
+      <div class="pbreak"></div>`;
+    grid.appendChild(card); LP.cards[p.name]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rank:card.querySelector('.prank'),brk:card.querySelector('.pbreak')}; });
 }
 function lpStart(){ if(LP.players.length<2)return; SFX.resume();
   LP.players.forEach(p=>{p.score=0;p.rolls=0;p.bestRarity=null;}); LP.round=1;LP.started=true;
@@ -538,20 +571,30 @@ function lpUpdateRoundTag(){$('#lpRoundTag').textContent=LP.mode==='rounds'?`Rou
 async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resume();
   const btn=$('#lpRollAll'); btn.disabled=true;
   const results={}; LP.players.forEach(p=>results[p.name]=R.roll());
+  cancelBreakdown();
+  document.body.classList.add('revealing');   // focus mode: just the player cards
   // reset visuals
-  LP.players.forEach(p=>{const c=LP.cards[p.name];c.rar.innerHTML='';c.el.style.boxShadow='none';c.el.style.borderColor='var(--card-line)';});
+  LP.players.forEach(p=>{const c=LP.cards[p.name];c.rar.innerHTML='';c.rar.classList.remove('reveal');c.brk.innerHTML='';c.el.style.boxShadow='none';c.el.style.borderColor='var(--card-line)';});
   const maxLen=Math.max(...LP.players.map(p=>String(results[p.name].number).length));
   SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT);
   await Promise.all(LP.players.map(p=>revealNumber(LP.cards[p.name].num, results[p.name].number, {sound:false})));
   SFX.spinStop();
+  // Everyone's badges climb at the same time, exactly like solo. One shared sound
+  // track (the loudest rarity of the round) so N players don't stack into noise.
+  await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false})));
   // apply
   let best=null;
   LP.players.forEach(p=>{ const r=results[p.name],c=LP.cards[p.name]; p.score+=r.totalScore;p.rolls++;
     if(!p.bestRarity||RARITY_ORDER.indexOf(r.cardRarity)>RARITY_ORDER.indexOf(p.bestRarity))p.bestRarity=r.cardRarity;
-    applyCardRarity(c.el,r.cardRarity); showRarity(c.rar,r.cardRarity,r.percentile); c.sc.innerHTML=`${p.score.toLocaleString()} <small>EP</small>`;
+    applyCardRarity(c.el,r.cardRarity); showRarity(c.rar,r.cardRarity,r.percentile); c.rar.classList.add('reveal'); c.sc.innerHTML=`${p.score.toLocaleString()} <small>EP</small>`;
     c.el.querySelector('.rr').textContent=`+${r.totalScore.toLocaleString()}`;
     if(!best||r.cardRarity&&RARITY_ORDER.indexOf(r.cardRarity)>RARITY_ORDER.indexOf(best))best=r.cardRarity; });
   SFX.win(best||'common'); lpRenderLb();
+  // Let everyone's rarity + percentile sit alone for a beat before the UI returns.
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  // Only restore the shared focus-mode class if we're still the active reveal —
+  // otherwise we'd yank the UI back into a solo roll that started meanwhile.
+  if(gen===breakdownRun) document.body.classList.remove('revealing');
   LP.round++; LP.animating=false;
   if(LP.mode==='rounds' && LP.round>LP.target){ lpEnd(); } else { btn.disabled=false; lpUpdateRoundTag(); }
 }
