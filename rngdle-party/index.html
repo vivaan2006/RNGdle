@@ -83,6 +83,11 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .child .arm{color:var(--prose-3)}.child .earned{margin-left:auto;font-size:10px;color:var(--prose-3);letter-spacing:.5px}
 .child .cname{text-transform:uppercase;letter-spacing:.4px;font-weight:600}
 
+.partybar{display:flex;align-items:center;gap:10px;margin:16px 0 2px;flex-wrap:wrap}
+.partybar .crumb{color:var(--prose-3);font-size:11px;letter-spacing:.7px;text-transform:uppercase;font-weight:700}
+.partybar .spacer{flex:1}
+.partybar .secbtn{padding:7px 13px;font-size:12px}
+
 .panel{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:18px;margin-top:18px}
 .panel h3{margin:0 0 14px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--prose-2)}
 .prow{display:flex;gap:8px;margin-bottom:10px}
@@ -180,6 +185,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 body.revealing #soloView .eprow,
 body.revealing #soloView .rollbar,
 body.revealing #soloView .stats,
+body.revealing #partyBar,
 body.revealing #localGame > .roundtag,
 body.revealing #localGame > .rollbar,
 body.revealing #lpWinner,
@@ -283,6 +289,13 @@ body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(16
 
   <!-- ============ PARTY ============ -->
   <section id="partyView" class="hidden">
+    <!-- always-available way out / across, shown any time you're deeper than the chooser -->
+    <div class="partybar hidden" id="partyBar">
+      <button class="secbtn" id="partyLeave">← Leave</button>
+      <span class="crumb" id="partyCrumb"></span>
+      <span class="spacer"></span>
+      <button class="secbtn" id="partySwitch"></button>
+    </div>
     <!-- mode chooser -->
     <div id="partyChoose">
       <div class="choices">
@@ -309,7 +322,6 @@ body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(16
             <span class="small">· all roll each round · highest total EP wins</span></div>
         </div>
         <button class="bigbtn" id="lpStart">Start Party 🎲</button>
-        <div class="center mt16"><button class="secbtn" id="lpBack">← back</button></div>
       </div>
 
       <div id="localGame" class="hidden">
@@ -331,7 +343,6 @@ body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(16
           <div class="choice" id="joinBtn"><div class="ic">🎮</div><div class="t">Join a game</div>
             <div class="d">Enter the room code from the host screen.</div></div>
         </div>
-        <div class="center mt16"><button class="secbtn" id="onlineBack">← back</button></div>
       </div>
 
       <!-- HOST -->
@@ -592,7 +603,7 @@ function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
 function lpStart(){ if(LP.players.length<2)return; SFX.resume();
   LP.players.forEach(p=>{p.score=0;p.rolls=0;p.bestRarity=null;}); LP.round=1;LP.started=true;
   $('#localSetup').classList.add('hidden');$('#localGame').classList.remove('hidden');$('#lpWinner').innerHTML='';
-  lpBuildGrid(); lpUpdateRoundTag(); lpRenderLb(); $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false;
+  lpBuildGrid(); lpUpdateRoundTag(); lpRenderLb(); $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; partyNav();
 }
 $('#lpStart').addEventListener('click',lpStart);
 function lpUpdateRoundTag(){$('#lpRoundTag').textContent=LP.mode==='rounds'?`Round ${LP.round} of ${LP.target}`:`Round ${LP.round}`;}
@@ -644,8 +655,7 @@ function lpEnd(){ LP.started=false; const ranked=[...LP.players].sort((a,b)=>b.s
   $('#lpRollAll').classList.add('hidden'); SFX.win('mythic'); lpRenderLb();
 }
 $('#lpEnd').addEventListener('click',lpEnd);
-$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');lpRenderSetup();});
-$('#lpBack').addEventListener('click',()=>{$('#localParty').classList.add('hidden');$('#partyChoose').classList.remove('hidden');});
+$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');LP.started=false;lpRenderSetup();partyNav();});
 
 /* ================= ONLINE PARTY (Jackbox-style) ================= */
 const NET={ ws:null, role:null, code:null, pid:null, state:null, prevPhase:null, prevRound:null, hostCards:{}, mode:'rounds', target:5,
@@ -672,7 +682,7 @@ function onNetError(msg){ const box=$('#joinErr'); if(box){box.innerHTML=`<div c
 $('#hModeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.mode=b.dataset.mode;$('#hRoundsCfg').style.display=NET.mode==='rounds'?'flex':'none';NET.send({type:'configure',mode:NET.mode,target:NET.target});});
 $('#hRoundSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.target=+b.dataset.r;NET.send({type:'configure',mode:NET.mode,target:NET.target});});
 function startHost(){ NET.role='host'; showOnlyOnline('hostView'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target})); }
-function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+function hostLobbyReady(code){ partyNav(); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 function avatarHtml(p,size='m'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 function hostRender(s){
   if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden');
@@ -729,7 +739,7 @@ $('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
 function startJoin(prefill){ NET.role='player'; showOnlyOnline('playerView'); $('#playerGame').classList.add('hidden'); $('#joinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
 $('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.trim(); if(!code||!name){onNetError('Enter a code and your name');return;} SFX.resume(); if(!NET.ws||NET.ws.readyState>1) NET.connect(()=>NET.send({type:'join',code,name})); else NET.send({type:'join',code,name}); });
 $('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
-function playerJoined(m){ $('#joinForm').classList.add('hidden'); $('#playerGame').classList.remove('hidden'); }
+function playerJoined(m){ $('#joinForm').classList.add('hidden'); $('#playerGame').classList.remove('hidden'); partyNav(); }
 function playerRender(s){
   const me=s.players.find(p=>p.pid===NET.pid); if(!me){ return; }
   $('#pAv').style.background=me.color; $('#pAv').textContent=me.name[0].toUpperCase(); $('#pMe').textContent=me.name;
@@ -756,15 +766,68 @@ function playerReveal(s){
 $('#pRoll').addEventListener('click',()=>{ SFX.resume(); NET.send({type:'rollReady'}); $('#pRoll').disabled=true; });
 
 $('#joinBack').addEventListener('click',()=>{ try{NET.ws&&NET.ws.close()}catch(e){}; showOnlyOnline('onlineChoose'); });
-$('#onlineBack').addEventListener('click',()=>{$('#onlineParty').classList.add('hidden');$('#partyChoose').classList.remove('hidden');});
 
-function showOnlyOnline(id){ ['onlineChoose','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+function showOnlyOnline(id){ ['onlineChoose','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); partyNav(); }
+
+/* ---------- party navigation ----------
+   One router for the party section, so every screen has a way out and a way
+   across. partyNav() re-reads which view is showing and re-labels the bar. */
+const shown = id => !$('#'+id).classList.contains('hidden');
+function partyGo(where){            // 'choose' | 'local' | 'online'
+  $('#partyChoose').classList.toggle('hidden', where!=='choose');
+  $('#localParty').classList.toggle('hidden', where!=='local');
+  $('#onlineParty').classList.toggle('hidden', where!=='online');
+  if(where==='local') lpRenderSetup();
+  if(where==='online') showOnlyOnline('onlineChoose');
+  partyNav();
+}
+/* True while a game/room is live — leaving then costs something, so we confirm. */
+function partyInProgress(){
+  if(shown('localParty') && shown('localGame')) return 'local game';
+  if(shown('onlineParty') && shown('hostView')) return 'hosted room';
+  if(shown('onlineParty') && shown('playerView') && shown('playerGame')) return 'party';
+  return null;
+}
+function partyNav(){
+  const deep = shown('localParty') || shown('onlineParty');
+  $('#partyBar').classList.toggle('hidden', !deep);
+  if(!deep){ $('#partyCrumb').textContent=''; return; }
+  let crumb='', canSwitch=false, to='';
+  if(shown('localParty')){
+    crumb = shown('localGame') ? 'Local party · in progress' : 'Local party · setup';
+    canSwitch = !shown('localGame'); to='online';
+  } else {
+    if(shown('hostView'))        crumb = 'Online · hosting'+(NET.code?' · '+NET.code:'');
+    else if(shown('playerView')) crumb = shown('playerGame') ? 'Online · playing' : 'Online · joining';
+    else                         crumb = 'Online party';
+    canSwitch = shown('onlineChoose'); to='local';
+  }
+  $('#partyCrumb').textContent = crumb;
+  const sw=$('#partySwitch');
+  sw.classList.toggle('hidden', !canSwitch);
+  sw.textContent = to==='online' ? 'Use Online instead →' : 'Use Local instead →';
+  sw.dataset.to = to;
+}
+/* Tears down whatever is live, then returns to the chooser. */
+function partyLeave(){
+  const what = partyInProgress();
+  if(what && !confirm(`Leave the current ${what}? Scores will be lost.`)) return;
+  try{ NET.ws && NET.ws.close(); }catch(e){}
+  NET.ws=null; NET.role=null; NET.code=null; NET.pid=null; NET.state=null; NET.prevPhase=null;
+  cancelBreakdown(); document.body.classList.remove('revealing');
+  LP.started=false; LP.animating=false; LP.round=1;
+  $('#localGame').classList.add('hidden'); $('#localSetup').classList.remove('hidden');
+  $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML='';
+  partyGo('choose');
+}
+$('#partyLeave').addEventListener('click',partyLeave);
+$('#partySwitch').addEventListener('click',e=>partyGo(e.currentTarget.dataset.to));
 $('#hostBtn').addEventListener('click',startHost);
 $('#joinBtn').addEventListener('click',()=>startJoin());
 
 /* ---------- party mode chooser ---------- */
-$('#chooseLocal').addEventListener('click',()=>{$('#partyChoose').classList.add('hidden');$('#localParty').classList.remove('hidden');lpRenderSetup();});
-$('#chooseOnline').addEventListener('click',()=>{$('#partyChoose').classList.add('hidden');$('#onlineParty').classList.remove('hidden');showOnlyOnline('onlineChoose');});
+$('#chooseLocal').addEventListener('click',()=>partyGo('local'));
+$('#chooseOnline').addEventListener('click',()=>partyGo('online'));
 
 /* ---------- tabs / theme / mute ---------- */
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;const solo=b.dataset.tab==='solo';[...$('#tabs').children].forEach(x=>x.classList.toggle('active',x===b));$('#soloView').classList.toggle('hidden',!solo);$('#partyView').classList.toggle('hidden',solo);
