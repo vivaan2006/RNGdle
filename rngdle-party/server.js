@@ -8,7 +8,11 @@ import { networkInterfaces } from "os";
 const R = globalThis.RNGDLE;
 
 const PORT = Number(process.env.PORT || 3000);
-const PER_DIGIT = 1100, LAST_EXTRA = 900;  // must match index.html
+// All of these must match index.html — the server holds the round open for as
+// long as the clients spend animating it.
+const PER_DIGIT = 1100, LAST_EXTRA = 900;
+const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
+const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js" };
 
 const rooms = new Map();     // code -> room
@@ -29,16 +33,36 @@ function stateMsg(room){
     })) };
 }
 function pushState(room){ broadcast(room, stateMsg(room)); }
-function genRoll(){ const r=R.roll(); return { number:r.number, score:r.totalScore, pct:r.percentile, rarity:r.cardRarity }; }
+function genRoll(){ const r=R.roll();
+  // tiers stay server-side: they only size the reveal window. Clients rebuild the
+  // badges themselves from the number, so nothing extra goes over the wire.
+  const tiers = r.badges.filter(b=>b.isScoring).sort((a,b)=>a.score-b.score).map(b=>R.getBadgeRarityTier(b.score));
+  return { number:r.number, score:r.totalScore, pct:r.percentile, rarity:r.cardRarity, tiers }; }
+
+/* How long the clients will spend on this round: digits, then the shared badge
+   schedule (step k waits on the rarest badge any player lands at k), then the
+   rarity payoff. Mirrors renderBreakdown()/hostReveal() in index.html. */
+function revealMs(pendings){
+  const maxLen = Math.max(1, ...pendings.map(p=>String(p.number).length));
+  const tiers  = pendings.map(p=>p.tiers||[]);
+  const steps  = Math.max(0, ...tiers.map(t=>t.length));
+  let badges = steps ? BADGE_LEAD : 0;
+  for(let k=0;k<steps;k++){
+    let hold=0;
+    for(const t of tiers) if(k<t.length) hold=Math.max(hold, RARITY_ORDER.indexOf(t[k]));
+    badges += BADGE_GAP + Math.max(0,hold)*BADGE_RARITY_HOLD;
+  }
+  return maxLen*PER_DIGIT + LAST_EXTRA + badges + PAYOFF_HOLD;
+}
 
 function beginReveal(room){
   if(room.phase!=="collecting") return;
   room.phase="revealing";
-  let maxLen=1;
-  for(const p of room.players.values()){ if(p.pending){ p.last=p.pending; maxLen=Math.max(maxLen,String(p.pending.number).length); } }
+  const pendings=[];
+  for(const p of room.players.values()){ if(p.pending){ p.last=p.pending; pendings.push(p.pending); } }
   pushState(room);
   clearTimeout(room.revealTimer);
-  room.revealTimer=setTimeout(()=>endReveal(room), maxLen*PER_DIGIT + LAST_EXTRA + 700);
+  room.revealTimer=setTimeout(()=>endReveal(room), (pendings.length?revealMs(pendings):0) + 700);
 }
 function endReveal(room){
   for(const p of room.players.values()){ if(p.pending){ p.score+=p.pending.score; p.rolls++; p.pending=null; } p.ready=false; }

@@ -43,6 +43,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .digits{font-size:clamp(38px,10.5vw,66px);font-weight:700;letter-spacing:3px;line-height:1;display:inline-flex}
 .slot{display:inline-block;min-width:.64em;text-align:center;transition:transform .12s ease,color .2s}
 .slot.spinning{color:var(--prose-3);opacity:.5;filter:blur(.4px)}
+.slot.idle{color:var(--prose-3);opacity:.35}
 .slot.justlocked{transform:translateY(-6px) scale(1.16)}
 .rarityrow{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;flex-wrap:wrap;min-height:22px}
 .pill{font-size:11px;font-weight:700;letter-spacing:.6px;padding:3px 9px;border-radius:5px;border:1px solid}
@@ -191,6 +192,15 @@ body.revealing #localGame > .rollbar,
 body.revealing #lpWinner,
 body.revealing #localGame > .panel,
 body.revealing #localGame > .center,
+body.revealing #hostGame > .roundtag,
+body.revealing #hostGame > .center,
+body.revealing #hostGame > .panel,
+body.revealing #hWinner,
+body.revealing #playerGame > .statusbig,
+body.revealing #playerGame .rollbar,
+body.revealing #playerGame > .panel,
+body.revealing #playerGame .eprow,
+body.revealing #pWinner,
 body.revealing .foot{display:none}
 @keyframes fadeup{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 body:not(.revealing) #soloView .eprow,
@@ -209,9 +219,11 @@ body:not(.revealing) #localGame > .center{animation:fadeup .42s ease both}
 /* Local party runs wide: the 720px reading column can't fit badge cards side by
    side. While the local game is on screen, let it use the full display. */
 body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .wrap,
-body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(1600px,96vw)}
-#localGame .grid{grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
-#localGame .pcard{padding:18px}
+body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar,
+body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .wrap,
+body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(1600px,96vw)}
+#localGame .grid,#hGrid{grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
+#localGame .pcard,#hGrid .pcard{padding:18px}
 
 /* Per-player badge lists in local party — same reveal, denser so cards stay readable side by side. */
 .pbreak{margin-top:12px;text-align:left}
@@ -394,6 +406,7 @@ body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(16
             <div class="rarityrow" id="pRarity"></div>
             <div class="eprow"><div class="eptotal"><span id="pEP">0</span><span class="ep">EP THIS ROLL</span></div></div>
           </div>
+          <div class="pbreak" id="pBreak"></div>
           <div class="statusbig" id="pStatus">Get ready…</div>
           <div class="rollbar"><button class="rollbtn big" id="pRoll">TAP TO ROLL</button></div>
           <div class="panel"><h3>Leaderboard</h3><div class="minilb" id="pLb"></div></div>
@@ -468,6 +481,13 @@ function cancelBreakdown(){ breakdownRun++; }
    of truth — the party schedule below indexes into exactly this order. */
 function revealOrder(result){ return result.badges.filter(b=>b.isScoring).slice().sort((a,b)=>a.score-b.score); }
 function stepGap(tier){ return BADGE_GAP + Math.max(0,RARITY_ORDER.indexOf(tier))*BADGE_RARITY_HOLD; }
+/* One schedule for a whole round: step k waits on the rarest badge any player
+   lands at step k, so every card drops its k-th badge at the same instant. */
+function sharedSchedule(results){
+  const tiers=results.map(r=>revealOrder(r).map(b=>R.getBadgeRarityTier(b.score)));
+  const steps=Math.max(0,...tiers.map(t=>t.length));
+  return Array.from({length:steps},(_,k)=>Math.max(...tiers.map(t=>k<t.length?stepGap(t[k]):0)));
+}
 
 /* Reveals the badges one at a time, each with a rarity-scaled chime.
    Resolves true when the last badge has landed, false if a newer roll cancelled it. */
@@ -577,6 +597,14 @@ async function doSoloRoll(){
   $('#stRolls').textContent=solo.rolls; $('#stLifetime').textContent=solo.lifetime.toLocaleString();
   $('#stBest').textContent=solo.best.toLocaleString(); $('#stRare').textContent=solo.bestRarity?R.RARITY_PALETTE[solo.bestRarity].pill.label:'—';
 }
+/* Resting state before the first roll: placeholder digits, nothing revealed. */
+function soloIdle(){
+  $('#soloDigits').innerHTML='';
+  '——————'.split('').forEach(ch=>{ const sp=document.createElement('span'); sp.className='slot mono idle'; sp.textContent=ch; $('#soloDigits').appendChild(sp); });
+  $('#soloRarity').innerHTML=''; $('#soloBreakdown').innerHTML=''; $('#soloEP').textContent='0';
+  $('#soloCard').style.boxShadow='none'; $('#soloCard').style.borderColor='var(--outline)';
+  $('#soloRoll').textContent='ROLL';
+}
 $('#soloRoll').addEventListener('click',doSoloRoll);
 
 /* ================= LOCAL PARTY (simultaneous) ================= */
@@ -622,10 +650,7 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   // card would drift apart, since a rarer badge holds longer than a common one. So
   // build ONE schedule up front: step k waits on the rarest badge any player is
   // landing at step k, and every card uses it. Shorter lists simply run out early.
-  const tiersPerPlayer=LP.players.map(p=>revealOrder(results[p.name]).map(b=>R.getBadgeRarityTier(b.score)));
-  const steps=Math.max(0,...tiersPerPlayer.map(t=>t.length));
-  const schedule=Array.from({length:steps},(_,k)=>
-    Math.max(...tiersPerPlayer.map(t=>k<t.length?stepGap(t[k]):0)));
+  const schedule=sharedSchedule(LP.players.map(p=>results[p.name]));
   await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false,schedule})));
   // apply
   let best=null;
@@ -699,8 +724,8 @@ function hostRender(s){
   if(NET.prevPhase==='lobby' || grid.children.length!==s.players.length || s.phase==='revealing' && grid.dataset.round!==String(s.round)){
     grid.innerHTML=''; NET.hostCards={};
     s.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
-      card.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div><div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px;min-height:0"></div><div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div><span class="readytag"></span>`;
-      grid.appendChild(card); NET.hostCards[p.pid]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rr:card.querySelector('.rr'),rank:card.querySelector('.prank'),ready:card.querySelector('.readytag')}; });
+      card.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div><div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px;min-height:0"></div><div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div><div class="pbreak"></div><span class="readytag"></span>`;
+      grid.appendChild(card); NET.hostCards[p.pid]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rr:card.querySelector('.rr'),rank:card.querySelector('.prank'),ready:card.querySelector('.readytag'),brk:card.querySelector('.pbreak')}; });
     grid.dataset.round=String(s.round);
   }
   const ranked=[...s.players].sort((a,b)=>b.score-a.score); const rankOf={}; ranked.forEach((p,i)=>rankOf[p.pid]=i+1);
@@ -720,13 +745,32 @@ function hostRender(s){
   else $('#hWinner').innerHTML='';
   hostLb(s);
 }
-function hostReveal(s){
-  const maxLen=Math.max(1,...s.players.map(p=>String(p.lastNumber||0).length));
+/* Same beats as local party: numbers, then badges in lockstep, then the payoff.
+   Badges are rebuilt from each player's number — the engine is deterministic, so
+   every device derives the identical list without the server sending it. */
+async function hostReveal(s){
+  const live=s.players.filter(p=>p.lastNumber!=null && NET.hostCards[p.pid]);
+  if(!live.length) return;
+  cancelBreakdown();
+  document.body.classList.add('revealing');
+  const results={}; live.forEach(p=>results[p.pid]=R.roll(p.lastNumber));
+  live.forEach(p=>{ const c=NET.hostCards[p.pid];
+    c.rar.innerHTML=''; c.rar.classList.remove('reveal'); c.brk.innerHTML='';
+    c.el.style.boxShadow='none'; c.el.style.borderColor='var(--card-line)'; });
+  const maxLen=Math.max(1,...live.map(p=>String(p.lastNumber).length));
   SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i),(i+1)*PER_DIGIT);
-  Promise.all(s.players.map(p=>{ const c=NET.hostCards[p.pid]; if(!c||p.lastNumber==null)return Promise.resolve();
-    c.rar.innerHTML=''; c.el.style.boxShadow='none'; c.el.style.borderColor='var(--card-line)';
-    return revealNumber(c.num,p.lastNumber,{sound:false}).then(()=>{ applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); c.rr.textContent=`+${(p.lastScore||0).toLocaleString()}`; });
-  })).then(()=>{ SFX.spinStop(); let best='common'; s.players.forEach(p=>{if(p.lastRarity&&RARITY_ORDER.indexOf(p.lastRarity)>RARITY_ORDER.indexOf(best))best=p.lastRarity;}); SFX.win(best); });
+  await Promise.all(live.map(p=>revealNumber(NET.hostCards[p.pid].num,p.lastNumber,{sound:false})));
+  SFX.spinStop();
+  const schedule=sharedSchedule(live.map(p=>results[p.pid]));
+  await Promise.all(live.map(p=>renderBreakdown(results[p.pid],NET.hostCards[p.pid].brk,{header:false,schedule})));
+  let best='common';
+  live.forEach(p=>{ const c=NET.hostCards[p.pid];
+    applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); c.rar.classList.add('reveal');
+    c.rr.textContent=`+${(p.lastScore||0).toLocaleString()}`;
+    if(p.lastRarity&&RARITY_ORDER.indexOf(p.lastRarity)>RARITY_ORDER.indexOf(best))best=p.lastRarity; });
+  SFX.win(best);
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  if(gen===breakdownRun) document.body.classList.remove('revealing');
 }
 function hostLb(s){ const lb=$('#hLb');lb.innerHTML=''; [...s.players].sort((a,b)=>b.score-a.score).forEach((p,i)=>{const row=document.createElement('div');row.className='lbrow';if(i===0&&p.score>0)row.classList.add('lead');row.innerHTML=`<div class="rank ${i===0?'crown':''}">${i===0?'👑':i+1}</div>${avatarHtml(p)}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${p.rolls} roll${p.rolls===1?'':'s'}</div></div><div class="sc"><div class="n">${p.score.toLocaleString()}</div><div class="u">EP</div></div>`;lb.appendChild(row);}); }
 function hostWinner(s){ const w=s.players.slice().sort((a,b)=>b.score-a.score); const top=w[0]; const tie=w.filter(p=>p.score===top.score); $('#hWinner').innerHTML=`<div class="winner pop"><div class="t">${tie.length>1?"IT'S A TIE":'WINNER'}</div><div class="n" style="color:${top.color}">${tie.map(p=>escapeHtml(p.name)).join(' & ')} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win('mythic'); }
@@ -757,11 +801,22 @@ function playerRender(s){
   // mini leaderboard
   const lb=$('#pLb');lb.innerHTML=''; ranked.forEach((p,i)=>{const row=document.createElement('div');row.className='minirow';row.innerHTML=`<span class="rank ${i===0?'crown':''}" style="width:18px">${i===0?'👑':i+1}</span>${avatarHtml(p,'s')}<span>${escapeHtml(p.name)}${p.pid===NET.pid?' (you)':''}</span><span class="msc">${p.score.toLocaleString()}</span>`;lb.appendChild(row);});
 }
-function playerReveal(s){
-  const me=s.players.find(p=>p.pid===NET.pid); if(!me||me.lastNumber==null){ // player rolled nothing? still animate others silently
-     return; }
-  $('#pRarity').innerHTML=''; $('#pCard').style.boxShadow='none'; $('#pCard').style.borderColor='var(--outline)'; $('#pEP').textContent='0';
-  revealNumber($('#pDigits'),me.lastNumber,{sound:true}).then(()=>{ applyCardRarity($('#pCard'),me.lastRarity); showRarity($('#pRarity'),me.lastRarity,me.lastPct); $('#pEP').textContent=(me.lastScore||0).toLocaleString(); SFX.win(me.lastRarity); });
+async function playerReveal(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me||me.lastNumber==null) return;
+  cancelBreakdown();
+  document.body.classList.add('revealing');
+  $('#pRarity').innerHTML=''; $('#pRarity').classList.remove('reveal'); $('#pBreak').innerHTML='';
+  $('#pCard').style.boxShadow='none'; $('#pCard').style.borderColor='var(--outline)'; $('#pEP').textContent='0';
+  await revealNumber($('#pDigits'),me.lastNumber,{sound:true});
+  // Use the whole room's schedule, not just mine, so this phone stays locked to
+  // the host screen even though it only shows one player's badges.
+  const mine=R.roll(me.lastNumber);
+  const schedule=sharedSchedule(s.players.filter(p=>p.lastNumber!=null).map(p=>R.roll(p.lastNumber)));
+  await renderBreakdown(mine,$('#pBreak'),{header:false,schedule});
+  applyCardRarity($('#pCard'),me.lastRarity); showRarity($('#pRarity'),me.lastRarity,me.lastPct); $('#pRarity').classList.add('reveal');
+  $('#pEP').textContent=(me.lastScore||0).toLocaleString(); SFX.win(me.lastRarity);
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  if(gen===breakdownRun) document.body.classList.remove('revealing');
 }
 $('#pRoll').addEventListener('click',()=>{ SFX.resume(); NET.send({type:'rollReady'}); $('#pRoll').disabled=true; });
 
@@ -846,7 +901,7 @@ if(roomParam){ // go straight to join
   $('#partyChoose').classList.add('hidden'); $('#onlineParty').classList.remove('hidden');
   startJoin(roomParam.toUpperCase()); $('#jName').focus();
 } else {
-  doSoloRoll(); // seed the solo screen
+  soloIdle();   // wait for the player to press ROLL rather than spending a roll for them
 }
 </script>
 </body>
