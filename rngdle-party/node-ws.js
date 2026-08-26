@@ -5,7 +5,7 @@
 
 import { createServer } from "http";
 import { createHash } from "crypto";
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { extname } from "path";
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -117,8 +117,19 @@ export function serve({ port, staticFiles, open, message, close }) {
     const file = staticFiles[path];
     if (!file) { res.writeHead(404).end("Not found"); return; }
     try {
-      const body = await readFile(new URL(file, import.meta.url));
-      res.writeHead(200, { "content-type": MIME[extname(file)] || "application/octet-stream" }).end(body);
+      // Always revalidate. Without this browsers heuristically cache index.html and
+      // keep serving a stale copy while you're editing it. The ETag still lets an
+      // unchanged engine.js (~1MB) come back as a 304 instead of a re-download.
+      const url = new URL(file, import.meta.url);
+      const { mtimeMs, size } = await stat(url);
+      const etag = `W/"${size.toString(16)}-${Math.round(mtimeMs).toString(16)}"`;
+      const headers = {
+        "content-type": MIME[extname(file)] || "application/octet-stream",
+        "cache-control": "no-cache",
+        etag
+      };
+      if (req.headers["if-none-match"] === etag) { res.writeHead(304, headers).end(); return; }
+      res.writeHead(200, headers).end(await readFile(url));
     } catch {
       res.writeHead(404).end("Not found");
     }

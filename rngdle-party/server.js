@@ -123,7 +123,7 @@ if (globalThis.Bun) {
       const url=new URL(req.url);
       if(url.pathname==="/ws"){ if(server.upgrade(req)) return; return new Response("upgrade failed",{status:426}); }
       const file = STATIC[url.pathname];
-      if(file) return new Response(Bun.file(file));
+      if(file) return new Response(Bun.file(file), {headers:{"cache-control":"no-cache"}});  // else edits look stale in the browser
       return new Response("Not found",{status:404});
     },
     websocket:{ open:onOpen, message:onMessage, close:onClose }
