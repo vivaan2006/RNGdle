@@ -166,6 +166,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .badgeslot{display:grid;grid-template-rows:0fr;transition:grid-template-rows .40s cubic-bezier(.2,.85,.3,1)}
 .badgeslot.open{grid-template-rows:1fr}
 .badgeslotinner{overflow:hidden;min-height:0}
+.badgeslot.grown .badgeslotinner{overflow:visible}   /* once grown, let tooltips escape the slot */
 @keyframes dropin{
   0%  {opacity:0;transform:translateY(-30px) scale(.93);filter:blur(4px)}
   55% {opacity:1;transform:translateY(5px)   scale(1.025);filter:blur(0)}
@@ -215,6 +216,22 @@ body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .hbar{max-width:min(16
 .pbreak .badge .name{font-size:12.5px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
 .pbreak .badge .epv{font-size:12px}
 .pbreak .digcell{width:24px;height:29px;font-size:14px}
+
+/* Description tooltip. Solo shows the description inline, so the icon is party-only. */
+.info{display:none}
+.pbreak .info{display:inline-block;position:relative;cursor:help;color:var(--prose-3);font-size:13px;line-height:1;flex:none}
+.pbreak .info:hover,.pbreak .info:focus{color:var(--foreground);outline:none}
+.info .tip{position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(4px);
+  background:var(--surface-raised);border:1px solid var(--outline);border-radius:9px;padding:9px 11px;
+  font-size:11.5px;line-height:1.4;font-weight:500;letter-spacing:0;text-transform:none;color:var(--prose-2);
+  width:max-content;max-width:220px;text-align:left;white-space:normal;
+  opacity:0;visibility:hidden;transition:opacity .16s ease,transform .16s ease;
+  z-index:70;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.info .tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:var(--outline)}
+.info:hover .tip,.info:focus .tip{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+/* lift the whole card so a tooltip can't slide under a neighbouring one */
+.pcard:has(.info:hover),.pcard:has(.info:focus){z-index:60}
 
 /* The payoff: rarity + percentile land last, a little larger, with a pop. */
 #soloRarity{gap:14px;min-height:30px}
@@ -432,41 +449,52 @@ function contributorIndices(id,number){ let c; try{c=R.getBadgeContributors(id,n
 function digitRow(number,hi,tier){ const wrap=document.createElement('div');wrap.className='digrow'; const pal=R.RARITY_PALETTE[tier]; String(number).split('').forEach((d,i)=>{ const cell=document.createElement('div');cell.className='digcell mono';cell.textContent=d; if(hi.has(i)){cell.style.background=pal.highlight.primary;cell.style.color=pal.hex.text;} wrap.appendChild(cell); }); return wrap; }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 /* Wraps a badge card in a collapsible slot; `open` starts it fully expanded. */
-function slotFor(card,open){ const slot=document.createElement('div'); slot.className='badgeslot'+(open?' open':'');
+function slotFor(card,open){ const slot=document.createElement('div'); slot.className='badgeslot'+(open?' open grown':'');
   const inner=document.createElement('div'); inner.className='badgeslotinner'; inner.appendChild(card); slot.appendChild(inner); return slot; }
 let breakdownRun=0;   // bumped on every roll so a stale reveal can't bleed into the next one
 function cancelBreakdown(){ breakdownRun++; }
+/* The order badges land in: worst first, so the best ends up on top. Single source
+   of truth — the party schedule below indexes into exactly this order. */
+function revealOrder(result){ return result.badges.filter(b=>b.isScoring).slice().sort((a,b)=>a.score-b.score); }
+function stepGap(tier){ return BADGE_GAP + Math.max(0,RARITY_ORDER.indexOf(tier))*BADGE_RARITY_HOLD; }
 
 /* Reveals the badges one at a time, each with a rarity-scaled chime.
    Resolves true when the last badge has landed, false if a newer roll cancelled it. */
 async function renderBreakdown(result,container,opts={}){
-  const {stagger=true,header=true}=opts;
+  const {stagger=true,header=true,schedule=null}=opts;
   const run=breakdownRun;   // shared token: parallel per-player reveals must not cancel each other
-  container.innerHTML=''; const badges=result.badges; const scoring=badges.filter(b=>b.isScoring),nested=badges.filter(b=>!b.isScoring);
+  container.innerHTML=''; const badges=result.badges; const scoring=revealOrder(result),nested=badges.filter(b=>!b.isScoring);
   if(header){const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';container.appendChild(h);}
   const s=document.createElement('div');s.className='bksub';s.textContent=`${badges.length} BADGE${badges.length===1?'':'S'} EARNED`;container.appendChild(s);
   if(stagger) s.classList.add('pending');   // the tally is a spoiler while they're still landing
+  // scoring is already worst-first (see revealOrder): each better badge drops in
+  // above the others and pushes them down, so the list ends sorted best-first.
   const cards=scoring.map(b=>buildBadgeCard(b,nested,result));
   if(!stagger){ cards.forEach(c=>{c.el.classList.add('pop');container.appendChild(slotFor(c.el,true));}); return true; }
-  // Reveal worst first; each better badge drops in above the others and pushes them
-  // down, so the list builds upward and ends sorted best-first.
-  cards.sort((a,b)=>a.score-b.score);
   await sleep(BADGE_LEAD);
-  for(const c of cards){
+  for(let i=0;i<cards.length;i++){
+    const c=cards[i];
     if(run!==breakdownRun) return false;                 // a newer roll took over
     c.el.classList.add('dropin');
     const slot=slotFor(c.el,false);
     container.insertBefore(slot, container.querySelector('.badgeslot'));   // null → appends (first badge)
     requestAnimationFrame(()=>requestAnimationFrame(()=>slot.classList.add('open')));  // let 0fr paint, then grow
+    slot.addEventListener('transitionend',()=>slot.classList.add('grown'),{once:true}); // release overflow so tooltips can escape
     SFX.badge(c.tier);
-    await sleep(BADGE_GAP + Math.max(0,RARITY_ORDER.indexOf(c.tier))*BADGE_RARITY_HOLD);
+    // A shared schedule keeps every player's k-th badge landing at the same instant.
+    await sleep(schedule ? schedule[i] : stepGap(c.tier));
   }
   if(run!==breakdownRun) return false;
   s.classList.remove('pending'); s.classList.add('counted');   // now the tally can land
   return true;
 }
 function buildBadgeCard(b,nested,result){ const tier=R.getBadgeRarityTier(b.score),pal=R.RARITY_PALETTE[tier]; const card=document.createElement('div');card.className='badge';card.style.borderColor=hexA(pal.highlight.border,.35);
-    const top=document.createElement('div');top.className='top';top.innerHTML=`<span class="emoji">${b.emoji||'🎖️'}</span><span class="name">${escapeHtml(b.label)}</span>`;top.appendChild(rarityPill(tier));const ep=document.createElement('span');ep.className='epv';ep.textContent=`+${b.score.toLocaleString()} EP`;top.appendChild(ep);card.appendChild(top);
+    const top=document.createElement('div');top.className='top';top.innerHTML=`<span class="emoji">${b.emoji||'🎖️'}</span><span class="name">${escapeHtml(b.label)}</span>`;top.appendChild(rarityPill(tier));
+    // Party cards are too narrow for the description, so it lives behind this icon.
+    // tabindex makes it reachable by tap and keyboard, not just hover.
+    if(b.description){const info=document.createElement('span');info.className='info';info.tabIndex=0;info.setAttribute('role','button');info.setAttribute('aria-label',`What ${b.label} means`);
+      info.innerHTML=`<span aria-hidden="true">ⓘ</span><span class="tip">${escapeHtml(b.description)}</span>`;top.appendChild(info);}
+    const ep=document.createElement('span');ep.className='epv';ep.textContent=`+${b.score.toLocaleString()} EP`;top.appendChild(ep);card.appendChild(top);
     const desc=document.createElement('div');desc.className='desc';desc.textContent=b.description||'';card.appendChild(desc);
     card.appendChild(digitRow(result.number,contributorIndices(b.id,result.number),tier));
     const kids=nested.filter(n=>n.family&&b.family&&n.family===b.family);
@@ -579,9 +607,15 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT);
   await Promise.all(LP.players.map(p=>revealNumber(LP.cards[p.name].num, results[p.name].number, {sound:false})));
   SFX.spinStop();
-  // Everyone's badges climb at the same time, exactly like solo. One shared sound
-  // track (the loudest rarity of the round) so N players don't stack into noise.
-  await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false})));
+  // Everyone's badges climb at the same time, exactly like solo. Left to itself each
+  // card would drift apart, since a rarer badge holds longer than a common one. So
+  // build ONE schedule up front: step k waits on the rarest badge any player is
+  // landing at step k, and every card uses it. Shorter lists simply run out early.
+  const tiersPerPlayer=LP.players.map(p=>revealOrder(results[p.name]).map(b=>R.getBadgeRarityTier(b.score)));
+  const steps=Math.max(0,...tiersPerPlayer.map(t=>t.length));
+  const schedule=Array.from({length:steps},(_,k)=>
+    Math.max(...tiersPerPlayer.map(t=>k<t.length?stepGap(t[k]):0)));
+  await Promise.all(LP.players.map(p=>renderBreakdown(results[p.name],LP.cards[p.name].brk,{header:false,schedule})));
   // apply
   let best=null;
   LP.players.forEach(p=>{ const r=results[p.name],c=LP.cards[p.name]; p.score+=r.totalScore;p.rolls++;
