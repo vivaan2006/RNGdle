@@ -1,5 +1,5 @@
 // RNGdle Party — online (Jackbox-style) server.
-// Run with:  bun server.js
+// Run with:  bun server.js   (or)   node server.js
 // Serves the static app and runs realtime rooms. Rolls are generated
 // server-side with the SAME extracted engine so every screen stays in sync.
 
@@ -112,27 +112,32 @@ function handleClose(ws){
   }
 }
 
-const server = Bun.serve({
-  port: PORT,
-  fetch(req){
-    const url=new URL(req.url);
-    if(url.pathname==="/ws"){ if(server.upgrade(req)) return; return new Response("upgrade failed",{status:426}); }
-    const file = STATIC[url.pathname];
-    if(file) return new Response(Bun.file(file));
-    return new Response("Not found",{status:404});
-  },
-  websocket:{
-    open(ws){ meta.set(ws,{}); },
-    message(ws,msg){ try{ handle(ws, JSON.parse(msg)); }catch(e){ /* ignore bad frames */ } },
-    close(ws){ handleClose(ws); }
-  }
-});
+const onOpen    = ws => { meta.set(ws,{}); };
+const onMessage = (ws,msg) => { try{ handle(ws, JSON.parse(msg)); }catch(e){ /* ignore bad frames */ } };
+const onClose   = ws => { handleClose(ws); };
+
+if (globalThis.Bun) {
+  var server = Bun.serve({
+    port: PORT,
+    fetch(req){
+      const url=new URL(req.url);
+      if(url.pathname==="/ws"){ if(server.upgrade(req)) return; return new Response("upgrade failed",{status:426}); }
+      const file = STATIC[url.pathname];
+      if(file) return new Response(Bun.file(file));
+      return new Response("Not found",{status:404});
+    },
+    websocket:{ open:onOpen, message:onMessage, close:onClose }
+  });
+} else {
+  const { serve } = await import("./node-ws.js");
+  serve({ port:PORT, staticFiles:STATIC, open:onOpen, message:onMessage, close:onClose });
+}
 
 // print addresses
 const ips=[];
 const nifs=networkInterfaces();
 for(const name of Object.keys(nifs)){ for(const ni of nifs[name]||[]){ if(ni.family==="IPv4" && !ni.internal) ips.push(ni.address); } }
-console.log("\n🎲  RNGdle Party server running\n");
+console.log("\n🎲  RNGdle Party server running on "+(globalThis.Bun?"Bun":"Node "+process.version)+"\n");
 console.log("   Host screen (this machine):  http://localhost:"+PORT);
 for(const ip of ips) console.log("   Friends on same Wi-Fi join:  http://"+ip+":"+PORT);
 console.log("\n   Open the host link, click Party → Online → Host. Share the room code.\n");

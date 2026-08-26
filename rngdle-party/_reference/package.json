@@ -1,0 +1,4 @@
+{
+  "//": "These provenance/extraction scripts are CommonJS (they use require). The parent package is type:module, so this file keeps them running as CJS.",
+  "type": "commonjs"
+}

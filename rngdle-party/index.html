@@ -265,7 +265,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
               <div class="seg" id="hRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div></div>
           </div>
           <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="grid" id="hLobbyGrid"></div>
-            <div class="small mt8">Waiting for players to join…</div></div>
+            <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
           <button class="bigbtn" id="hStart" disabled>Start Party 🎲</button>
         </div>
         <div id="hostGame" class="hidden">
@@ -505,6 +505,7 @@ function hostRender(s){
   if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden');
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
     const g=$('#hLobbyGrid');g.innerHTML=''; s.players.forEach(p=>{const c=document.createElement('div');c.className='pcard';c.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span></div>`;g.appendChild(c);});
+    $('#hLobbyHint').textContent=s.players.length<1?'Waiting for players to join…':`${s.players.length} player${s.players.length===1?'':'s'} in — start whenever you're ready.`;
     $('#hStart').disabled=s.players.length<1; $('#hStart').textContent=s.players.length<1?'Waiting for players…':`Start Party 🎲 (${s.players.length})`;
     return;
   }

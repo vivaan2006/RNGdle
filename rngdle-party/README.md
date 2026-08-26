@@ -24,7 +24,12 @@ The scoring engine (`engine.js`) is the **original rngdle.com code**, extracted 
 Just open `index.html` — double-click it, or serve the folder any way you like. Everything runs in the browser.
 
 ### Online party (Jackbox-style) — needs the server
-Requires [Bun](https://bun.sh) (already installed on this machine):
+Runs on **Node 18+** or **[Bun](https://bun.sh)** — no dependencies to install either way:
+
+```bash
+cd rngdle-party
+node server.js
+```
 
 ```bash
 cd rngdle-party
@@ -62,6 +67,7 @@ Mute sound anytime with the 🔊 button.
 ```
 index.html   – the app (solo, local party, online host + phone views, reveal + sound)
 engine.js    – the extracted rngdle scoring engine (self-contained, ~1 MB incl. the percentile CDF)
-server.js    – Bun WebSocket server for online play (serves the app + runs rooms)
+server.js    – WebSocket server for online play (serves the app + runs rooms); Bun or Node
+node-ws.js   – tiny zero-dependency WebSocket + static server, used when running under Node
 _reference/  – provenance: original bundles + the extraction/validation scripts (safe to delete)
 ```
