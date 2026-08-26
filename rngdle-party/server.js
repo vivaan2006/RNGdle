@@ -8,7 +8,7 @@ import { networkInterfaces } from "os";
 const R = globalThis.RNGDLE;
 
 const PORT = Number(process.env.PORT || 3000);
-const PER_DIGIT = 520, LAST_EXTRA = 360;   // must match index.html
+const PER_DIGIT = 1100, LAST_EXTRA = 900;  // must match index.html
 const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js" };
 
 const rooms = new Map();     // code -> room

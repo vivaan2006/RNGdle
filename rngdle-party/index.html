@@ -161,6 +161,47 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .foot{text-align:center;color:var(--prose-3);font-size:11px;margin-top:40px;line-height:1.6}
 @keyframes pop{0%{transform:scale(.96);opacity:.4}100%{transform:scale(1);opacity:1}}
 .pop{animation:pop .28s ease}
+/* A new best badge drops in at the top. The slot animates its own height from
+   0, so the badges already on screen get physically pushed down. */
+.badgeslot{display:grid;grid-template-rows:0fr;transition:grid-template-rows .40s cubic-bezier(.2,.85,.3,1)}
+.badgeslot.open{grid-template-rows:1fr}
+.badgeslotinner{overflow:hidden;min-height:0}
+@keyframes dropin{
+  0%  {opacity:0;transform:translateY(-30px) scale(.93);filter:blur(4px)}
+  55% {opacity:1;transform:translateY(5px)   scale(1.025);filter:blur(0)}
+  78% {transform:translateY(-3px) scale(.995)}
+  100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}
+}
+.dropin{animation:dropin .52s cubic-bezier(.22,.9,.3,1.05) both}
+
+/* Focus mode: while the number rolls and badges land, everything except the
+   top bar, the number and the badges gets out of the way. */
+body.revealing #soloView .eprow,
+body.revealing #soloView .rollbar,
+body.revealing #soloView .stats,
+body.revealing .foot{display:none}
+@keyframes fadeup{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+body:not(.revealing) #soloView .eprow,
+body:not(.revealing) #soloView .rollbar,
+body:not(.revealing) #soloView .stats{animation:fadeup .42s ease both}
+
+/* The badge tally is a spoiler while badges are still landing. */
+.bksub.pending{opacity:0}
+@keyframes countin{0%{opacity:0;transform:translateY(-5px)}100%{opacity:1;transform:translateY(0)}}
+.bksub.counted{animation:countin .42s ease both}
+
+/* The payoff: rarity + percentile land last, a little larger, with a pop. */
+#soloRarity{gap:14px;min-height:30px}
+#soloRarity .pill{font-size:14px;padding:5px 13px;border-radius:7px;letter-spacing:.7px}
+#soloRarity .pctlabel{font-size:17px}
+#soloRarity .dot{width:6px;height:6px}
+@keyframes rarityin{
+  0%  {opacity:0;transform:scale(.66) translateY(8px)}
+  58% {opacity:1;transform:scale(1.16) translateY(0)}
+  80% {transform:scale(.975)}
+  100%{opacity:1;transform:scale(1)}
+}
+#soloRarity.reveal{animation:rarityin .60s cubic-bezier(.2,.9,.3,1.15) both}
 .err{background:#ef444422;border:1px solid #ef444455;color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px;text-align:center}
 </style>
 </head>
@@ -318,7 +359,11 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 <script>
 const R = window.RNGDLE;
 const $ = s => document.querySelector(s);
-const PER_DIGIT = 520, LAST_EXTRA = 360;   // reveal timing (shared with server)
+const PER_DIGIT = 1100, LAST_EXTRA = 900;  // reveal timing (shared with server)
+const BADGE_LEAD = 750;                    // beat between the last digit locking and the first badge
+const BADGE_GAP  = 520;                    // base pause between badges
+const BADGE_RARITY_HOLD = 170;             // extra pause per rarity step, so rarer badges hold the moment
+const PAYOFF_HOLD = 1200;                  // solo: let rarity + percentile sit alone before the UI returns
 const AVATAR_COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const famOf = {}; R.BADGE_DEFINITIONS.forEach(b => famOf[b.id] = b.family);
@@ -334,7 +379,15 @@ const SFX = (function(){
   function stopSpin(){ if(spinTimer){clearInterval(spinTimer);spinTimer=null;} }
   function lock(i){ if(muted)return; const base=150+i*46; blip(base,.10,'square',.13); setTimeout(()=>blip(base*2,.05,'triangle',.05),8); }
   function win(rarity){ if(muted)return; const idx=Math.max(0,RARITY_ORDER.indexOf(rarity)); const notes=[523,659,784,988,1175,1319,1568]; const count=Math.min(2+idx,7); for(let k=0;k<count;k++) setTimeout(()=>blip(notes[Math.min(k,notes.length-1)],.20,'triangle',.12),k*85); if(idx>=4){ setTimeout(()=>blip(1568,.5,'sawtooth',.06),count*85);} }
-  return { spinStart, spinStop:stopSpin, lock, win, resume:ac,
+  /* one badge landing — richer and brighter the rarer it is */
+  function badge(tier){ if(muted)return; const idx=Math.max(0,RARITY_ORDER.indexOf(tier));
+    const root=[196,247,294,370,440,554,659][idx];
+    blip(root,.13+idx*.03,'triangle',.085);                                   // body
+    setTimeout(()=>blip(root*1.5,.15+idx*.04,'triangle',.065),55);            // fifth above
+    if(idx>=3) [1,1.25,1.5,2].forEach((m,k)=>setTimeout(()=>blip(root*2*m,.12,'sine',.05),95+k*70));  // rare+: sparkle arpeggio
+    if(idx>=5) setTimeout(()=>blip(root*4,.45,'sawtooth',.035),300);          // anomaly/mythic: shimmer tail
+  }
+  return { spinStart, spinStop:stopSpin, lock, win, badge, resume:ac,
     toggle(){ muted=!muted; localStorage.setItem('rng_mute',muted?'1':'0'); if(muted)stopSpin(); return muted; },
     isMuted:()=>muted };
 })();
@@ -345,14 +398,48 @@ function rarityPill(tier){ const p=R.RARITY_PALETTE[tier]; const el=document.cre
 function applyCardRarity(cardEl,tier){ const p=R.RARITY_PALETTE[tier]; cardEl.style.borderColor=p.highlight.border; cardEl.style.boxShadow=(tier==='common'||tier==='trash')?'none':`0 0 30px 6px ${hexA(p.highlight.border,.30)}, inset 0 0 18px ${hexA(p.highlight.primary,.12)}`; }
 function contributorIndices(id,number){ let c; try{c=R.getBadgeContributors(id,number);}catch(e){c=null;} const set=new Set(),len=String(number).length; if(!c)return set; if(c.type==='whole'){for(let i=0;i<len;i++)set.add(i);} else if(c.type==='indices'){(c.indices||[]).forEach(i=>set.add(i));} else if(c.type==='range'){for(let i=c.start;i<c.end;i++)set.add(i);} else if(c.type==='groups'){(c.groups||[]).forEach(g=>g.forEach(i=>set.add(i)));} return set; }
 function digitRow(number,hi,tier){ const wrap=document.createElement('div');wrap.className='digrow'; const pal=R.RARITY_PALETTE[tier]; String(number).split('').forEach((d,i)=>{ const cell=document.createElement('div');cell.className='digcell mono';cell.textContent=d; if(hi.has(i)){cell.style.background=pal.highlight.primary;cell.style.color=pal.hex.text;} wrap.appendChild(cell); }); return wrap; }
-function renderBreakdown(result,container){ container.innerHTML=''; const badges=result.badges; const scoring=badges.filter(b=>b.isScoring),nested=badges.filter(b=>!b.isScoring);
-  const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';const s=document.createElement('div');s.className='bksub';s.textContent=`${badges.length} BADGE${badges.length===1?'':'S'} EARNED`;container.appendChild(h);container.appendChild(s);
-  scoring.forEach(b=>{ const tier=R.getBadgeRarityTier(b.score),pal=R.RARITY_PALETTE[tier]; const card=document.createElement('div');card.className='badge pop';card.style.borderColor=hexA(pal.highlight.border,.35);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/* Wraps a badge card in a collapsible slot; `open` starts it fully expanded. */
+function slotFor(card,open){ const slot=document.createElement('div'); slot.className='badgeslot'+(open?' open':'');
+  const inner=document.createElement('div'); inner.className='badgeslotinner'; inner.appendChild(card); slot.appendChild(inner); return slot; }
+let breakdownRun=0;   // bumped on every roll so a stale reveal can't bleed into the next one
+function cancelBreakdown(){ breakdownRun++; }
+
+/* Reveals the badges one at a time, each with a rarity-scaled chime.
+   Resolves true when the last badge has landed, false if a newer roll cancelled it. */
+async function renderBreakdown(result,container,opts={}){
+  const {stagger=true}=opts;
+  const run=breakdownRun;   // shared token, bumped only by cancelBreakdown()
+  container.innerHTML=''; const badges=result.badges; const scoring=badges.filter(b=>b.isScoring),nested=badges.filter(b=>!b.isScoring);
+  const h=document.createElement('div');h.className='bkhead';h.textContent='BADGE BREAKDOWN';container.appendChild(h);
+  const s=document.createElement('div');s.className='bksub';s.textContent=`${badges.length} BADGE${badges.length===1?'':'S'} EARNED`;container.appendChild(s);
+  if(stagger) s.classList.add('pending');   // the tally is a spoiler while they're still landing
+  const cards=scoring.map(b=>buildBadgeCard(b,nested,result));
+  if(!stagger){ cards.forEach(c=>{c.el.classList.add('pop');container.appendChild(slotFor(c.el,true));}); return true; }
+  // Reveal worst first; each better badge drops in above the others and pushes them
+  // down, so the list builds upward and ends sorted best-first.
+  cards.sort((a,b)=>a.score-b.score);
+  await sleep(BADGE_LEAD);
+  for(const c of cards){
+    if(run!==breakdownRun) return false;                 // a newer roll took over
+    c.el.classList.add('dropin');
+    const slot=slotFor(c.el,false);
+    container.insertBefore(slot, container.querySelector('.badgeslot'));   // null → appends (first badge)
+    requestAnimationFrame(()=>requestAnimationFrame(()=>slot.classList.add('open')));  // let 0fr paint, then grow
+    SFX.badge(c.tier);
+    await sleep(BADGE_GAP + Math.max(0,RARITY_ORDER.indexOf(c.tier))*BADGE_RARITY_HOLD);
+  }
+  if(run!==breakdownRun) return false;
+  s.classList.remove('pending'); s.classList.add('counted');   // now the tally can land
+  return true;
+}
+function buildBadgeCard(b,nested,result){ const tier=R.getBadgeRarityTier(b.score),pal=R.RARITY_PALETTE[tier]; const card=document.createElement('div');card.className='badge';card.style.borderColor=hexA(pal.highlight.border,.35);
     const top=document.createElement('div');top.className='top';top.innerHTML=`<span class="emoji">${b.emoji||'🎖️'}</span><span class="name">${escapeHtml(b.label)}</span>`;top.appendChild(rarityPill(tier));const ep=document.createElement('span');ep.className='epv';ep.textContent=`+${b.score.toLocaleString()} EP`;top.appendChild(ep);card.appendChild(top);
     const desc=document.createElement('div');desc.className='desc';desc.textContent=b.description||'';card.appendChild(desc);
     card.appendChild(digitRow(result.number,contributorIndices(b.id,result.number),tier));
     const kids=nested.filter(n=>n.family&&b.family&&n.family===b.family);
-    if(kids.length){const kc=document.createElement('div');kc.className='children';kids.forEach(k=>{const row=document.createElement('div');row.className='child';row.innerHTML=`<span class="arm">└</span><span>${k.emoji||''}</span><span class="cname">${escapeHtml(k.label)}</span><span class="earned">(EARNED)</span>`;kc.appendChild(row);});card.appendChild(kc);} container.appendChild(card); }); }
+    if(kids.length){const kc=document.createElement('div');kc.className='children';kids.forEach(k=>{const row=document.createElement('div');row.className='child';row.innerHTML=`<span class="arm">└</span><span>${k.emoji||''}</span><span class="cname">${escapeHtml(k.label)}</span><span class="earned">(EARNED)</span>`;kc.appendChild(row);});card.appendChild(kc);}
+    return {el:card,tier,score:b.score}; }
 
 /* ---------- the slot reveal (one digit at a time) ---------- */
 function revealNumber(el, finalNum, opts={}){
@@ -396,19 +483,28 @@ function showRarity(container, rarity, percentile){
 const solo={rolls:0,lifetime:0,best:0,bestRarity:null};
 async function doSoloRoll(){
   const btn=$('#soloRoll'); btn.disabled=true; SFX.resume();
-  $('#soloRarity').innerHTML=''; $('#soloBreakdown').innerHTML='';
+  cancelBreakdown();   // stop any in-flight badge reveal from the previous roll
+  document.body.classList.add('revealing');   // focus mode: number + badges only
+  $('#soloRarity').innerHTML=''; $('#soloRarity').classList.remove('reveal'); $('#soloBreakdown').innerHTML='';
   $('#soloCard').style.boxShadow='none'; $('#soloCard').style.borderColor='var(--outline)';
   const result=R.roll();
   await revealNumber($('#soloDigits'), result.number, {sound:true});
-  applyCardRarity($('#soloCard'), result.cardRarity); SFX.win(result.cardRarity);
-  showRarity($('#soloRarity'), result.cardRarity, result.percentile);
   $('#soloEP').textContent=result.totalScore.toLocaleString();
-  renderBreakdown(result,$('#soloBreakdown'));
+  // Count the roll now, so an interrupted reveal still lands in the lifetime stats.
   solo.rolls++; solo.lifetime+=result.totalScore; if(result.totalScore>solo.best)solo.best=result.totalScore;
   if(!solo.bestRarity||RARITY_ORDER.indexOf(result.cardRarity)>RARITY_ORDER.indexOf(solo.bestRarity))solo.bestRarity=result.cardRarity;
+  // Badges build up first; rarity + percentile are the payoff at the end.
+  if(!await renderBreakdown(result,$('#soloBreakdown'))) return;   // newer roll took over — don't stomp its reveal
+  applyCardRarity($('#soloCard'), result.cardRarity); SFX.win(result.cardRarity);
+  showRarity($('#soloRarity'), result.cardRarity, result.percentile);
+  $('#soloRarity').classList.add('reveal');
+  // Let the rarity + percentile stand on their own for a beat before the rest returns.
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  if(gen!==breakdownRun) return;                 // a newer roll started during the hold
+  document.body.classList.remove('revealing');   // bring back EP, roll button and stats
+  btn.disabled=false;
   $('#stRolls').textContent=solo.rolls; $('#stLifetime').textContent=solo.lifetime.toLocaleString();
   $('#stBest').textContent=solo.best.toLocaleString(); $('#stRare').textContent=solo.bestRarity?R.RARITY_PALETTE[solo.bestRarity].pill.label:'—';
-  btn.disabled=false;
 }
 $('#soloRoll').addEventListener('click',doSoloRoll);
 
@@ -594,7 +690,9 @@ $('#chooseLocal').addEventListener('click',()=>{$('#partyChoose').classList.add(
 $('#chooseOnline').addEventListener('click',()=>{$('#partyChoose').classList.add('hidden');$('#onlineParty').classList.remove('hidden');showOnlyOnline('onlineChoose');});
 
 /* ---------- tabs / theme / mute ---------- */
-$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;const solo=b.dataset.tab==='solo';[...$('#tabs').children].forEach(x=>x.classList.toggle('active',x===b));$('#soloView').classList.toggle('hidden',!solo);$('#partyView').classList.toggle('hidden',solo);});
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;const solo=b.dataset.tab==='solo';[...$('#tabs').children].forEach(x=>x.classList.toggle('active',x===b));$('#soloView').classList.toggle('hidden',!solo);$('#partyView').classList.toggle('hidden',solo);
+  cancelBreakdown(); document.body.classList.remove('revealing'); $('#soloRoll').disabled=false;   // leaving mid-reveal shouldn't strand focus mode
+});
 $('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
 $('#muteBtn').textContent=SFX.isMuted()?'🔇':'🔊';
 $('#muteBtn').addEventListener('click',()=>{const m=SFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)SFX.resume();});
