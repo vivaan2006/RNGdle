@@ -86,10 +86,17 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 
 /* Round controls, pinned to the bottom of the viewport. Badge lists make these
    pages long, and the next-round action must never be something you hunt for. */
-.actionbar{position:sticky;bottom:0;z-index:30;display:flex;align-items:center;justify-content:center;
-  gap:12px;flex-wrap:wrap;padding:13px 16px;margin:20px -16px 0;
-  background:color-mix(in srgb,var(--background) 92%,transparent);backdrop-filter:blur(12px);
-  border-top:1px solid var(--card-line)}
+/* Fixed to the viewport, not to .wrap — the wrap is centred and width-capped, so
+   anchoring here is what makes the bar reach both edges. Solid, not translucent:
+   badge cards scrolling underneath showed through and looked muddy. */
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;
+  display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 20px;
+  background:var(--surface);border-top:1px solid var(--card-line);
+  box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+/* the bar floats, so give the page room to scroll clear of it */
+body:has(#partyView:not(.hidden) #localGame:not(.hidden)) .wrap,
+body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .wrap,
+body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:170px}
 .actionbar .rollbtn{padding:13px 30px;font-size:15px}
 .actionbar .rollbtn.big{flex:1;min-width:220px;padding:16px;font-size:18px}
 .actionbar .statusbig{margin:0;font-size:13px;flex-basis:100%;text-align:center}
@@ -215,8 +222,10 @@ body:not(.revealing) #soloView .eprow,
 body:not(.revealing) #soloView .rollbar,
 body:not(.revealing) #soloView .stats,
 body:not(.revealing) #localGame > .roundtag,
-body:not(.revealing) #localGame > .panel,
-body:not(.revealing) .actionbar{animation:fadeup .42s ease both}
+body:not(.revealing) #localGame > .panel{animation:fadeup .42s ease both}
+/* opacity only — fadeup's translate would shove a fixed bar off the viewport edge */
+@keyframes barfade{0%{opacity:0}100%{opacity:1}}
+body:not(.revealing) .actionbar{animation:barfade .42s ease both}
 
 /* The badge tally is a spoiler while badges are still landing. */
 .bksub.pending{opacity:0}
