@@ -27,6 +27,16 @@ button{font-family:inherit;cursor:pointer;color:inherit}
 a{color:inherit}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px 90px}
 
+/* Scrollbars. The capped party grid and each card's badge list scroll, and the
+   browser default renders light-on-dark there. Themed so they recede instead. */
+*{scrollbar-width:thin;scrollbar-color:var(--outline) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--outline);border-radius:999px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--prose-3);background-clip:content-box}
+::-webkit-scrollbar-corner{background:transparent}
+.pbreak::-webkit-scrollbar{width:7px}   /* narrower inside a card */
+
 header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
 .hbar{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
 .logo{font-weight:800;font-size:22px;letter-spacing:-.5px}
@@ -455,7 +465,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <button class="rollbtn" id="hReveal">Reveal now ▶</button>
             <button class="rollbtn hidden" id="hRevealDigit">Reveal digit 1 ▶</button>
             <button class="rollbtn" id="hNext">Next round →</button>
-            <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="hAutoNext"> Auto-advance rounds</label>
+            <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="hAutoNext" checked> Auto-advance rounds</label>
             <button class="secbtn" id="hEndGame">End game</button>
             <button class="secbtn hidden" id="hShare">📤 Share Results</button>
           </div>
@@ -722,7 +732,10 @@ async function renderBreakdown(result,container,opts={}){
   // scoring is already worst-first (see revealOrder): each better badge drops in
   // above the others and pushes them down, so the list ends sorted best-first.
   const cards=scoring.map(b=>buildBadgeCard(b,nested,result));
-  if(!stagger){ cards.forEach(c=>{c.el.classList.add('pop');container.appendChild(slotFor(c.el,true));}); return true; }
+  // revealOrder is worst-first because the staggered path inserts each card on top.
+  // Rendering all at once appends instead, so reverse to land on the same
+  // best-first order the animated reveal ends with.
+  if(!stagger){ cards.slice().reverse().forEach(c=>{c.el.classList.add('pop');container.appendChild(slotFor(c.el,true));}); return true; }
   // In a grid, a row is as tall as its tallest card — so cards growing as badges
   // land drag every later row down with them. Lay the finished list out once,
   // measure it, and hold that height. Done in one synchronous pass, so nothing
@@ -954,7 +967,7 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   if(LP.revealMode==='manual'){
     await lpManualRevealDigits(LP.players.map(p=>({el:LP.cards[p.name].num,number:results[p.name].number})), maxLen);
   } else {
-    SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT);
+    SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT + (i===maxLen-1?LAST_EXTRA:0));  // last digit is held back, its click must be too
     await Promise.all(LP.players.map(p=>revealNumber(LP.cards[p.name].num, results[p.name].number, {sound:false})));
     SFX.spinStop();
   }
@@ -1101,7 +1114,7 @@ async function hostReveal(s){
     c.rar.innerHTML=''; c.rar.classList.remove('reveal'); c.brk.innerHTML='';
     c.el.style.boxShadow='none'; c.el.style.borderColor='var(--card-line)'; });
   const maxLen=Math.max(1,...live.map(p=>String(p.lastNumber).length));
-  SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i),(i+1)*PER_DIGIT);
+  SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i),(i+1)*PER_DIGIT + (i===maxLen-1?LAST_EXTRA:0));  // last digit is held back, its click must be too
   await Promise.all(live.map(p=>revealNumber(NET.hostCards[p.pid].num,p.lastNumber,{sound:false})));
   SFX.spinStop();
   const schedule=sharedSchedule(live.map(p=>results[p.pid]));

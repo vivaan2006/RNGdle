@@ -113,7 +113,7 @@ function handle(ws, m){
   if(m.type==="host"){
     const code=makeCode();
     const room={ code, hostWs:ws, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
-      autoNext:false, autoNextTimer:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
+      autoNext:(m.autoNext!==false), autoNextTimer:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code}); pushState(room); return;
   }
