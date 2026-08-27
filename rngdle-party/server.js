@@ -6,6 +6,7 @@
 import "./engine.js";                 // sets globalThis.RNGDLE
 import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
+import * as HorsRNG from "./horsrng-server.js";   // separate game, separate rooms, separate ws path
 const R = globalThis.RNGDLE;
 const D = globalThis.RNGPARTY_DRINKS;
 
@@ -16,7 +17,8 @@ const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js" };
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js",
+  "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -305,21 +307,33 @@ const onOpen    = ws => { meta.set(ws,{}); };
 const onMessage = (ws,msg) => { try{ handle(ws, JSON.parse(msg)); }catch(e){ /* ignore bad frames */ } };
 const onClose   = ws => { handleClose(ws); };
 
+const WS_ROUTES = {
+  "/ws":         { open:onOpen, message:onMessage, close:onClose },
+  "/horsrng-ws": { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
+};
+
 if (globalThis.Bun) {
   var server = Bun.serve({
     port: PORT,
     fetch(req){
       const url=new URL(req.url);
-      if(url.pathname==="/ws"){ if(server.upgrade(req)) return; return new Response("upgrade failed",{status:426}); }
+      const route = WS_ROUTES[url.pathname];
+      if(route){ if(server.upgrade(req,{data:{route}})) return; return new Response("upgrade failed",{status:426}); }
       const file = STATIC[url.pathname];
       if(file) return new Response(Bun.file(file), {headers:{"cache-control":"no-cache"}});  // else edits look stale in the browser
       return new Response("Not found",{status:404});
     },
-    websocket:{ open:onOpen, message:onMessage, close:onClose }
+    // One shared handler set, dispatching to the right game's room logic by
+    // whichever route each socket upgraded through — Bun keeps ws handlers global.
+    websocket:{
+      open:ws=>ws.data.route.open(ws),
+      message:(ws,msg)=>ws.data.route.message(ws,msg),
+      close:ws=>ws.data.route.close(ws),
+    }
   });
 } else {
   const { serve } = await import("./node-ws.js");
-  serve({ port:PORT, staticFiles:STATIC, open:onOpen, message:onMessage, close:onClose });
+  serve({ port:PORT, staticFiles:STATIC, wsRoutes:WS_ROUTES });
 }
 
 // print addresses

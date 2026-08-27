@@ -204,10 +204,6 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 .gamebox-body h3{margin:0;font-size:18px;font-weight:800}
 .gamebox-body p{margin:8px 0 0;font-size:13px;color:var(--prose-2);line-height:1.5}
 .gamebox-tag{display:inline-block;margin-top:12px;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--prose-3);text-transform:uppercase}
-.gamebox.disabled{cursor:not-allowed;filter:grayscale(1);opacity:.55}
-.gamebox.disabled .gamebox-media{border-bottom:1px dashed var(--card-line)}
-.gamebox.disabled .gamebox-media.placeholder{font-size:38px;color:var(--prose-3)}
-.gamebox-tag.beta{color:#f59e0b}
 
 /* player grid (local + online screen) */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px}
@@ -437,14 +433,17 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <span class="gamebox-tag">233 badges · unlimited rolls · up to 12 players</span>
         </div>
       </button>
-      <div class="gamebox disabled" title="Coming soon">
-        <div class="gamebox-media placeholder">🔒</div>
-        <div class="gamebox-body">
-          <h3>Coming Soon</h3>
-          <p>Another party game is in the works.</p>
-          <span class="gamebox-tag beta">BETA · IN DEVELOPMENT</span>
+      <a class="gamebox" href="/horsrng">
+        <div class="gamebox-media">
+          <div style="font-size:44px;letter-spacing:6px">🐎💨🐎</div>
+          <div class="mini-pills"><span class="pill" style="background:#fef3c7;color:#92400e;border-color:#f59e0b">BETA</span></div>
         </div>
-      </div>
+        <div class="gamebox-body">
+          <h3>🐎 HorsRNG</h3>
+          <p>Pick a horse, watch a chaotic one-minute race with a photo finish, and find out who's drinking. Online party only — everyone joins from their phone.</p>
+          <span class="gamebox-tag">6 horses · drinking mode · photo finish</span>
+        </div>
+      </a>
     </div>
   </section>
 

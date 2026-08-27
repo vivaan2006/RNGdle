@@ -107,11 +107,11 @@ function makeFrameReader(ws, onMessage) {
  * @param {object} opts
  * @param {number} opts.port
  * @param {Record<string,string>} opts.staticFiles  url path -> file path
- * @param {(ws:NodeWS)=>void} opts.open
- * @param {(ws:NodeWS, msg:string)=>void} opts.message
- * @param {(ws:NodeWS)=>void} opts.close
+ * @param {Record<string,{open,message,close}>} opts.wsRoutes  ws url path -> handler set,
+ *   each mirroring Bun's {open(ws), message(ws,msg), close(ws)} shape. Each game gets its
+ *   own path and its own fully independent room state — nothing shared between them.
  */
-export function serve({ port, staticFiles, open, message, close }) {
+export function serve({ port, staticFiles, wsRoutes }) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url, "http://localhost").pathname;
     const file = staticFiles[path];
@@ -137,7 +137,9 @@ export function serve({ port, staticFiles, open, message, close }) {
 
   server.on("upgrade", (req, socket) => {
     const key = req.headers["sec-websocket-key"];
-    if (new URL(req.url, "http://localhost").pathname !== "/ws" || !key) {
+    const pathname = new URL(req.url, "http://localhost").pathname;
+    const route = wsRoutes[pathname];
+    if (!route || !key) {
       socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
       return;
     }
@@ -151,11 +153,11 @@ export function serve({ port, staticFiles, open, message, close }) {
     socket.setNoDelay(true);
 
     const ws = new NodeWS(socket);
-    const feed = makeFrameReader(ws, msg => message(ws, msg));
+    const feed = makeFrameReader(ws, msg => route.message(ws, msg));
     let closed = false;
-    const onGone = () => { if (closed) return; closed = true; ws.closed = true; close(ws); };
+    const onGone = () => { if (closed) return; closed = true; ws.closed = true; route.close(ws); };
 
-    open(ws);
+    route.open(ws);
     socket.on("data", chunk => { try { feed(chunk); } catch { onGone(); socket.destroy(); } });
     socket.on("close", onGone);
     socket.on("end", onGone);

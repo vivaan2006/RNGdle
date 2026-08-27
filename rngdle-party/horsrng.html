@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>HorsRNG — RNGparty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#0a0a0a; --foreground:#fafafa;
+  --surface:oklch(25.7% .014 295); --surface-raised:oklch(31.1% .014 295);
+  --outline:oklch(39.5% .014 295); --prose-2:#c4c4c4; --prose-3:#9a9a9a;
+  --card:#111112; --card-line:oklch(30% .012 295);
+}
+html:not(.dark){
+  --background:#fafafa; --foreground:#0a0a0a;
+  --surface:#f1f1f4; --surface-raised:#e8e8ec; --outline:#d3d3da;
+  --prose-2:#3f3f46; --prose-3:#6b6b74; --card:#ffffff; --card-line:#e5e5ea;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--background);color:var(--foreground);font-family:Inter,-apple-system,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace}
+button{font-family:inherit;cursor:pointer;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px 120px}
+.hidden{display:none!important}
+.center{text-align:center}.mt8{margin-top:8px}.mt16{margin-top:16px}
+.small{font-size:12px;color:var(--prose-3)}
+
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
+.hbar{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.5px;background:none;border:0;padding:0;color:inherit;font-family:inherit}
+.logo b{color:#f59e0b}
+.gametitle{font-weight:700;font-size:14px;color:var(--prose-2);padding-left:10px;border-left:1px solid var(--card-line)}
+.hspace{flex:1}
+.iconbtn{border:1px solid var(--card-line);background:var(--surface);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:15px}
+
+.panel{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:18px;margin-top:18px}
+.panel h3{margin:0 0 14px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--prose-2)}
+.prow{display:flex;gap:8px;margin-bottom:10px}
+.inp{flex:1;background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:12px 13px;color:var(--foreground);font-size:15px;font-family:inherit}
+.inp:focus{outline:2px solid #f59e0b55;border-color:#f59e0b}
+.bigbtn{width:100%;border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;padding:14px;border-radius:11px;margin-top:14px}
+.bigbtn:disabled{opacity:.5}
+.secbtn{border:1px solid var(--card-line);background:var(--surface);padding:9px 16px;border-radius:9px;font-weight:600;font-size:13px}
+.rollbtn{border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;letter-spacing:.3px;padding:13px 30px;border-radius:11px}
+.rollbtn:disabled{opacity:.45}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:12px 14px;margin-top:6px}
+.toggle-row .t{font-weight:700;font-size:14px}
+.toggle-row .d{font-size:11.5px;color:var(--prose-3);margin-top:2px}
+.switch{position:relative;width:44px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch .track{position:absolute;inset:0;background:var(--outline);border-radius:999px;transition:.2s}
+.switch .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+.track{background:#f59e0b}
+.switch input:checked+.track .knob{transform:translateX(18px)}
+
+.codebox{text-align:center;background:linear-gradient(135deg,var(--surface),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:20px;margin-top:6px}
+.codebox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
+.codebox .code{font-size:44px;font-weight:800;letter-spacing:8px;margin:6px 0}
+.codebox .url{font-size:13px;color:var(--prose-2);word-break:break-all}
+
+.av{border-radius:50%;display:grid;place-items:center;font-weight:800;color:#1a1205;flex:none;width:30px;height:30px;font-size:13px}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pchip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px}
+
+/* horse cards */
+.horsegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:16px}
+.horsecard{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:14px;text-align:left;transition:.15s;width:100%}
+button.horsecard{cursor:pointer}
+button.horsecard:hover{border-color:#f59e0b88}
+.horsecard.selected{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b}
+.horsecard-name{font-weight:800;font-size:16px;margin-bottom:10px}
+.statrow{display:grid;grid-template-columns:1fr 3fr auto;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
+.statlabel{color:var(--prose-3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.statbar{background:var(--surface);border-radius:999px;height:7px;overflow:hidden}
+.statfill{height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.statval{color:var(--prose-2);font-weight:700;white-space:nowrap;font-size:10.5px}
+.horsecard-picks{margin-top:10px;font-size:11px;font-weight:700;color:#f59e0b}
+.pickcount{font-size:11px;color:var(--prose-3);margin-top:4px}
+
+/* race track */
+.racetrack{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:16px;margin-top:16px;position:relative;overflow:hidden}
+.lane{position:relative;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--card-line)}
+.lane:last-child{border-bottom:0}
+.lane-label{width:170px;flex:none;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lane-track{position:relative;flex:1;height:34px;background:linear-gradient(90deg,var(--surface),var(--surface-raised));border-radius:8px}
+.lane-track::after{content:'🏁';position:absolute;right:2px;top:50%;transform:translateY(-50%);font-size:18px}
+.lane-token{position:absolute;top:50%;left:0;transform:translate(-2px,-50%);font-size:24px;transition:left .05s linear;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+.lane-bubble{position:absolute;top:-22px;font-size:15px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;transform:translateY(4px)}
+.lane-bubble.show{opacity:1;transform:translateY(0)}
+.flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:90;transition:opacity .08s}
+.flash.on{opacity:.85}
+
+.winner{text-align:center;padding:24px;background:linear-gradient(135deg,#f59e0b22,transparent);border:1px solid #f59e0b55;border-radius:14px;margin-top:18px}
+.winner .t{font-size:12px;letter-spacing:2px;color:#f59e0b;font-weight:700}
+.winner .n{font-size:28px;font-weight:800;margin-top:4px}
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbrow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:11px 14px}
+.lbrow.lead{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b55}
+.lbrow .rank{font-weight:800;font-size:15px;color:var(--prose-3);width:24px;flex:none}
+.lbrow .nm{font-weight:700;font-size:15px}
+.lbrow .meta{font-size:11.5px;color:var(--prose-3)}
+.lbrow .sc{margin-left:auto;text-align:right;font-weight:800;font-size:14px;white-space:nowrap}
+
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 20px;background:var(--surface);border-top:1px solid var(--card-line);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+.statusbig{text-align:center;font-size:15px;color:var(--prose-2);flex-basis:100%}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+@media(max-width:520px){.choices{grid-template-columns:1fr}}
+.choice{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:22px 18px;text-align:center;transition:.15s}
+.choice:hover{border-color:#f59e0b;transform:translateY(-2px)}
+.choice .ic{font-size:34px}
+.choice .t{font-weight:800;font-size:17px;margin-top:10px}
+.choice .d{font-size:12px;color:var(--prose-3);margin-top:6px;line-height:1.5}
+.phone{max-width:460px;margin:0 auto}
+@keyframes pop{0%{transform:scale(.96);opacity:.4}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .28s ease}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <a class="logo" href="/" style="text-decoration:none">RNG<b>party</b></a>
+    <span class="gametitle">🐎 HorsRNG</span>
+    <div class="hspace"></div>
+    <button class="iconbtn" id="muteBtn" title="Sound">🔊</button>
+    <button class="iconbtn" id="themeBtn" title="Theme">🌙</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- ===== CHOOSE ===== -->
+  <div id="chooseView">
+    <div class="choices">
+      <div class="choice" id="hostBtn"><div class="ic">🖥️</div><div class="t">Host on this screen</div>
+        <div class="d">Show this on a TV/laptop. Friends join from their phones.</div></div>
+      <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a race</div>
+        <div class="d">Enter the room code from the host screen.</div></div>
+    </div>
+  </div>
+
+  <!-- ===== HOST ===== -->
+  <div id="hostView" class="hidden">
+    <div id="hLobby">
+      <div class="codebox">
+        <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
+        <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
+        <button class="secbtn" id="copyLink" style="margin-top:10px">Copy join link</button>
+      </div>
+      <div class="panel"><h3>Format</h3>
+        <div class="toggle-row"><div><div class="t">🍻 Drinking Mode</div><div class="d">Losers drink based on how they finish — last place takes a shot.</div></div>
+          <label class="switch"><input type="checkbox" id="hDrinkToggle"><span class="track"><span class="knob"></span></span></label></div>
+      </div>
+      <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="plist" id="hLobbyList"></div>
+        <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
+      <button class="bigbtn" id="hStart" disabled>Start Picking 🐎</button>
+    </div>
+
+    <div id="hPicking" class="hidden">
+      <h3 class="small" style="text-transform:uppercase;letter-spacing:.5px">Pick your horse — everyone's choosing</h3>
+      <div class="horsegrid" id="hHorseGrid"></div>
+    </div>
+
+    <div id="hRace" class="hidden">
+      <div class="center small" style="margin-top:16px">🏁 THE RACE IS ON 🏁</div>
+      <div class="racetrack" id="hRaceTrack"></div>
+    </div>
+
+    <div id="hResultsWrap" class="hidden"></div>
+
+    <div class="actionbar hidden" id="hPickActions">
+      <span class="small" id="hPickWait"></span>
+      <button class="rollbtn" id="hForceRace">Start Race Now ▶</button>
+    </div>
+    <div class="actionbar hidden" id="hResultActions">
+      <button class="rollbtn" id="hRematch">Race Again 🐎</button>
+      <button class="secbtn" id="hEndGame">End Game</button>
+    </div>
+  </div>
+
+  <!-- ===== PLAYER (phone) ===== -->
+  <div id="playerView" class="hidden phone">
+    <div id="pJoinForm">
+      <div class="panel"><h3>Join the race</h3>
+        <div class="prow"><input class="inp" id="jCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"></div>
+        <div class="prow"><input class="inp" id="jName" placeholder="Your name" maxlength="18" autocomplete="off"></div>
+        <button class="bigbtn" id="jGo">Join 🐎</button>
+        <div id="joinErr"></div>
+      </div>
+      <div class="center"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="pGame" class="hidden">
+      <div id="pWaitingLobby" class="center panel">Waiting for the host to start…</div>
+      <div id="pPicking" class="hidden">
+        <h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Pick your horse</h3>
+        <div class="horsegrid" id="pHorseGrid"></div>
+      </div>
+      <div id="pRaceWait" class="hidden center panel">
+        <div style="font-size:44px" id="pRaceEmoji">🐎</div>
+        <div class="statusbig" id="pRaceStatus">The race is on!</div>
+      </div>
+      <div id="pResultsWrap" class="hidden"></div>
+      <div class="actionbar hidden" id="pActions">
+        <div class="statusbig" id="pStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function avatarHtml(p){return `<span class="av" style="background:${p.color}">${escapeHtml(p.name[0].toUpperCase())}</span>`;}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- SOUND (Web Audio, fully synthesized, zero deps) ---------- */
+const RaceSFX = (function(){
+  let ctx, muted = localStorage.getItem('horsrng_mute')==='1';
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null} } if(ctx.state==='suspended')ctx.resume(); return ctx; }
+  function blip(freq,dur,type,gain,glideTo){ if(muted)return; const c=ac(); if(!c)return; const o=c.createOscillator(),g=c.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(freq,c.currentTime);
+    if(glideTo) o.frequency.exponentialRampToValueAtTime(glideTo,c.currentTime+dur);
+    g.gain.setValueAtTime(gain,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+dur); }
+  function noiseBurst(dur,gain){ if(muted)return; const c=ac(); if(!c)return;
+    const n=Math.max(1,Math.floor(c.sampleRate*dur)); const buf=c.createBuffer(1,n,c.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const src=c.createBufferSource(); src.buffer=buf; const g=c.createGain(); g.gain.value=gain;
+    src.connect(g); g.connect(c.destination); src.start(); }
+  return {
+    resume:ac,
+    hoofbeat(){ noiseBurst(.05,.045); },
+    burst(){ blip(320,.25,'sawtooth',.05,760); },
+    stumble(){ blip(220,.3,'square',.045,85); },
+    click(){ blip(2200,.045,'square',.07); },
+    cheer(){ [0,120,240,360].forEach(d=>setTimeout(()=>noiseBurst(.5,.028),d)); },
+    fanfare(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>blip(f,.35,'triangle',.08),i*110)); },
+    toggle(){ muted=!muted; localStorage.setItem('horsrng_mute',muted?'1':'0'); return muted; },
+    isMuted:()=>muted,
+  };
+})();
+$('#muteBtn').textContent=RaceSFX.isMuted()?'🔇':'🔊';
+$('#muteBtn').addEventListener('click',()=>{const m=RaceSFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)RaceSFX.resume();});
+$('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
+
+/* ---------- networking ---------- */
+const NET = { ws:null, role:null, code:null, pid:null, state:null, prevPhase:null, hostRaceStarted:false,
+  connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/horsrng-ws`);
+    this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
+    this.ws.onclose=()=>{ if(this.role) onNetError('Connection lost.'); }; this.ws.onerror=()=>{}; },
+  send(o){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(o)); },
+  onMsg(m){
+    if(m.type==='hosted'){ this.code=m.code; hostLobbyReady(m.code); }
+    else if(m.type==='joined'){ this.pid=m.pid; playerJoined(); }
+    else if(m.type==='error'){ onNetError(m.msg); }
+    else if(m.type==='state'){ this.applyState(m); }
+  },
+  applyState(s){ const prevPhase=this.prevPhase; this.state=s;
+    if(this.role==='host') hostRender(s); else playerRender(s);
+    if(s.phase==='racing' && prevPhase!=='racing'){ if(this.role==='host') startRaceAnimation(s); else playerRaceWait(s); }
+    this.prevPhase=s.phase;
+  }
+};
+function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small" style="color:#ef4444">${escapeHtml(msg)}</div>`; }
+
+/* ---------- shared: drink rule + horse card rendering ---------- */
+function drinkFor(rankIndex,numHorses){
+  if(rankIndex===0) return {type:'safe'};
+  if(rankIndex===numHorses-1) return {type:'shot',amount:1};
+  return {type:'sip',amount:rankIndex};
+}
+function drinkLabel(d){ return d.type==='safe'?'😇 Safe':d.type==='shot'?`🥃 ${d.amount} shot${d.amount===1?'':'s'}`:`🍶 ${d.amount} sip${d.amount===1?'':'s'}`; }
+function horseCardInner(h){
+  return `<div class="horsecard-name">🐎 ${escapeHtml(h.name)}</div>
+    ${h.stats.map(s=>`<div class="statrow"><span class="statlabel">${escapeHtml(s.label)}</span><div class="statbar"><div class="statfill" style="width:${s.value}%"></div></div><span class="statval">${s.value} · ${s.tag}</span></div>`).join('')}`;
+}
+function horseCardHtml(h,opts){
+  opts=opts||{};
+  return `<div class="horsecard${opts.selected?' selected':''}" data-horse="${h.id}">
+    ${horseCardInner(h)}
+    ${opts.pickCount!=null?`<div class="pickcount">${opts.pickCount} pick${opts.pickCount===1?'':'s'} so far</div>`:''}
+  </div>`;
+}
+function renderResults(container,s){
+  const rankOf={}; s.ranking.forEach((hid,i)=>rankOf[hid]=i);
+  const horseById={}; s.horses.forEach(h=>horseById[h.id]=h);
+  const winner=horseById[s.ranking[0]];
+  const backersOf=hid=>s.players.filter(p=>p.horseId===hid);
+  const winners=backersOf(s.ranking[0]);
+  let html=`<div class="winner pop"><div class="t">🏆 WINNER</div><div class="n">${escapeHtml(winner.name)}</div>`;
+  html+= winners.length ? `<div class="small mt8">Backed by ${winners.map(p=>escapeHtml(p.name)).join(', ')}</div>` : `<div class="small mt8">Nobody backed this one — house wins.</div>`;
+  html+=`</div><div class="panel"><h3>Final Order</h3><div class="lb">`;
+  s.ranking.forEach((hid,i)=>{
+    const h=horseById[hid], backers=backersOf(hid).map(p=>p.name);
+    html+=`<div class="lbrow${i===0?' lead':''}"><div class="rank">${i===0?'👑':i+1}</div><div><div class="nm">${escapeHtml(h.name)}</div><div class="meta">${backers.length?backers.map(escapeHtml).join(', '):'no backers'}</div></div></div>`;
+  });
+  html+=`</div></div>`;
+  if(s.drinkingMode){
+    html+=`<div class="panel"><h3>🍻 Drink Assignments</h3><div class="lb">`;
+    s.players.forEach(p=>{
+      const d=drinkFor(rankOf[p.horseId],s.ranking.length);
+      html+=`<div class="lbrow"><div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">picked ${escapeHtml(horseById[p.horseId].name)}</div></div><div class="sc">${drinkLabel(d)}</div></div>`;
+    });
+    html+=`</div></div>`;
+  }
+  container.innerHTML=html;
+}
+
+/* ---------- host ---------- */
+function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host',drinkingMode:$('#hDrinkToggle').checked})); }
+function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/horsrng?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+$('#hDrinkToggle').addEventListener('change',e=>NET.send({type:'configure',drinkingMode:e.target.checked}));
+$('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
+$('#hForceRace').addEventListener('click',()=>NET.send({type:'forceRace'}));
+$('#hRematch').addEventListener('click',()=>NET.send({type:'rematch'}));
+$('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
+
+function hostRender(s){
+  $('#hPickActions').classList.add('hidden'); $('#hResultActions').classList.add('hidden');
+  if(s.phase==='lobby'){
+    $('#hLobby').classList.remove('hidden'); $('#hPicking').classList.add('hidden'); $('#hRace').classList.add('hidden'); $('#hResultsWrap').classList.add('hidden');
+    $('#hLobbyCount').textContent=`Players (${s.players.length})`;
+    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}</div>`).join('');
+    $('#hLobbyHint').textContent=s.players.length<1?'Waiting for players to join…':`${s.players.length} player${s.players.length===1?'':'s'} in — start whenever you're ready.`;
+    $('#hStart').disabled=s.players.length<1; $('#hStart').textContent=s.players.length<1?'Waiting for players…':`Start Picking 🐎 (${s.players.length})`;
+    $('#hDrinkToggle').checked=!!s.drinkingMode;
+    return;
+  }
+  $('#hLobby').classList.add('hidden');
+  if(s.phase==='picking'){
+    $('#hPicking').classList.remove('hidden'); $('#hRace').classList.add('hidden'); $('#hResultsWrap').classList.add('hidden');
+    const counts={}; s.players.forEach(p=>{ if(p.horseId) counts[p.horseId]=(counts[p.horseId]||0)+1; });
+    $('#hHorseGrid').innerHTML=s.horses.map(h=>horseCardHtml(h,{pickCount:counts[h.id]||0})).join('');
+    const readyCount=s.players.filter(p=>p.ready).length;
+    $('#hPickActions').classList.remove('hidden');
+    $('#hPickWait').textContent=`${readyCount}/${s.players.length} have picked…`;
+  } else if(s.phase==='racing'){
+    $('#hPicking').classList.add('hidden'); $('#hRace').classList.remove('hidden'); $('#hResultsWrap').classList.add('hidden');
+  } else if(s.phase==='results'){
+    $('#hPicking').classList.add('hidden'); $('#hRace').classList.add('hidden');
+    $('#hResultsWrap').classList.remove('hidden'); renderResults($('#hResultsWrap'),s);
+    $('#hResultActions').classList.remove('hidden');
+    if(!NET.celebrated){ NET.celebrated=true; RaceSFX.fanfare(); }
+  }
+  if(s.phase!=='results') NET.celebrated=false;
+}
+
+/* ---------- race animation (host screen only) ---------- */
+function startRaceAnimation(s){
+  const track=$('#hRaceTrack'); track.innerHTML='';
+  const rankOf={}; s.ranking.forEach((hid,i)=>rankOf[hid]=i);
+  const gaps=[1.5,3,4,5,6]; const finalProgress=[100];
+  for(let i=0;i<5;i++) finalProgress.push(finalProgress[i]-gaps[i]);
+  const lanes=s.horses.map(h=>{
+    const el=document.createElement('div'); el.className='lane';
+    el.innerHTML=`<div class="lane-label">🐎 ${escapeHtml(h.name)}</div><div class="lane-track"><div class="lane-bubble"></div><div class="lane-token">🐴</div></div>`;
+    track.appendChild(el);
+    return { rank:rankOf[h.id], target:finalProgress[rankOf[h.id]], tokenEl:el.querySelector('.lane-token'), bubbleEl:el.querySelector('.lane-bubble'),
+      f1:1+Math.random()*1.5, p1:Math.random()*Math.PI*2, a1:5+Math.random()*3,
+      f2:2+Math.random()*2, p2:Math.random()*Math.PI*2, a2:2+Math.random()*2,
+      burstOffset:0, nextEventAt:1200+Math.random()*2200 };
+  });
+  const duration=s.raceDurationMs, startAt=s.raceStartAt||Date.now();
+  RaceSFX.resume();
+  let lastHoof=0, done=false;
+  function flashBubble(l,emoji){ l.bubbleEl.textContent=emoji; l.bubbleEl.classList.add('show'); clearTimeout(l._bt); l._bt=setTimeout(()=>l.bubbleEl.classList.remove('show'),900); }
+  function frame(){
+    const elapsed=Date.now()-startAt, t=Math.min(1,elapsed/duration);
+    lanes.forEach(l=>{
+      if(elapsed>l.nextEventAt && t<0.85){
+        if(Math.random()<0.55){ l.burstOffset+=3+Math.random()*3; RaceSFX.burst(); flashBubble(l,'🔥'); }
+        else { l.burstOffset-=2+Math.random()*3; RaceSFX.stumble(); flashBubble(l,'😵'); }
+        l.nextEventAt=elapsed+1800+Math.random()*2200;
+      }
+      l.burstOffset*=0.965;
+      const ease=1-Math.pow(1-t,3);
+      const envP=Math.min(1,t/0.85), env=1-(envP*envP*(3-2*envP));
+      const wobble=env*(l.a1*Math.sin(t*l.f1*2*Math.PI+l.p1)+l.a2*Math.sin(t*l.f2*2*Math.PI+l.p2));
+      const pos=Math.max(0,Math.min(97,l.target*ease+wobble+l.burstOffset));
+      l.tokenEl.style.left=pos+'%';
+    });
+    if(elapsed-lastHoof>650){ RaceSFX.hoofbeat(); lastHoof=elapsed; }
+    if(t<1 && !done){ requestAnimationFrame(frame); }
+    else if(!done){ done=true; photoFinish(); }
+  }
+  requestAnimationFrame(frame);
+}
+function photoFinish(){
+  const flash=document.createElement('div'); flash.className='flash'; document.body.appendChild(flash);
+  RaceSFX.click();
+  requestAnimationFrame(()=>{ flash.classList.add('on'); setTimeout(()=>{ flash.classList.remove('on'); setTimeout(()=>flash.remove(),150); RaceSFX.cheer(); },90); });
+}
+
+/* ---------- player (phone) ---------- */
+function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pGame').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
+$('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.trim(); if(!code||!name){onNetError('Enter a code and your name');return;} RaceSFX.resume(); if(!NET.ws||NET.ws.readyState>1) NET.connect(()=>NET.send({type:'join',code,name})); else NET.send({type:'join',code,name}); });
+$('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
+function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
+
+const RACE_FLAVOR=["The crowd is on its feet!","Neck and neck down the back stretch!","Someone's about to lose a bet.","The dust is really flying now!","Is that a stumble?! Recovering nicely!","This one's going to the wire!"];
+function playerRaceWait(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
+  $('#pPicking').classList.add('hidden'); $('#pRaceWait').classList.remove('hidden'); $('#pResultsWrap').classList.add('hidden');
+  const horse=s.horses.find(h=>h.id===me.horseId);
+  $('#pRaceStatus').textContent=`You picked ${horse?horse.name:'a horse'} — hope it's fast!`;
+  clearInterval(NET.flavorTimer);
+  let i=0; NET.flavorTimer=setInterval(()=>{ $('#pRaceStatus').textContent=RACE_FLAVOR[i%RACE_FLAVOR.length]; i++; },4500);
+}
+function playerRender(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
+  ['pWaitingLobby','pPicking','pRaceWait','pResultsWrap'].forEach(id=>$('#'+id).classList.add('hidden'));
+  if(s.phase==='lobby'){ $('#pWaitingLobby').classList.remove('hidden'); $('#pWaitingLobby').textContent='Waiting for the host to start…'; clearInterval(NET.flavorTimer); }
+  else if(s.phase==='picking'){
+    $('#pPicking').classList.remove('hidden'); clearInterval(NET.flavorTimer);
+    $('#pHorseGrid').innerHTML=s.horses.map(h=>`<button class="horsecard${me.horseId===h.id?' selected':''}" data-horse="${h.id}">${horseCardInner(h)}</button>`).join('');
+    [...$('#pHorseGrid').children].forEach(btn=>btn.addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'pickHorse',horseId:btn.dataset.horse}); }));
+  }
+  else if(s.phase==='racing'){ playerRaceWait(s); }
+  else if(s.phase==='results'){
+    clearInterval(NET.flavorTimer);
+    $('#pResultsWrap').classList.remove('hidden'); renderResults($('#pResultsWrap'),s);
+    if(!NET.celebratedP){ NET.celebratedP=true; RaceSFX.fanfare(); }
+  }
+  if(s.phase!=='results') NET.celebratedP=false;
+}
+
+/* ---------- chooser / nav ---------- */
+function showOnly(id){ ['chooseView','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+$('#hostBtn').addEventListener('click',startHost);
+$('#joinBtn').addEventListener('click',()=>startJoin());
+
+/* ---------- init / deep-link ---------- */
+const roomParam=new URLSearchParams(location.search).get('room');
+if(roomParam){ startJoin(roomParam.toUpperCase()); }
+</script>
+</body>
+</html>
