@@ -16,9 +16,9 @@
   const RARITY = {
     trash:    { label: 'Absolute disaster',        emoji: '🗑️', amount: 1, unit: 'shot', target: 'self' },
     common:   { label: 'Painfully average',        emoji: '🥱', amount: 1, unit: 'sip',  target: 'self' },
-    uncommon: { label: 'Respectable',              emoji: '😌', amount: 1, unit: 'sip',  target: 'choose' },
-    rare:     { label: "Now we're talking",        emoji: '🔥', amount: 2, unit: 'sip',  target: 'choose' },
-    epic:     { label: 'EPIC — hand out a shot',   emoji: '💜', amount: 1, unit: 'shot', target: 'choose' },
+    uncommon: null,                             // respectable enough to be spared
+    rare:     { label: "Now we're talking",        emoji: '🔥', amount: 1, unit: 'sip',  target: 'choose' },
+    epic:     { label: 'EPIC — hand out sips',     emoji: '💜', amount: 2, unit: 'sip',  target: 'choose' },
     anomaly:  { label: 'ANOMALY — everyone else drinks', emoji: '🌀', amount: 2, unit: 'sip',  target: 'others' },
     mythic:   { label: 'MYTHIC — shots all round', emoji: '👑', amount: 1, unit: 'shot', target: 'everyone' }
   };
@@ -30,17 +30,20 @@
     { id: 'NICE',              label: 'Nice.',                     emoji: '😏', amount: 1, unit: 'sip',  target: 'everyone' },
     { id: 'MEANING',           label: 'The answer to everything',  emoji: '🌌', amount: 2, unit: 'sip',  target: 'choose' },
     { id: 'SIXTY_SEVEN',       label: 'Six… seven',                emoji: '🔢', amount: 1, unit: 'sip',  target: 'choose' },
-    { id: 'BLACKJACK',         label: 'Blackjack — digits hit 21', emoji: '🃏', amount: 1, unit: 'shot', target: 'choose' },
+    { id: 'BLACKJACK',         label: 'Blackjack — digits hit 21', emoji: '🃏', amount: 2, unit: 'sip',  target: 'choose' },
     { id: 'SNAKE_EYES',        label: 'Snake eyes',                emoji: '🐍', amount: 2, unit: 'sip',  target: 'self' },
     { id: 'HIGH_ROLLER',       label: 'High roller',               emoji: '🎩', amount: 2, unit: 'sip',  target: 'choose' },
     { id: 'LOW_BALL',          label: 'Low ball — sad digits',     emoji: '🐛', amount: 2, unit: 'sip',  target: 'self' },
-    { id: 'QUADS',             label: 'Four of a kind',            emoji: '🍀', amount: 2, unit: 'sip',  target: 'everyone' },
+    { id: 'QUADS',             label: 'Four of a kind',            emoji: '🍀', amount: 4, unit: 'sip',  target: 'choose' },
     { id: 'CONTIGUOUS_TRIPS',  label: 'Triple threat',             emoji: '🎰', amount: 3, unit: 'sip',  target: 'choose' },
-    { id: 'EIGHTY_SIX',        label: "You're 86'd",               emoji: '🚫', amount: 1, unit: 'shot', target: 'choose' },
+    { id: 'EIGHTY_SIX',        label: "You're 86'd",               emoji: '🚫', amount: 1, unit: 'sip',  target: 'choose' },
     { id: 'DEEP_VOID',         label: 'Stared into the void',      emoji: '🕳️', amount: 1, unit: 'sip',  target: 'self' },
-    { id: 'MOUNTAIN',          label: 'Over the mountain',         emoji: '🏔️', amount: 1, unit: 'sip',  target: 'everyone' },
-    { id: 'THREE_PAIR',        label: 'Three pairs, three drinks', emoji: '👯', amount: 1, unit: 'sip',  target: 'everyone' },
-    { id: 'PALINDROME',        label: 'Mirror match — drink together', emoji: '🪞', amount: 1, unit: 'sip', target: 'choose', alsoSelf: true },
+    { id: 'THREE_PAIR',        label: 'Three pairs, three drinks', emoji: '👯', amount: 3, unit: 'sip',  target: 'choose' },
+    { id: 'PALINDROME',        label: 'Mirror match — shots together', emoji: '🪞', amount: 1, unit: 'shot', target: 'choose', alsoSelf: true },
+    // the bookends family: pick someone and drink alongside them
+    { id: 'BOOKENDS',          label: 'Bookends — drink with me',      emoji: '📚', amount: 2, unit: 'sip', target: 'choose', alsoSelf: true },
+    { id: 'MIRROR_BOOKENDS',   label: 'Mirror bookends — drink with me', emoji: '🔁', amount: 2, unit: 'sip', target: 'choose', alsoSelf: true },
+    { id: 'PAIRED_BOOKENDS',   label: 'Paired bookends — drink with me', emoji: '🎎', amount: 2, unit: 'sip', target: 'choose', alsoSelf: true },
     { id: 'SEQUENCE_4',        label: 'Little waterfall',          emoji: '💧', amount: 1, unit: 'sip',  target: 'everyone' },
     { id: 'SEQUENCE_6',        label: 'WATERFALL',                 emoji: '🌊', amount: 2, unit: 'sip',  target: 'everyone' }
   ];
@@ -66,8 +69,8 @@
       unit: r.unit, target: r.target, alsoSelf: !!r.alsoSelf
     });
 
-    const rarity = RARITY[result.cardRarity] || RARITY.common;
-    push('rarity:' + result.cardRarity, rarity);
+    const rarity = RARITY[result.cardRarity];          // null tiers (uncommon) owe nothing
+    if (rarity) push('rarity:' + result.cardRarity, rarity);
 
     const earned = new Set((result.badges || []).map(b => b.id));
     for (const rule of BADGE_RULES) if (earned.has(rule.id)) push('badge:' + rule.id, rule);
