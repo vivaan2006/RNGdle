@@ -39,7 +39,7 @@ a{color:inherit}
 
 header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
 .hbar{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
-.logo{font-weight:800;font-size:22px;letter-spacing:-.5px}
+.logo{font-weight:800;font-size:22px;letter-spacing:-.5px;background:none;border:0;padding:0;color:inherit;font-family:inherit}
 .logo b{color:#f59e0b}
 .hspace{flex:1}
 .tabs{display:flex;gap:4px;background:var(--surface);border-radius:10px;padding:4px}
@@ -145,6 +145,29 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 .choice .ic{font-size:34px}
 .choice .t{font-weight:800;font-size:17px;margin-top:10px}
 .choice .d{font-size:12px;color:var(--prose-3);margin-top:6px;line-height:1.5}
+
+/* home / game hub */
+.hero{text-align:center;padding:36px 0 8px}
+.herowordmark{font-weight:800;font-size:clamp(32px,7vw,44px);letter-spacing:-1px}
+.herowordmark b{color:#f59e0b}
+.herosub{color:var(--prose-3);font-size:14px;max-width:480px;margin:10px auto 0;line-height:1.6}
+.gamegrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+@media(max-width:640px){.gamegrid{grid-template-columns:1fr}}
+.gamebox{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--card-line);border-radius:18px;overflow:hidden;transition:.15s;font-family:inherit;padding:0;color:inherit;text-decoration:none}
+.gamebox:not(.disabled):hover{border-color:#f59e0b;transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.gamebox-media{background:linear-gradient(135deg,var(--surface),var(--surface-raised));padding:26px 20px;text-align:center;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.mini-numcard{font-size:26px;font-weight:700;letter-spacing:2px}
+.mini-pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.mini-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.mini-badge{font-size:11px;font-weight:600;background:var(--card);border:1px solid var(--card-line);border-radius:999px;padding:4px 10px;color:var(--prose-2)}
+.gamebox-body{padding:18px 20px 20px}
+.gamebox-body h3{margin:0;font-size:18px;font-weight:800}
+.gamebox-body p{margin:8px 0 0;font-size:13px;color:var(--prose-2);line-height:1.5}
+.gamebox-tag{display:inline-block;margin-top:12px;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--prose-3);text-transform:uppercase}
+.gamebox.disabled{cursor:not-allowed;filter:grayscale(1);opacity:.55}
+.gamebox.disabled .gamebox-media{border-bottom:1px dashed var(--card-line)}
+.gamebox.disabled .gamebox-media.placeholder{font-size:38px;color:var(--prose-3)}
+.gamebox-tag.beta{color:#f59e0b}
 
 /* player grid (local + online screen) */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px}
@@ -327,8 +350,8 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 <body>
 <header>
   <div class="hbar">
-    <div class="logo">RNG<b>party</b></div>
-    <div class="tabs" id="tabs">
+    <button class="logo" id="homeLogo" title="All games">RNG<b>party</b></button>
+    <div class="tabs hidden" id="tabs">
       <button class="tab active" data-tab="solo">Solo</button>
       <button class="tab" data-tab="party">🎉 Party</button>
       <button class="tab" data-tab="whatif">🔮 What If</button>
@@ -340,8 +363,44 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 </header>
 
 <div class="wrap">
+  <!-- ============ HOME (game hub) ============ -->
+  <section id="homeView">
+    <div class="hero">
+      <div class="herowordmark">RNG<b>party</b></div>
+      <p class="herosub">Free browser party games. Pick one and play — solo, on one screen, or Jackbox-style with everyone on their own phone.</p>
+    </div>
+    <div class="gamegrid">
+      <button class="gamebox" id="enterRNGdle">
+        <div class="gamebox-media">
+          <div class="mini-numcard mono">839454</div>
+          <div class="mini-pills">
+            <span class="pill" style="background:#f3e8ff;color:#7e22ce;border-color:#a855f7">EPIC</span>
+            <span class="pill" style="background:#dbeafe;color:#1e40af;border-color:#2563eb">TOP 6%</span>
+          </div>
+          <div class="mini-badges">
+            <span class="mini-badge">🎲 Six Digits</span>
+            <span class="mini-badge">🔢 Sequence</span>
+          </div>
+        </div>
+        <div class="gamebox-body">
+          <h3>🎲 RNGdle</h3>
+          <p>Roll a number, chase rare badges, out-score your friends. Solo endless rolling, local party, or online with everyone on their own phone.</p>
+          <span class="gamebox-tag">233 badges · unlimited rolls · up to 12 players</span>
+        </div>
+      </button>
+      <div class="gamebox disabled" title="Coming soon">
+        <div class="gamebox-media placeholder">🔒</div>
+        <div class="gamebox-body">
+          <h3>Coming Soon</h3>
+          <p>Another party game is in the works.</p>
+          <span class="gamebox-tag beta">BETA · IN DEVELOPMENT</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ SOLO ============ -->
-  <section id="soloView">
+  <section id="soloView" class="hidden">
     <div class="stage">
       <div class="numcard" id="soloCard"><div class="digits mono" id="soloDigits"></div></div>
       <div class="rarityrow" id="soloRarity"></div>
@@ -529,7 +588,6 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
   </section>
 
   <div class="foot">
-    Faithful clone of rngdle.com — same 233 badges, same scoring, same percentile curve.<br>
     Party mode, simultaneous reveals, slot-machine sound &amp; unlimited rolls added.
   </div>
 </div>
@@ -1309,9 +1367,12 @@ function partyNav(){
   sw.dataset.to = to;
 }
 /* Tears down whatever is live, then returns to the chooser. */
+/* Returns false if the user backed out of an in-progress-game confirm, true
+   otherwise — so callers (the Leave button, and going all the way home) can
+   both reuse the same "are you sure" guard without duplicating it. */
 function partyLeave(){
   const what = partyInProgress();
-  if(what && !confirm(`Leave the current ${what}? Scores will be lost.`)) return;
+  if(what && !confirm(`Leave the current ${what}? Scores will be lost.`)) return false;
   try{ NET.ws && NET.ws.close(); }catch(e){}
   NET.ws=null; NET.role=null; NET.code=null; NET.pid=null; NET.state=null; NET.prevPhase=null;
   cancelBreakdown(); document.body.classList.remove('revealing');
@@ -1319,6 +1380,7 @@ function partyLeave(){
   $('#localGame').classList.add('hidden'); $('#localSetup').classList.remove('hidden');
   $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML=''; $('#lpResults').classList.add('hidden'); $('#lpRevealDigit').classList.add('hidden'); $('#lpShare').classList.add('hidden');
   partyGo('choose');
+  return true;
 }
 $('#partyLeave').addEventListener('click',partyLeave);
 $('#partySwitch').addEventListener('click',e=>partyGo(e.currentTarget.dataset.to));
@@ -1337,16 +1399,31 @@ $('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.cl
 $('#muteBtn').textContent=SFX.isMuted()?'🔇':'🔊';
 $('#muteBtn').addEventListener('click',()=>{const m=SFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)SFX.resume();});
 
+/* ---------- home / game hub ---------- */
+function enterRNGdle(){
+  $('#homeView').classList.add('hidden'); $('#tabs').classList.remove('hidden');
+  [...$('#tabs').children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='solo'));
+  $('#soloView').classList.remove('hidden'); $('#partyView').classList.add('hidden'); $('#whatifView').classList.add('hidden');
+  soloIdle();
+}
+function goHome(){
+  if(!partyLeave()) return;   // reuses the in-progress-game confirm; bails if the user backs out
+  $('#tabs').classList.add('hidden');
+  $('#soloView').classList.add('hidden'); $('#partyView').classList.add('hidden'); $('#whatifView').classList.add('hidden');
+  $('#homeView').classList.remove('hidden');
+}
+$('#enterRNGdle').addEventListener('click',enterRNGdle);
+$('#homeLogo').addEventListener('click',goHome);
+
 /* ---------- init / deep-link ---------- */
 lpRenderSetup();
 const roomParam=new URLSearchParams(location.search).get('room');
-if(roomParam){ // go straight to join
+if(roomParam){ // go straight to join, skipping the game hub entirely
+  $('#homeView').classList.add('hidden'); $('#tabs').classList.remove('hidden');
   [...$('#tabs').children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='party'));
   $('#soloView').classList.add('hidden'); $('#partyView').classList.remove('hidden');
   $('#partyChoose').classList.add('hidden'); $('#onlineParty').classList.remove('hidden');
   startJoin(roomParam.toUpperCase()); $('#jName').focus();
-} else {
-  soloIdle();   // wait for the player to press ROLL rather than spending a roll for them
 }
 </script>
 </body>
