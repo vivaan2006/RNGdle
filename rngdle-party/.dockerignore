@@ -1,0 +1,7 @@
+.git
+.impeccable
+_reference
+README.md
+Dockerfile
+.dockerignore
+fly.toml

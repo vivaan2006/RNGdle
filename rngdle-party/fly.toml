@@ -1,0 +1,24 @@
+app = "rngparty"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "3000"
+
+# Room state lives in plain in-memory JS Maps (no database) — this app must
+# stay a single machine. Fly doesn't auto-scale to multiple machines unless
+# explicitly told to (`fly scale count`), so as long as that's never run,
+# this is safe by default.
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
