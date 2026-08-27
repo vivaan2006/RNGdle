@@ -1,5 +1,5 @@
 // Minimal zero-dependency WebSocket (RFC 6455) + static file server for Node.
-// Only what RNGdle Party needs: text frames, ping/pong, close. No extensions,
+// Only what RNGparty needs: text frames, ping/pong, close. No extensions,
 // no permessage-deflate, no client mode. Bun users never touch this file —
 // server.js picks Bun.serve when it's running under Bun.
 

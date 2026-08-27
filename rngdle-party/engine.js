@@ -1,5 +1,5 @@
 /*
- * rngdle-party engine.js
+ * RNGparty engine.js
  * Badge-scoring engine extracted VERBATIM from rngdle.com and re-hosted as a
  * self-contained ES module registry. All 233 badge check functions, the helper
  * math library, the SCORED_BADGES table, the SCORE_PERCENTILES CDF, and the
@@ -16,7 +16,7 @@
     id = String(id);
     if(__registry__[id]) return __registry__[id];
     var body = __MODULES__[id];
-    if(body == null) throw new Error("rngdle engine: missing module " + id);
+    if(body == null) throw new Error("RNGparty engine: missing module " + id);
     var exportsObj = {};
     var e = {
       s: function(a){

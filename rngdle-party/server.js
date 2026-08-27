@@ -1,4 +1,4 @@
-// RNGdle Party — online (Jackbox-style) server.
+// RNGparty — online (Jackbox-style) server.
 // Run with:  bun server.js   (or)   node server.js
 // Serves the static app and runs realtime rooms. Rolls are generated
 // server-side with the SAME extracted engine so every screen stays in sync.
@@ -12,6 +12,7 @@ const PORT = Number(process.env.PORT || 3000);
 // long as the clients spend animating it.
 const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
+const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js" };
 
@@ -26,33 +27,43 @@ function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room
 
 function stateMsg(room){
   return { type:"state", phase:room.phase, round:room.round, target:room.target, mode:room.mode,
+    autoNext:room.autoNext, revealMode:room.revealMode, revealStep:room.revealStep, revealMaxLen:room.revealMaxLen,
     players:[...room.players.values()].map(p=>({
       pid:p.pid, name:p.name, color:p.color, score:p.score, rolls:p.rolls, ready:p.ready,
       lastNumber: p.last?p.last.number:null, lastScore:p.last?p.last.score:null,
-      lastPct: p.last?p.last.pct:null, lastRarity:p.last?p.last.rarity:null
+      lastPct: p.last?p.last.pct:null, lastRarity:p.last?p.last.rarity:null,
+      bestScore:p.bestScore, bestScoreTier:p.bestScoreTier, bestBadge:p.bestBadge, bestNumber:p.bestNumber
     })) };
 }
 function pushState(room){ broadcast(room, stateMsg(room)); }
 function genRoll(){ const r=R.roll();
   // tiers stay server-side: they only size the reveal window. Clients rebuild the
   // badges themselves from the number, so nothing extra goes over the wire.
-  const tiers = r.badges.filter(b=>b.isScoring).sort((a,b)=>a.score-b.score).map(b=>R.getBadgeRarityTier(b.score));
-  return { number:r.number, score:r.totalScore, pct:r.percentile, rarity:r.cardRarity, tiers }; }
+  const scoring = r.badges.filter(b=>b.isScoring);
+  const tiers = scoring.slice().sort((a,b)=>a.score-b.score).map(b=>R.getBadgeRarityTier(b.score));
+  const top = scoring.length ? scoring.slice().sort((a,b)=>b.score-a.score)[0] : null;
+  const topBadge = top ? { id:top.id, label:top.label, emoji:top.emoji, score:top.score } : null;
+  return { number:r.number, score:r.totalScore, pct:r.percentile, rarity:r.cardRarity, tiers, topBadge }; }
 
-/* How long the clients will spend on this round: digits, then the shared badge
-   schedule (step k waits on the rarest badge any player lands at k), then the
-   rarity payoff. Mirrors renderBreakdown()/hostReveal() in index.html. */
-function revealMs(pendings){
-  const maxLen = Math.max(1, ...pendings.map(p=>String(p.number).length));
-  const tiers  = pendings.map(p=>p.tiers||[]);
-  const steps  = Math.max(0, ...tiers.map(t=>t.length));
-  let badges = steps ? BADGE_LEAD : 0;
+/* Duration of the badge portion alone: step k waits on the rarest badge any
+   player lands at k, then the rarity payoff. Mirrors renderBreakdown() in
+   index.html. Shared by the auto full-round timer and the manual mode's
+   post-digits timer (manual skips the digit portion — the host paces that). */
+function badgeScheduleMs(tiersList){
+  const steps = Math.max(0, ...tiersList.map(t=>t.length));
+  let ms = steps ? BADGE_LEAD : 0;
   for(let k=0;k<steps;k++){
     let hold=0;
-    for(const t of tiers) if(k<t.length) hold=Math.max(hold, RARITY_ORDER.indexOf(t[k]));
-    badges += BADGE_GAP + Math.max(0,hold)*BADGE_RARITY_HOLD;
+    for(const t of tiersList) if(k<t.length) hold=Math.max(hold, RARITY_ORDER.indexOf(t[k]));
+    ms += BADGE_GAP + Math.max(0,hold)*BADGE_RARITY_HOLD;
   }
-  return maxLen*PER_DIGIT + LAST_EXTRA + badges + PAYOFF_HOLD;
+  return ms + PAYOFF_HOLD;
+}
+/* Full round duration: digits, then the badge schedule. Mirrors hostReveal()
+   in index.html — used only for auto reveal mode. */
+function revealMs(pendings){
+  const maxLen = Math.max(1, ...pendings.map(p=>String(p.number).length));
+  return maxLen*PER_DIGIT + LAST_EXTRA + badgeScheduleMs(pendings.map(p=>p.tiers||[]));
 }
 
 function beginReveal(room){
@@ -60,26 +71,49 @@ function beginReveal(room){
   room.phase="revealing";
   const pendings=[];
   for(const p of room.players.values()){ if(p.pending){ p.last=p.pending; pendings.push(p.pending); } }
+  if(room.revealMode==="manual"){
+    // Digits are paced by the host clicking "reveal next digit"; endReveal()
+    // fires once that's done and the badge schedule (below) has played out.
+    room.revealStep=0;
+    room.revealMaxLen=Math.max(1, ...pendings.map(p=>String(p.number).length));
+    pushState(room);
+    return;
+  }
   pushState(room);
   clearTimeout(room.revealTimer);
   room.revealTimer=setTimeout(()=>endReveal(room), (pendings.length?revealMs(pendings):0) + 700);
 }
 function endReveal(room){
-  for(const p of room.players.values()){ if(p.pending){ p.score+=p.pending.score; p.rolls++; p.pending=null; } p.ready=false; }
+  for(const p of room.players.values()){ if(p.pending){ p.score+=p.pending.score; p.rolls++;
+    if(p.pending.score>(p.bestScore||0)){ p.bestScore=p.pending.score; p.bestScoreTier=p.pending.rarity; p.bestNumber=p.pending.number; }
+    if(p.pending.topBadge && (!p.bestBadge || p.pending.topBadge.score>p.bestBadge.score)) p.bestBadge=p.pending.topBadge;
+    p.pending=null; } p.ready=false; }
   const over = room.mode==="rounds" && room.round>=room.target;
   room.phase = over ? "gameOver" : "roundEnd";
   pushState(room);
+  if(!over && room.autoNext){
+    clearTimeout(room.autoNextTimer);
+    room.autoNextTimer=setTimeout(()=>advanceRound(room), AUTO_NEXT_DELAY);
+  }
 }
 function maybeAutoReveal(room){
   const ps=[...room.players.values()];
   if(ps.length>0 && ps.every(p=>p.ready)) beginReveal(room);
+}
+function advanceRound(room){
+  if(room.phase!=="roundEnd") return;
+  clearTimeout(room.autoNextTimer);
+  room.round++; room.phase="collecting";
+  for(const p of room.players.values()){ p.ready=false; p.pending=null; p.last=null; }
+  pushState(room);
 }
 
 function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
     const code=makeCode();
-    const room={ code, hostWs:ws, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null };
+    const room={ code, hostWs:ws, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
+      autoNext:false, autoNextTimer:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code}); pushState(room); return;
   }
@@ -90,19 +124,23 @@ function handle(ws, m){
     const name=String(m.name||"Player").slice(0,18).trim()||"Player";
     const id=pid();
     const color=COLORS[room.players.size % COLORS.length];
-    room.players.set(id,{ pid:id, name, color, score:0, rolls:0, ws, ready:false, pending:null, last:null });
+    room.players.set(id,{ pid:id, name, color, score:0, rolls:0, ws, ready:false, pending:null, last:null, bestScore:0, bestScoreTier:null, bestBadge:null, bestNumber:null });
     meta.set(ws,{ roomCode:code, pid:id });
     send(ws,{type:"joined",pid:id,code}); pushState(room); return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
-  if(m.type==="configure" && info.isHost && room.phase==="lobby"){
-    if(m.mode) room.mode = m.mode==="endless"?"endless":"rounds";
-    if([3,5,10].includes(+m.target)) room.target=+m.target;
+  if(m.type==="configure" && info.isHost){
+    if(room.phase==="lobby"){
+      if(m.mode) room.mode = m.mode==="endless"?"endless":"rounds";
+      if([3,5,10].includes(+m.target)) room.target=+m.target;
+      if(m.revealMode) room.revealMode = m.revealMode==="manual"?"manual":"auto";
+    }
+    if(typeof m.autoNext==="boolean") room.autoNext=m.autoNext;
     pushState(room); return;
   }
   if(m.type==="start" && info.isHost && room.phase==="lobby"){
     if(room.players.size<1) return;
-    for(const p of room.players.values()){ p.score=0; p.rolls=0; p.ready=false; p.pending=null; p.last=null; }
+    for(const p of room.players.values()){ p.score=0; p.rolls=0; p.ready=false; p.pending=null; p.last=null; p.bestScore=0; p.bestScoreTier=null; p.bestBadge=null; p.bestNumber=null; }
     room.round=1; room.phase="collecting"; pushState(room); return;
   }
   if(m.type==="rollReady" && info.pid && room.phase==="collecting"){
@@ -113,19 +151,26 @@ function handle(ws, m){
     for(const p of room.players.values()){ if(!p.ready){ p.pending=genRoll(); p.ready=true; } }
     beginReveal(room); return;
   }
-  if(m.type==="next" && info.isHost && room.phase==="roundEnd"){
-    room.round++; room.phase="collecting";
-    for(const p of room.players.values()){ p.ready=false; p.pending=null; p.last=null; }
-    pushState(room); return;
+  if(m.type==="next" && info.isHost){ advanceRound(room); return; }
+  if(m.type==="revealStep" && info.isHost && room.phase==="revealing" && room.revealMode==="manual"){
+    if(room.revealStep>=room.revealMaxLen) return;
+    room.revealStep++;
+    pushState(room);
+    if(room.revealStep>=room.revealMaxLen){
+      const pendings=[...room.players.values()].map(p=>p.last).filter(Boolean);
+      clearTimeout(room.revealTimer);
+      room.revealTimer=setTimeout(()=>endReveal(room), badgeScheduleMs(pendings.map(p=>p.tiers||[])) + 700);
+    }
+    return;
   }
-  if(m.type==="endGame" && info.isHost){ clearTimeout(room.revealTimer); room.phase="gameOver"; pushState(room); return; }
+  if(m.type==="endGame" && info.isHost){ clearTimeout(room.revealTimer); clearTimeout(room.autoNextTimer); room.phase="gameOver"; pushState(room); return; }
 }
 
 function handleClose(ws){
   const info=meta.get(ws); meta.delete(ws); if(!info) return;
   const room=rooms.get(info.roomCode); if(!room) return;
   if(info.isHost){ // host left → tear down room
-    clearTimeout(room.revealTimer);
+    clearTimeout(room.revealTimer); clearTimeout(room.autoNextTimer);
     broadcast(room,{type:"error",msg:"Host ended the party."});
     rooms.delete(room.code); return;
   }
@@ -161,7 +206,7 @@ if (globalThis.Bun) {
 const ips=[];
 const nifs=networkInterfaces();
 for(const name of Object.keys(nifs)){ for(const ni of nifs[name]||[]){ if(ni.family==="IPv4" && !ni.internal) ips.push(ni.address); } }
-console.log("\n🎲  RNGdle Party server running on "+(globalThis.Bun?"Bun":"Node "+process.version)+"\n");
+console.log("\n🎲  RNGparty server running on "+(globalThis.Bun?"Bun":"Node "+process.version)+"\n");
 console.log("   Host screen (this machine):  http://localhost:"+PORT);
 for(const ip of ips) console.log("   Friends on same Wi-Fi join:  http://"+ip+":"+PORT);
 console.log("\n   Open the host link, click Party → Online → Host. Share the room code.\n");

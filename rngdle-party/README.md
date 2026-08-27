@@ -1,4 +1,4 @@
-# RNGdle — Party Edition
+# RNGparty
 
 A faithful clone of **[rngdle.com](https://www.rngdle.com/)** with the good stuff added:
 

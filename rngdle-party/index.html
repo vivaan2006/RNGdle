@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>RNGdle — Party</title>
+<title>RNGparty</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -214,6 +214,10 @@ body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
 body.revealing #pWinner,
 body.revealing .foot{display:none}
+/* Manual reveal mode needs its step button reachable mid-reveal, so bring the
+   actionbar back for just that case. */
+body.revealing .actionbar:has(#lpRevealDigit:not(.hidden)),
+body.revealing .actionbar:has(#hRevealDigit:not(.hidden)){display:flex}
 @keyframes fadeup{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 body:not(.revealing) #soloView .eprow,
 body:not(.revealing) #soloView .rollbar,
@@ -246,6 +250,28 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .wrap,
 body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(1600px,96vw)}
 #localGame .grid,#hGrid{grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
 #localGame .pcard,#hGrid .pcard{padding:18px}
+/* With 5+ players, badges landing on the top rows would otherwise grow tall
+   enough to shove everything below off screen. Pin the grid to exactly 4
+   columns (2 full rows = 8 players) and give it its own scroll — cards shrink
+   so both rows stay fully visible together; a 3rd row still scrolls into view. */
+#localGame .grid.capped,#hGrid.capped{grid-template-columns:repeat(4,minmax(0,1fr));max-height:70vh;overflow-y:auto;padding:2px 2px 10px;scroll-behavior:smooth}
+@media(max-width:900px){#localGame .grid.capped,#hGrid.capped{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Shrinking the header/number chrome alone wasn't enough — the badge list
+   itself is what balloons a card's height as badges land, and *that* growth
+   was still pushing row 2 further down every time a badge dropped. Give each
+   capped card a fixed height (exactly half the container, so 2 rows always
+   fit) and let its own badge list scroll internally instead of growing the
+   card — row heights then never change, no matter how many badges land. */
+#localGame .grid.capped .pcard,#hGrid.capped .pcard{padding:10px;height:calc((70vh - 16px)/2);display:flex;flex-direction:column}
+#localGame .grid.capped .pcard .av,#hGrid.capped .pcard .av{width:22px;height:22px;font-size:11px}
+#localGame .grid.capped .pcard .pnm,#hGrid.capped .pcard .pnm{font-size:12px}
+#localGame .grid.capped .pcard .prank,#hGrid.capped .pcard .prank{font-size:10px}
+#localGame .grid.capped .pcard .pnum,#hGrid.capped .pcard .pnum{font-size:clamp(16px,3.4vw,22px);min-height:30px;padding:4px 0;letter-spacing:1px;flex:none}
+#localGame .grid.capped .pcard .psc,#hGrid.capped .pcard .psc{font-size:13px}
+#localGame .grid.capped .pcard .rarityrow,#hGrid.capped .pcard .rarityrow{min-height:18px;margin-top:6px;gap:8px;flex:none}
+#localGame .grid.capped .pcard .phead,#hGrid.capped .pcard .phead{margin-bottom:6px;gap:6px;flex:none}
+#localGame .grid.capped .pcard .pfoot{flex:none}
+#localGame .grid.capped .pcard .pbreak,#hGrid.capped .pcard .pbreak{flex:1 1 auto;min-height:0;overflow-y:auto;margin-top:6px;padding-right:4px}
 
 /* Per-player badge lists in local party — same reveal, denser so cards stay readable side by side. */
 .pbreak{margin-top:12px;text-align:left}
@@ -291,10 +317,11 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 <body>
 <header>
   <div class="hbar">
-    <div class="logo">RNG<b>dle</b></div>
+    <div class="logo">RNG<b>party</b></div>
     <div class="tabs" id="tabs">
       <button class="tab active" data-tab="solo">Solo</button>
       <button class="tab" data-tab="party">🎉 Party</button>
+      <button class="tab" data-tab="whatif">🔮 What If</button>
     </div>
     <div class="hspace"></div>
     <button class="iconbtn" id="muteBtn" title="Sound">🔊</button>
@@ -354,6 +381,9 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <div class="cfgrow" id="lpRoundsCfg"><span class="small">Rounds</span>
             <div class="seg" id="lpRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div>
             <span class="small">· all roll each round · highest total EP wins</span></div>
+          <div class="cfgrow"><span class="small">Reveal</span>
+            <div class="seg" id="lpRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div>
+            <span class="small">· manual: click through each digit yourself</span></div>
         </div>
         <button class="bigbtn" id="lpStart">Start Party 🎲</button>
       </div>
@@ -363,8 +393,13 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
         <div class="grid" id="lpGrid"></div>
         <div id="lpWinner"></div>
         <div class="panel"><h3>Leaderboard</h3><div class="lb" id="lpLb"></div></div>
+        <div id="lpResults" class="hidden">
+          <div class="panel"><h3>Personal Bests</h3><div class="grid" id="lpBestRolls"></div></div>
+          <div class="stats" id="lpPartyStats"></div>
+        </div>
         <div class="actionbar" id="lpActions">
           <button class="rollbtn big" id="lpRollAll" style="max-width:420px">ROLL EVERYONE</button>
+          <button class="rollbtn big hidden" id="lpRevealDigit" style="max-width:420px">Reveal digit 1 ▶</button>
           <button class="secbtn" id="lpEnd">End game</button><button class="secbtn" id="lpNew">New party</button>
         </div>
       </div>
@@ -394,6 +429,9 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
               <div class="seg" id="hModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
             <div class="cfgrow" id="hRoundsCfg"><span class="small">Rounds</span>
               <div class="seg" id="hRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div></div>
+            <div class="cfgrow"><span class="small">Reveal</span>
+              <div class="seg" id="hRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div>
+              <span class="small">· manual: you click through each digit</span></div>
           </div>
           <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="grid" id="hLobbyGrid"></div>
             <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
@@ -404,12 +442,18 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <div class="grid" id="hGrid"></div>
           <div id="hWinner"></div>
           <div class="panel"><h3>Leaderboard</h3><div class="lb" id="hLb"></div></div>
+          <div id="hResults" class="hidden">
+            <div class="stats" id="hPartyStats"></div>
+            <div class="panel"><h3>Personal Bests</h3><div class="lb" id="hBests"></div></div>
+          </div>
           <!-- sticky: with badge lists the page is long, so the round controls
                must stay reachable without scrolling back to find them -->
           <div class="actionbar" id="hActions">
             <span class="small" id="hWaitMsg"></span>
             <button class="rollbtn" id="hReveal">Reveal now ▶</button>
+            <button class="rollbtn hidden" id="hRevealDigit">Reveal digit 1 ▶</button>
             <button class="rollbtn" id="hNext">Next round →</button>
+            <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="hAutoNext"> Auto-advance rounds</label>
             <button class="secbtn" id="hEndGame">End game</button>
           </div>
         </div>
@@ -435,6 +479,10 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <div class="eprow"><div class="eptotal"><span id="pEP">0</span><span class="ep">EP THIS ROLL</span></div></div>
           </div>
           <div class="pbreak" id="pBreak"></div>
+          <div id="pResults" class="hidden">
+            <div class="stats" id="pPartyStats"></div>
+            <div class="panel"><h3>Personal Bests</h3><div class="lb" id="pBests"></div></div>
+          </div>
           <div class="panel"><h3>Leaderboard</h3><div class="minilb" id="pLb"></div></div>
           <!-- sticky, for the same reason as the host: the badge list pushes the
                roll button off screen otherwise -->
@@ -445,6 +493,24 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <div id="pWinner"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ WHAT IF ============ -->
+  <section id="whatifView" class="hidden">
+    <div class="panel"><h3>What If?</h3>
+      <div class="small mt8">Type any number a roll could land on (0–1,000,000) and see exactly what it would score.</div>
+      <div class="prow mt8"><input class="inp mono" id="wiInput" placeholder="e.g. 839454" inputmode="numeric" maxlength="7" autocomplete="off">
+        <button class="secbtn" id="wiGo">Check</button></div>
+      <div class="small" id="wiHint"></div>
+    </div>
+    <div id="wiResult" class="hidden">
+      <div class="stage">
+        <div class="numcard" id="wiCard"><div class="digits mono" id="wiDigits"></div></div>
+        <div class="rarityrow" id="wiRarity"></div>
+        <div class="eprow"><div class="eptotal"><span id="wiEP">0</span><span class="ep">EP</span></div></div>
+      </div>
+      <div id="wiBreakdown"></div>
     </div>
   </section>
 
@@ -467,6 +533,60 @@ const AVATAR_COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef444
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const famOf = {}; R.BADGE_DEFINITIONS.forEach(b => famOf[b.id] = b.family);
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+/* ---------- end-of-party results (shared by local + online host + online player) ----------
+   Every player object here (LP.players locally, s.players over the wire) carries
+   score/rolls plus bestScore/bestScoreTier/bestBadge, updated as each roll lands. */
+function topBadgeOf(result){ const scoring=result.badges.filter(b=>b.isScoring); if(!scoring.length)return null; return scoring.slice().sort((a,b)=>b.score-a.score)[0]; }
+function trackPersonalBest(p,r){
+  if(r.totalScore>(p.bestScore||0)){ p.bestScore=r.totalScore; p.bestScoreTier=r.cardRarity; p.bestNumber=r.number; }
+  const top=topBadgeOf(r);
+  if(top && (!p.bestBadge || top.score>p.bestBadge.score)) p.bestBadge={id:top.id,label:top.label,emoji:top.emoji,score:top.score};
+}
+function renderPartyStats(container,players){
+  const totalEP=players.reduce((s,p)=>s+p.score,0);
+  container.innerHTML=`<div class="stat"><div class="v">${escapeHtml(totalEP.toLocaleString())}</div><div class="l">Total Party EP</div></div>`;
+}
+/* A colored rarity pill as a markup string — same look as rarityPill()'s DOM
+   version, just for template literals instead of appendChild. */
+function pillHtml(tier){ return rarityPill(tier).outerHTML; }
+function renderBestsList(container,players,avatarFn){
+  const ranked=[...players].sort((a,b)=>(b.bestScore||0)-(a.bestScore||0));
+  container.innerHTML=ranked.map(p=>{
+    const numHtml=p.bestNumber!=null?`<span class="mono" style="font-weight:700;font-size:15px;color:var(--foreground)">${p.bestNumber}</span>`:'—';
+    const pill=p.bestScoreTier?pillHtml(p.bestScoreTier):'';
+    return `<div class="lbrow"><div class="rank">${p.bestBadge?p.bestBadge.emoji||'🎖️':'—'}</div>${avatarFn(p,'m')}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${numHtml} ${pill}</div></div><div class="sc"><div class="n">${(p.bestScore||0).toLocaleString()}</div><div class="u">EP</div></div></div>`;
+  }).join('');
+}
+function renderPartyResults(statsEl,bestsEl,players,avatarFn){ renderPartyStats(statsEl,players); renderBestsList(bestsEl,players,avatarFn); }
+/* Local-only: each player's personal-best roll, rendered as the same full
+   pcard box the live round uses — number, rarity/percentile, EP and the
+   whole badge breakdown, instantly (no reveal animation; already decided).
+   The engine is deterministic, so the badge breakdown is just recomputed
+   from the stored best number rather than kept around separately. */
+function renderBestRollCards(container,players,avatarFn){
+  const ranked=[...players].filter(p=>p.bestNumber!=null).sort((a,b)=>(b.bestScore||0)-(a.bestScore||0));
+  container.classList.toggle('capped',ranked.length>4);
+  container.innerHTML='';
+  ranked.forEach((p,i)=>{
+    const r=R.roll(p.bestNumber);
+    const card=document.createElement('div'); card.className='pcard';
+    card.innerHTML=`<div class="phead">${avatarFn(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank">${i===0?'👑':'#'+(i+1)}</span></div>
+      <div class="pnum mono">${r.number}</div><div class="rarityrow" style="margin-top:2px"></div>
+      <div class="pfoot"><span class="rr"></span><span class="psc">${r.totalScore.toLocaleString()} <small>EP</small></span></div>
+      <div class="pbreak"></div>`;
+    container.appendChild(card);
+    applyCardRarity(card,r.cardRarity);
+    showRarity(card.querySelector('.rarityrow'),r.cardRarity,r.percentile);
+    card.querySelector('.rarityrow').classList.add('reveal');
+    renderBreakdown(r,card.querySelector('.pbreak'),{stagger:false,header:false});
+  });
+}
+function appendSessionStats(container,rollHistory){
+  if(!rollHistory.length) return;
+  const totalBadges=rollHistory.reduce((s,h)=>s+h.result.badges.filter(b=>b.isScoring).length,0);
+  container.insertAdjacentHTML('beforeend',`<div class="stat"><div class="v">${escapeHtml(totalBadges.toLocaleString())}</div><div class="l">Badges Earned</div></div>`);
+}
 function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`}
 
 /* ---------- SOUND (Web Audio, fully synthesized) ---------- */
@@ -605,6 +725,27 @@ function revealNumber(el, finalNum, opts={}){
 }
 function revealDurationFor(number){ return String(number).length*PER_DIGIT + LAST_EXTRA; }
 
+/* ---------- manual (host-paced) digit reveal ---------- */
+/* Slots that start spinning immediately, same look as the auto reveal —
+   reused by the local-party step button and the online host/player manual mode. */
+function buildSpinSlots(el, finalNum){ const s=String(finalNum); el.innerHTML=''; return s.split('').map(()=>{ const sp=document.createElement('span'); sp.className='slot mono spinning'; sp.textContent=String(Math.floor(Math.random()*10)); el.appendChild(sp); return sp; }); }
+/* One rAF loop keeps every not-yet-locked slot across every card flickering
+   random digits; getStep() is read fresh each frame so a click (or an
+   incoming revealStep push) instantly stops that position from spinning. */
+function startDigitSpin(slotArrays, getStep){
+  let raf;
+  function frame(){
+    const step=getStep(); let more=false;
+    slotArrays.forEach(slots=>{ for(let i=step;i<slots.length;i++){ slots[i].textContent=String(Math.floor(Math.random()*10)); more=true; } });
+    raf = more ? requestAnimationFrame(frame) : null;
+  }
+  raf=requestAnimationFrame(frame);
+  return ()=>{ if(raf) cancelAnimationFrame(raf); raf=null; };
+}
+/* Locks one slot to its final digit if it's still spinning; returns whether it
+   actually did so, so callers know whether to play the lock sound. */
+function lockSlotAt(slots,i,ch){ if(i>=slots.length)return false; const sp=slots[i]; if(!sp.classList.contains('spinning'))return false; sp.textContent=ch; sp.classList.remove('spinning'); sp.classList.add('justlocked'); setTimeout(()=>sp.classList.remove('justlocked'),200); return true; }
+
 function showRarity(container, rarity, percentile){
   container.innerHTML='';
   container.appendChild(rarityPill(rarity));
@@ -649,20 +790,44 @@ function soloIdle(){
 }
 $('#soloRoll').addEventListener('click',doSoloRoll);
 
+/* ================= WHAT IF (instant lookup, no reveal theater) ================= */
+function wiCompute(){
+  const raw=$('#wiInput').value.trim();
+  if(!/^\d+$/.test(raw)){ $('#wiHint').textContent='Enter a whole number — no letters, decimals, or symbols.'; $('#wiResult').classList.add('hidden'); return; }
+  const n=parseInt(raw,10);
+  if(n>1000000){ $('#wiHint').textContent='Actual rolls only go up to 1,000,000 — try a smaller number.'; $('#wiResult').classList.add('hidden'); return; }
+  $('#wiHint').textContent=''; SFX.resume();
+  const r=R.roll(n);
+  $('#wiResult').classList.remove('hidden');
+  $('#wiDigits').innerHTML='';
+  String(r.number).split('').forEach(d=>{ const sp=document.createElement('span'); sp.className='slot mono'; sp.textContent=d; $('#wiDigits').appendChild(sp); });
+  applyCardRarity($('#wiCard'), r.cardRarity);
+  showRarity($('#wiRarity'), r.cardRarity, r.percentile);
+  $('#wiRarity').classList.add('reveal');
+  $('#wiEP').textContent=r.totalScore.toLocaleString();
+  renderBreakdown(r,$('#wiBreakdown'),{stagger:false,header:true});
+}
+$('#wiGo').addEventListener('click',wiCompute);
+$('#wiInput').addEventListener('keydown',e=>{if(e.key==='Enter')wiCompute();});
+
 /* ================= LOCAL PARTY (simultaneous) ================= */
-const LP={players:[],mode:'rounds',target:5,round:1,started:false,animating:false};
+const LP={players:[],mode:'rounds',target:5,round:1,started:false,animating:false,revealMode:'auto',rollHistory:[]};
 function lpAvatar(p,size='s'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 function lpRenderSetup(){ const list=$('#lpList');list.innerHTML='';
   LP.players.forEach((p,i)=>{const c=document.createElement('div');c.className='pchip';c.innerHTML=`${lpAvatar(p)}<span class="pn">${escapeHtml(p.name)}</span>`;const rm=document.createElement('button');rm.className='rm';rm.textContent='✕';rm.onclick=()=>{LP.players.splice(i,1);lpRenderSetup();};c.appendChild(rm);list.appendChild(c);});
   $('#lpHint').textContent=LP.players.length<2?'Add at least 2 players.':`${LP.players.length} players ready.`;
   $('#lpStart').disabled=LP.players.length<2;
 }
-function lpAdd(){const inp=$('#lpName');const n=inp.value.trim();if(!n||LP.players.length>=12)return;LP.players.push({name:n,color:AVATAR_COLORS[LP.players.length%AVATAR_COLORS.length],score:0,rolls:0,bestRarity:null});inp.value='';inp.focus();lpRenderSetup();}
+function lpAdd(){const inp=$('#lpName');const n=inp.value.trim();if(!n||LP.players.length>=12)return;
+  if(LP.players.some(p=>p.name.toLowerCase()===n.toLowerCase())){ $('#lpHint').textContent=`"${n}" is already in — pick a different name.`; return; }
+  LP.players.push({name:n,color:AVATAR_COLORS[LP.players.length%AVATAR_COLORS.length],score:0,rolls:0,totalBadges:0,bestRarity:null,bestScore:0,bestScoreTier:null,bestBadge:null,bestNumber:null});inp.value='';inp.focus();lpRenderSetup();}
 $('#lpAdd').addEventListener('click',lpAdd); $('#lpName').addEventListener('keydown',e=>{if(e.key==='Enter')lpAdd();});
 $('#lpModeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');LP.mode=b.dataset.mode;$('#lpRoundsCfg').style.display=LP.mode==='rounds'?'flex':'none';});
 $('#lpRoundSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');LP.target=+b.dataset.r;});
+$('#lpRevealSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');LP.revealMode=b.dataset.reveal;});
 
 function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
+  grid.classList.toggle('capped', LP.players.length>4);
   LP.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
     card.innerHTML=`<div class="phead">${lpAvatar(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div>
       <div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px"></div>
@@ -671,12 +836,38 @@ function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
     grid.appendChild(card); LP.cards[p.name]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rank:card.querySelector('.prank'),brk:card.querySelector('.pbreak')}; });
 }
 function lpStart(){ if(LP.players.length<2)return; SFX.resume();
-  LP.players.forEach(p=>{p.score=0;p.rolls=0;p.bestRarity=null;}); LP.round=1;LP.started=true;
-  $('#localSetup').classList.add('hidden');$('#localGame').classList.remove('hidden');$('#lpWinner').innerHTML='';
+  LP.players.forEach(p=>{p.score=0;p.rolls=0;p.totalBadges=0;p.bestRarity=null;p.bestScore=0;p.bestScoreTier=null;p.bestBadge=null;p.bestNumber=null;}); LP.round=1;LP.started=true;LP.rollHistory=[];
+  $('#localSetup').classList.add('hidden');$('#localGame').classList.remove('hidden');$('#lpWinner').innerHTML='';$('#lpResults').classList.add('hidden');
+  $('#lpGrid').classList.remove('hidden');$('#lpRoundTag').classList.remove('hidden');
   lpBuildGrid(); lpUpdateRoundTag(); lpRenderLb(); $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; partyNav();
 }
 $('#lpStart').addEventListener('click',lpStart);
 function lpUpdateRoundTag(){$('#lpRoundTag').textContent=LP.mode==='rounds'?`Round ${LP.round} of ${LP.target}`:`Round ${LP.round}`;}
+/* Manual mode: everyone's slots sit idle until the operator clicks — one click
+   locks the same digit position for every card at once, left to right. */
+function lpManualRevealDigits(entries,maxLen){
+  const slotsOf=entries.map(e=>buildSpinSlots(e.el,e.number));
+  const strOf=entries.map(e=>String(e.number));
+  const btn=$('#lpRevealDigit');
+  return new Promise(resolve=>{
+    let step=0;
+    SFX.spinStart();
+    const stopSpin=startDigitSpin(slotsOf,()=>step);
+    $('#lpRollAll').classList.add('hidden');
+    btn.classList.remove('hidden'); btn.disabled=false;
+    const label=()=>{ btn.textContent=`Reveal digit ${Math.min(step+1,maxLen)} of ${maxLen} ▶`; };
+    label();
+    function onClick(){
+      if(step>=maxLen) return;
+      SFX.lock(step);
+      slotsOf.forEach((slots,i)=>lockSlotAt(slots,step,strOf[i][step]));
+      step++;
+      if(step>=maxLen){ stopSpin(); SFX.spinStop(); btn.removeEventListener('click',onClick); btn.classList.add('hidden'); $('#lpRollAll').classList.remove('hidden'); resolve(); }
+      else label();
+    }
+    btn.addEventListener('click',onClick);
+  });
+}
 async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resume();
   const btn=$('#lpRollAll'); btn.disabled=true;
   const results={}; LP.players.forEach(p=>results[p.name]=R.roll());
@@ -685,9 +876,13 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   // reset visuals
   LP.players.forEach(p=>{const c=LP.cards[p.name];c.rar.innerHTML='';c.rar.classList.remove('reveal');c.brk.innerHTML='';c.el.style.boxShadow='none';c.el.style.borderColor='var(--card-line)';});
   const maxLen=Math.max(...LP.players.map(p=>String(results[p.name].number).length));
-  SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT);
-  await Promise.all(LP.players.map(p=>revealNumber(LP.cards[p.name].num, results[p.name].number, {sound:false})));
-  SFX.spinStop();
+  if(LP.revealMode==='manual'){
+    await lpManualRevealDigits(LP.players.map(p=>({el:LP.cards[p.name].num,number:results[p.name].number})), maxLen);
+  } else {
+    SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i), (i+1)*PER_DIGIT);
+    await Promise.all(LP.players.map(p=>revealNumber(LP.cards[p.name].num, results[p.name].number, {sound:false})));
+    SFX.spinStop();
+  }
   // Everyone's badges climb at the same time, exactly like solo. Left to itself each
   // card would drift apart, since a rarer badge holds longer than a common one. So
   // build ONE schedule up front: step k waits on the rarest badge any player is
@@ -697,7 +892,10 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   // apply
   let best=null;
   LP.players.forEach(p=>{ const r=results[p.name],c=LP.cards[p.name]; p.score+=r.totalScore;p.rolls++;
+    p.totalBadges+=r.badges.filter(b=>b.isScoring).length;
     if(!p.bestRarity||RARITY_ORDER.indexOf(r.cardRarity)>RARITY_ORDER.indexOf(p.bestRarity))p.bestRarity=r.cardRarity;
+    trackPersonalBest(p,r);
+    LP.rollHistory.push({name:p.name,color:p.color,round:LP.round,result:r});
     applyCardRarity(c.el,r.cardRarity); showRarity(c.rar,r.cardRarity,r.percentile); c.rar.classList.add('reveal'); c.sc.innerHTML=`${p.score.toLocaleString()} <small>EP</small>`;
     c.el.querySelector('.rr').textContent=`+${r.totalScore.toLocaleString()}`;
     if(!best||r.cardRarity&&RARITY_ORDER.indexOf(r.cardRarity)>RARITY_ORDER.indexOf(best))best=r.cardRarity; });
@@ -712,20 +910,27 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
 }
 $('#lpRollAll').addEventListener('click',lpRollAll);
 function lpRenderLb(){ const lb=$('#lpLb');lb.innerHTML=''; const ranked=[...LP.players].sort((a,b)=>b.score-a.score);
-  ranked.forEach((p,i)=>{ if(LP.cards&&LP.cards[p.name])LP.cards[p.name].rank.textContent=p.score>0?`#${i+1}`:'';
+  // Keeps each card's grid position matching current rank — order is only reassigned
+  // here, between rounds, so cards don't jump around mid-reveal while badges land.
+  ranked.forEach((p,i)=>{ if(LP.cards&&LP.cards[p.name]){LP.cards[p.name].rank.textContent=p.score>0?`#${i+1}`:'';LP.cards[p.name].el.style.order=i;}
     const row=document.createElement('div');row.className='lbrow';if(i===0&&p.score>0)row.classList.add('lead');
-    row.innerHTML=`<div class="rank ${i===0?'crown':''}">${i===0?'👑':i+1}</div>${lpAvatar(p,'m')}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${p.rolls} roll${p.rolls===1?'':'s'}${p.bestRarity?' · best '+R.RARITY_PALETTE[p.bestRarity].pill.label:''}</div></div><div class="sc"><div class="n">${p.score.toLocaleString()}</div><div class="u">EP</div></div>`;
+    row.innerHTML=`<div class="rank ${i===0?'crown':''}">${i===0?'👑':i+1}</div>${lpAvatar(p,'m')}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${p.totalBadges} badge${p.totalBadges===1?'':'s'} earned${p.bestRarity?' · best '+R.RARITY_PALETTE[p.bestRarity].pill.label:''}</div></div><div class="sc"><div class="n">${p.score.toLocaleString()}</div><div class="u">EP</div></div>`;
     lb.appendChild(row); });
 }
 function lpEnd(){ LP.started=false; const ranked=[...LP.players].sort((a,b)=>b.score-a.score);const win=ranked[0];const tie=ranked.filter(p=>p.score===win.score);
   $('#lpWinner').innerHTML=`<div class="winner pop"><div class="t">${tie.length>1?"IT'S A TIE":'WINNER'}</div><div class="n" style="color:${win.color}">${tie.map(p=>escapeHtml(p.name)).join(' & ')} 👑</div><div class="small mt8">${win.score.toLocaleString()} EP</div></div>`;
   $('#lpRollAll').classList.add('hidden'); SFX.win('mythic'); lpRenderLb();
+  $('#lpGrid').classList.add('hidden'); $('#lpRoundTag').classList.add('hidden');
+  $('#lpResults').classList.remove('hidden');
+  renderPartyStats($('#lpPartyStats'),LP.players);
+  appendSessionStats($('#lpPartyStats'),LP.rollHistory);
+  renderBestRollCards($('#lpBestRolls'),LP.players,lpAvatar);
 }
 $('#lpEnd').addEventListener('click',lpEnd);
-$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');LP.started=false;lpRenderSetup();partyNav();});
+$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');$('#lpResults').classList.add('hidden');$('#lpRevealDigit').classList.add('hidden');LP.started=false;lpRenderSetup();partyNav();});
 
 /* ================= ONLINE PARTY (Jackbox-style) ================= */
-const NET={ ws:null, role:null, code:null, pid:null, state:null, prevPhase:null, prevRound:null, hostCards:{}, mode:'rounds', target:5,
+const NET={ ws:null, role:null, code:null, pid:null, state:null, prevPhase:null, prevRound:null, hostCards:{}, mode:'rounds', target:5, revealMode:'auto', hostManual:null, playerManual:null,
   connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/ws`);
     this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
     this.ws.onclose=()=>{ if(this.role) showConnErr(); }; this.ws.onerror=()=>{}; },
@@ -748,7 +953,10 @@ function onNetError(msg){ const box=$('#joinErr'); if(box){box.innerHTML=`<div c
 /* ----- host ----- */
 $('#hModeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.mode=b.dataset.mode;$('#hRoundsCfg').style.display=NET.mode==='rounds'?'flex':'none';NET.send({type:'configure',mode:NET.mode,target:NET.target});});
 $('#hRoundSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.target=+b.dataset.r;NET.send({type:'configure',mode:NET.mode,target:NET.target});});
-function startHost(){ NET.role='host'; showOnlyOnline('hostView'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target})); }
+$('#hRevealSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.revealMode=b.dataset.reveal;NET.send({type:'configure',mode:NET.mode,target:NET.target,revealMode:NET.revealMode});});
+$('#hAutoNext').addEventListener('change',e=>NET.send({type:'configure',autoNext:e.target.checked}));
+$('#hRevealDigit').addEventListener('click',()=>NET.send({type:'revealStep'}));
+function startHost(){ NET.role='host'; showOnlyOnline('hostView'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode})); }
 function hostLobbyReady(code){ partyNav(); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 function avatarHtml(p,size='m'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 function hostRender(s){
@@ -763,6 +971,7 @@ function hostRender(s){
   $('#hRoundTag').textContent = s.mode==='rounds'?`Round ${s.round} of ${s.target}`:`Round ${s.round}`;
   // build/refresh grid
   const grid=$('#hGrid');
+  grid.classList.toggle('capped', s.players.length>4);
   if(NET.prevPhase==='lobby' || grid.children.length!==s.players.length || s.phase==='revealing' && grid.dataset.round!==String(s.round)){
     grid.innerHTML=''; NET.hostCards={};
     s.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
@@ -783,14 +992,21 @@ function hostRender(s){
   $('#hReveal').disabled = readyCount===0;
   $('#hNext').style.display = s.phase==='roundEnd' ? 'inline-block':'none';
   $('#hNext').textContent = (s.mode==='rounds'&&s.round>=s.target)?'See results →':'Next round →';
-  if(s.phase==='gameOver'){ hostWinner(s); $('#hNext').style.display='none'; $('#hReveal').style.display='none'; }
-  else $('#hWinner').innerHTML='';
+  $('#hAutoNext').checked = !!s.autoNext;
+  const revealingManually = s.phase==='revealing' && s.revealMode==='manual' && s.revealStep<s.revealMaxLen;
+  $('#hRevealDigit').style.display = revealingManually ? 'inline-block':'none';
+  if(revealingManually) $('#hRevealDigit').textContent = `Reveal digit ${Math.min(s.revealStep+1,s.revealMaxLen)} of ${s.revealMaxLen} ▶`;
+  if(s.phase==='revealing' && s.revealMode==='manual') hostRenderManualStep(s);
+  if(s.phase==='gameOver'){ hostWinner(s); $('#hNext').style.display='none'; $('#hReveal').style.display='none';
+    $('#hResults').classList.remove('hidden'); renderPartyResults($('#hPartyStats'),$('#hBests'),s.players,avatarHtml); }
+  else { $('#hWinner').innerHTML=''; $('#hResults').classList.add('hidden'); }
   hostLb(s);
 }
 /* Same beats as local party: numbers, then badges in lockstep, then the payoff.
    Badges are rebuilt from each player's number — the engine is deterministic, so
    every device derives the identical list without the server sending it. */
 async function hostReveal(s){
+  if(s.revealMode==='manual'){ hostRevealManualStart(s); return; }
   const live=s.players.filter(p=>p.lastNumber!=null && NET.hostCards[p.pid]);
   if(!live.length) return;
   cancelBreakdown();
@@ -814,7 +1030,46 @@ async function hostReveal(s){
   const gen=breakdownRun; await sleep(PAYOFF_HOLD);
   if(gen===breakdownRun) document.body.classList.remove('revealing');
 }
-function hostLb(s){ const lb=$('#hLb');lb.innerHTML=''; [...s.players].sort((a,b)=>b.score-a.score).forEach((p,i)=>{const row=document.createElement('div');row.className='lbrow';if(i===0&&p.score>0)row.classList.add('lead');row.innerHTML=`<div class="rank ${i===0?'crown':''}">${i===0?'👑':i+1}</div>${avatarHtml(p)}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${p.rolls} roll${p.rolls===1?'':'s'}</div></div><div class="sc"><div class="n">${p.score.toLocaleString()}</div><div class="u">EP</div></div>`;lb.appendChild(row);}); }
+/* Manual mode: the host paces digits one click at a time (revealStep, synced
+   via server state); once every position is shown, badges land the normal way. */
+function hostRevealManualStart(s){
+  const live=s.players.filter(p=>p.lastNumber!=null && NET.hostCards[p.pid]);
+  if(!live.length) return;
+  cancelBreakdown();
+  document.body.classList.add('revealing');
+  const results={}; live.forEach(p=>results[p.pid]=R.roll(p.lastNumber));
+  live.forEach(p=>{ const c=NET.hostCards[p.pid];
+    c.rar.innerHTML=''; c.rar.classList.remove('reveal'); c.brk.innerHTML='';
+    c.el.style.boxShadow='none'; c.el.style.borderColor='var(--card-line)';
+    c.slots=buildSpinSlots(c.num,p.lastNumber); });
+  SFX.spinStart();
+  const stopSpin=startDigitSpin(live.map(p=>NET.hostCards[p.pid].slots), ()=>(NET.state?NET.state.revealStep:0));
+  NET.hostManual={ results, live, badgesStarted:false, stopSpin };
+}
+function hostRenderManualStep(s){
+  if(!NET.hostManual) return;
+  const {live}=NET.hostManual;
+  live.forEach(p=>{ const c=NET.hostCards[p.pid]; if(!c||!c.slots) return;
+    const str=String(p.lastNumber);
+    for(let i=0;i<s.revealStep;i++){ if(lockSlotAt(c.slots,i,str[i])) SFX.lock(i); }
+  });
+  if(!NET.hostManual.badgesStarted && s.revealStep>=s.revealMaxLen){ NET.hostManual.badgesStarted=true; NET.hostManual.stopSpin(); SFX.spinStop(); hostRevealManualBadges(); }
+}
+async function hostRevealManualBadges(){
+  const {results,live}=NET.hostManual;
+  const schedule=sharedSchedule(live.map(p=>results[p.pid]));
+  await Promise.all(live.map(p=>renderBreakdown(results[p.pid],NET.hostCards[p.pid].brk,{header:false,schedule,reserve:true})));
+  let best='common';
+  live.forEach(p=>{ const c=NET.hostCards[p.pid];
+    applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); c.rar.classList.add('reveal');
+    c.rr.textContent=`+${(p.lastScore||0).toLocaleString()}`;
+    if(p.lastRarity&&RARITY_ORDER.indexOf(p.lastRarity)>RARITY_ORDER.indexOf(best))best=p.lastRarity; });
+  SFX.win(best);
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  if(gen===breakdownRun) document.body.classList.remove('revealing');
+  NET.hostManual=null;
+}
+function hostLb(s){ const lb=$('#hLb');lb.innerHTML=''; [...s.players].sort((a,b)=>b.score-a.score).forEach((p,i)=>{if(NET.hostCards[p.pid])NET.hostCards[p.pid].el.style.order=i;const row=document.createElement('div');row.className='lbrow';if(i===0&&p.score>0)row.classList.add('lead');row.innerHTML=`<div class="rank ${i===0?'crown':''}">${i===0?'👑':i+1}</div>${avatarHtml(p)}<div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${p.rolls} roll${p.rolls===1?'':'s'}</div></div><div class="sc"><div class="n">${p.score.toLocaleString()}</div><div class="u">EP</div></div>`;lb.appendChild(row);}); }
 function hostWinner(s){ const w=s.players.slice().sort((a,b)=>b.score-a.score); const top=w[0]; const tie=w.filter(p=>p.score===top.score); $('#hWinner').innerHTML=`<div class="winner pop"><div class="t">${tie.length>1?"IT'S A TIE":'WINNER'}</div><div class="n" style="color:${top.color}">${tie.map(p=>escapeHtml(p.name)).join(' & ')} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win('mythic'); }
 $('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hReveal').addEventListener('click',()=>NET.send({type:'forceReveal'}));
@@ -837,10 +1092,13 @@ function playerRender(s){
     // fresh round: clear last round's card, the host clears its grid the same way
     if(me.lastNumber==null && $('#pBreak').children.length){ $('#pBreak').innerHTML=''; $('#pDigits').innerHTML=''; $('#pRarity').innerHTML=''; $('#pRarity').classList.remove('reveal'); $('#pEP').textContent='0'; $('#pCard').style.boxShadow='none'; $('#pCard').style.borderColor='var(--outline)'; }
     if(me.ready){ roll.disabled=true; roll.textContent='LOCKED IN ✓'; status.textContent='Waiting for everyone else…'; } else { roll.disabled=false; roll.textContent='TAP TO ROLL'; status.textContent=`Round ${s.round}${s.mode==='rounds'?' of '+s.target:''} — your move!`; } }
-  else if(s.phase==='revealing'){ roll.classList.add('hidden'); status.textContent='Rolling…'; }
+  else if(s.phase==='revealing'){ roll.classList.add('hidden');
+    status.textContent = s.revealMode==='manual' ? `Revealing digit ${Math.min(s.revealStep+1,s.revealMaxLen)} of ${s.revealMaxLen}…` : 'Rolling…';
+    if(s.revealMode==='manual') playerRenderManualStep(s); }
   else if(s.phase==='roundEnd'){ roll.classList.add('hidden'); status.textContent=`You're #${rank} of ${s.players.length}. Waiting for next round…`; }
-  else if(s.phase==='gameOver'){ roll.classList.add('hidden'); const top=ranked[0]; const won=top.pid===NET.pid; status.textContent=won?'🏆 You win!':`${top.name} wins!`; $('#pWinner').innerHTML=`<div class="winner pop"><div class="t">FINAL</div><div class="n" style="color:${top.color}">${escapeHtml(top.name)} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win(won?'mythic':'rare'); }
-  if(s.phase!=='gameOver') $('#pWinner').innerHTML='';
+  else if(s.phase==='gameOver'){ roll.classList.add('hidden'); const top=ranked[0]; const won=top.pid===NET.pid; status.textContent=won?'🏆 You win!':`${top.name} wins!`; $('#pWinner').innerHTML=`<div class="winner pop"><div class="t">FINAL</div><div class="n" style="color:${top.color}">${escapeHtml(top.name)} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win(won?'mythic':'rare');
+    $('#pResults').classList.remove('hidden'); renderPartyResults($('#pPartyStats'),$('#pBests'),s.players,avatarHtml); }
+  if(s.phase!=='gameOver'){ $('#pWinner').innerHTML=''; $('#pResults').classList.add('hidden'); }
   // own EP/rarity only after a reveal
   if(s.phase==='roundEnd'&&me.lastNumber!=null){ /* keep shown */ }
   // mini leaderboard
@@ -852,6 +1110,13 @@ async function playerReveal(s){
   document.body.classList.add('revealing');
   $('#pRarity').innerHTML=''; $('#pRarity').classList.remove('reveal'); $('#pBreak').innerHTML='';
   $('#pCard').style.boxShadow='none'; $('#pCard').style.borderColor='var(--outline)'; $('#pEP').textContent='0';
+  if(s.revealMode==='manual'){
+    const slots=buildSpinSlots($('#pDigits'),me.lastNumber);
+    SFX.spinStart();
+    const stopSpin=startDigitSpin([slots], ()=>(NET.state?NET.state.revealStep:0));
+    NET.playerManual={ slots, mine:R.roll(me.lastNumber), badgesStarted:false, stopSpin };
+    return;
+  }
   await revealNumber($('#pDigits'),me.lastNumber,{sound:true});
   // Use the whole room's schedule, not just mine, so this phone stays locked to
   // the host screen even though it only shows one player's badges.
@@ -862,6 +1127,24 @@ async function playerReveal(s){
   $('#pEP').textContent=(me.lastScore||0).toLocaleString(); SFX.win(me.lastRarity);
   const gen=breakdownRun; await sleep(PAYOFF_HOLD);
   if(gen===breakdownRun) document.body.classList.remove('revealing');
+}
+function playerRenderManualStep(s){
+  if(!NET.playerManual) return;
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
+  const {slots}=NET.playerManual, str=String(me.lastNumber);
+  for(let i=0;i<s.revealStep;i++){ if(lockSlotAt(slots,i,str[i])) SFX.lock(i); }
+  if(!NET.playerManual.badgesStarted && s.revealStep>=s.revealMaxLen){ NET.playerManual.badgesStarted=true; NET.playerManual.stopSpin(); SFX.spinStop(); playerRevealManualBadges(s); }
+}
+async function playerRevealManualBadges(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me||!NET.playerManual) return;
+  const mine=NET.playerManual.mine;
+  const schedule=sharedSchedule(s.players.filter(p=>p.lastNumber!=null).map(p=>R.roll(p.lastNumber)));
+  await renderBreakdown(mine,$('#pBreak'),{header:false,schedule});
+  applyCardRarity($('#pCard'),me.lastRarity); showRarity($('#pRarity'),me.lastRarity,me.lastPct); $('#pRarity').classList.add('reveal');
+  $('#pEP').textContent=(me.lastScore||0).toLocaleString(); SFX.win(me.lastRarity);
+  const gen=breakdownRun; await sleep(PAYOFF_HOLD);
+  if(gen===breakdownRun) document.body.classList.remove('revealing');
+  NET.playerManual=null;
 }
 $('#pRoll').addEventListener('click',()=>{ SFX.resume(); NET.send({type:'rollReady'}); $('#pRoll').disabled=true; });
 
@@ -917,7 +1200,7 @@ function partyLeave(){
   cancelBreakdown(); document.body.classList.remove('revealing');
   LP.started=false; LP.animating=false; LP.round=1;
   $('#localGame').classList.add('hidden'); $('#localSetup').classList.remove('hidden');
-  $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML='';
+  $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML=''; $('#lpResults').classList.add('hidden'); $('#lpRevealDigit').classList.add('hidden');
   partyGo('choose');
 }
 $('#partyLeave').addEventListener('click',partyLeave);
@@ -930,7 +1213,7 @@ $('#chooseLocal').addEventListener('click',()=>partyGo('local'));
 $('#chooseOnline').addEventListener('click',()=>partyGo('online'));
 
 /* ---------- tabs / theme / mute ---------- */
-$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;const solo=b.dataset.tab==='solo';[...$('#tabs').children].forEach(x=>x.classList.toggle('active',x===b));$('#soloView').classList.toggle('hidden',!solo);$('#partyView').classList.toggle('hidden',solo);
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;const tab=b.dataset.tab;[...$('#tabs').children].forEach(x=>x.classList.toggle('active',x===b));$('#soloView').classList.toggle('hidden',tab!=='solo');$('#partyView').classList.toggle('hidden',tab!=='party');$('#whatifView').classList.toggle('hidden',tab!=='whatif');
   cancelBreakdown(); document.body.classList.remove('revealing'); $('#soloRoll').disabled=false;   // leaving mid-reveal shouldn't strand focus mode
 });
 $('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
