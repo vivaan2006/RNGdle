@@ -336,6 +336,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
       <div class="numcard" id="soloCard"><div class="digits mono" id="soloDigits"></div></div>
       <div class="rarityrow" id="soloRarity"></div>
       <div class="eprow"><div class="eptotal"><span id="soloEP">0</span><span class="ep">EP</span></div>
+        <button class="secbtn hidden" id="soloShare">📤 Share</button>
         <div class="subline">NO ROLL RATE LIMIT — ROLL AS MUCH AS YOU WANT</div></div>
     </div>
     <div class="rollbar"><button class="rollbtn" id="soloRoll">ROLL</button><div class="norate">● unlimited rolls</div></div>
@@ -401,6 +402,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <button class="rollbtn big" id="lpRollAll" style="max-width:420px">ROLL EVERYONE</button>
           <button class="rollbtn big hidden" id="lpRevealDigit" style="max-width:420px">Reveal digit 1 ▶</button>
           <button class="secbtn" id="lpEnd">End game</button><button class="secbtn" id="lpNew">New party</button>
+          <button class="secbtn hidden" id="lpShare">📤 Share Results</button>
         </div>
       </div>
     </div>
@@ -455,6 +457,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <button class="rollbtn" id="hNext">Next round →</button>
             <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="hAutoNext"> Auto-advance rounds</label>
             <button class="secbtn" id="hEndGame">End game</button>
+            <button class="secbtn hidden" id="hShare">📤 Share Results</button>
           </div>
         </div>
       </div>
@@ -489,6 +492,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <div class="actionbar" id="pActions">
             <div class="statusbig" id="pStatus">Get ready…</div>
             <button class="rollbtn big" id="pRoll">TAP TO ROLL</button>
+            <button class="secbtn hidden" id="pShare">📤 Share Results</button>
           </div>
           <div id="pWinner"></div>
         </div>
@@ -588,6 +592,70 @@ function appendSessionStats(container,rollHistory){
   container.insertAdjacentHTML('beforeend',`<div class="stat"><div class="v">${escapeHtml(totalBadges.toLocaleString())}</div><div class="l">Badges Earned</div></div>`);
 }
 function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`}
+
+/* ---------- shareable results (Wordle-style copy/paste text — no image, no deps) ---------- */
+const RARITY_EMOJI={trash:'⬛',common:'⬜',uncommon:'🟩',rare:'🟦',epic:'🟪',anomaly:'🟧',mythic:'🟨'};
+function shareUrl(){ return location.origin + location.pathname; }
+function buildSoloShareText(result){
+  const top=revealOrder(result).slice().reverse().slice(0,3);   // best first
+  const pctTxt=pctLabel(result.percentile).text.toUpperCase();
+  const lines=[
+    '🎲 RNGparty — Solo Roll',
+    String(result.number),
+    `${RARITY_EMOJI[result.cardRarity]} ${R.RARITY_PALETTE[result.cardRarity].pill.label} · ${pctTxt} · ${result.totalScore.toLocaleString()} EP`,
+    '',
+    'Top badges:',
+    ...top.map(b=>`${RARITY_EMOJI[R.getBadgeRarityTier(b.score)]} ${b.emoji||''} ${b.label} +${b.score.toLocaleString()} EP`),
+  ];
+  lines.push('', `Roll your own → ${shareUrl()}`);
+  return lines.join('\n');
+}
+/* Same shape for local + online: pass in the plain players array and a small
+   meta object describing the party. bestBadge/bestScore/bestNumber already
+   live on every player object regardless of source. */
+function partyShareInfo(players,meta){
+  const ranked=[...players].sort((a,b)=>b.score-a.score);
+  let rarest=null;
+  players.forEach(p=>{ if(p.bestBadge && (!rarest||p.bestBadge.score>rarest.badge.score)) rarest={player:p,badge:p.bestBadge}; });
+  return {ranked,winner:ranked[0],rarest,meta};
+}
+function buildPartyShareText(info){
+  const {ranked,winner,rarest,meta}=info;
+  const lines=['🎲 RNGparty — Party Results',meta.context,'',`👑 Winner: ${winner.name} — ${winner.score.toLocaleString()} EP total`];
+  if(winner.bestNumber!=null){
+    lines.push(`Best roll: ${RARITY_EMOJI[winner.bestScoreTier]} ${winner.bestNumber} (${R.RARITY_PALETTE[winner.bestScoreTier].pill.label}) — ${(winner.bestScore||0).toLocaleString()} EP`);
+  }
+  if(rarest) lines.push('',`🏆 Rarest badge: ${rarest.badge.emoji||''} ${rarest.badge.label} — landed by ${rarest.player.name}`);
+  lines.push('','Final standings:');
+  ranked.slice(0,3).forEach((p,i)=>lines.push(`${i===0?'👑':`${i+1}.`} ${p.name} — ${p.score.toLocaleString()} EP`));
+  lines.push('', `Play free → ${shareUrl()}`);
+  return lines.join('\n');
+}
+/* Tries the native share sheet first (great on the phones this app is mostly
+   played on), then clipboard, then a prompt() the user can copy from by hand. */
+async function shareOrCopyText(text){
+  try{ if(navigator.share){ await navigator.share({title:'RNGparty',text}); return 'shared'; } }
+  catch(e){}   // share sheet can fail to open at all (common on desktop) as easily as it can be
+               // genuinely dismissed — either way, fall through so the user still gets a copy.
+  try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return 'copied'; } }
+  catch(e){}
+  try{
+    const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    return 'copied';
+  }catch(e){}
+  window.prompt('Copy this:',text);
+  return 'shown';
+}
+function shareStatusText(outcome){
+  return {shared:'Shared!',copied:'Copied to clipboard!',shown:''}[outcome]||'';
+}
+async function flashShareStatus(btn,outcome){
+  const msg=shareStatusText(outcome); if(!msg) return;
+  const prev=btn.textContent; btn.textContent=msg;
+  await sleep(1800);
+  if(btn.textContent===msg) btn.textContent=prev;
+}
 
 /* ---------- SOUND (Web Audio, fully synthesized) ---------- */
 const SFX = (function(){
@@ -754,7 +822,7 @@ function showRarity(container, rarity, percentile){
 }
 
 /* ================= SOLO ================= */
-const solo={rolls:0,lifetime:0,best:0,bestRarity:null};
+const solo={rolls:0,lifetime:0,best:0,bestRarity:null,lastResult:null};
 async function doSoloRoll(){
   const btn=$('#soloRoll'); btn.disabled=true; SFX.resume();
   cancelBreakdown();   // stop any in-flight badge reveal from the previous roll
@@ -779,6 +847,7 @@ async function doSoloRoll(){
   btn.disabled=false;
   $('#stRolls').textContent=solo.rolls; $('#stLifetime').textContent=solo.lifetime.toLocaleString();
   $('#stBest').textContent=solo.best.toLocaleString(); $('#stRare').textContent=solo.bestRarity?R.RARITY_PALETTE[solo.bestRarity].pill.label:'—';
+  solo.lastResult=result; $('#soloShare').classList.remove('hidden');
 }
 /* Resting state before the first roll: placeholder digits, nothing revealed. */
 function soloIdle(){
@@ -787,8 +856,14 @@ function soloIdle(){
   $('#soloRarity').innerHTML=''; $('#soloBreakdown').innerHTML=''; $('#soloEP').textContent='0';
   $('#soloCard').style.boxShadow='none'; $('#soloCard').style.borderColor='var(--outline)';
   $('#soloRoll').textContent='ROLL';
+  solo.lastResult=null; $('#soloShare').classList.add('hidden');
 }
 $('#soloRoll').addEventListener('click',doSoloRoll);
+$('#soloShare').addEventListener('click',async()=>{
+  const btn=$('#soloShare'); if(!solo.lastResult) return; btn.disabled=true;
+  const outcome=await shareOrCopyText(buildSoloShareText(solo.lastResult));
+  btn.disabled=false; flashShareStatus(btn,outcome);
+});
 
 /* ================= WHAT IF (instant lookup, no reveal theater) ================= */
 function wiCompute(){
@@ -838,7 +913,7 @@ function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
 function lpStart(){ if(LP.players.length<2)return; SFX.resume();
   LP.players.forEach(p=>{p.score=0;p.rolls=0;p.totalBadges=0;p.bestRarity=null;p.bestScore=0;p.bestScoreTier=null;p.bestBadge=null;p.bestNumber=null;}); LP.round=1;LP.started=true;LP.rollHistory=[];
   $('#localSetup').classList.add('hidden');$('#localGame').classList.remove('hidden');$('#lpWinner').innerHTML='';$('#lpResults').classList.add('hidden');
-  $('#lpGrid').classList.remove('hidden');$('#lpRoundTag').classList.remove('hidden');
+  $('#lpGrid').classList.remove('hidden');$('#lpRoundTag').classList.remove('hidden');$('#lpShare').classList.add('hidden');
   lpBuildGrid(); lpUpdateRoundTag(); lpRenderLb(); $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; partyNav();
 }
 $('#lpStart').addEventListener('click',lpStart);
@@ -925,9 +1000,18 @@ function lpEnd(){ LP.started=false; const ranked=[...LP.players].sort((a,b)=>b.s
   renderPartyStats($('#lpPartyStats'),LP.players);
   appendSessionStats($('#lpPartyStats'),LP.rollHistory);
   renderBestRollCards($('#lpBestRolls'),LP.players,lpAvatar);
+  $('#lpShare').classList.remove('hidden');
 }
 $('#lpEnd').addEventListener('click',lpEnd);
-$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');$('#lpResults').classList.add('hidden');$('#lpRevealDigit').classList.add('hidden');LP.started=false;lpRenderSetup();partyNav();});
+$('#lpShare').addEventListener('click',async()=>{
+  const btn=$('#lpShare'); btn.disabled=true;
+  const roundsPlayed=LP.mode==='rounds'?LP.target:LP.round-1;
+  const context=`Local Party · ${LP.players.length} players · ${roundsPlayed} round${roundsPlayed===1?'':'s'}`;
+  const info=partyShareInfo(LP.players,{context});
+  const outcome=await shareOrCopyText(buildPartyShareText(info));
+  btn.disabled=false; flashShareStatus(btn,outcome);
+});
+$('#lpNew').addEventListener('click',()=>{$('#localGame').classList.add('hidden');$('#localSetup').classList.remove('hidden');$('#lpResults').classList.add('hidden');$('#lpRevealDigit').classList.add('hidden');$('#lpShare').classList.add('hidden');LP.started=false;lpRenderSetup();partyNav();});
 
 /* ================= ONLINE PARTY (Jackbox-style) ================= */
 const NET={ ws:null, role:null, code:null, pid:null, state:null, prevPhase:null, prevRound:null, hostCards:{}, mode:'rounds', target:5, revealMode:'auto', hostManual:null, playerManual:null,
@@ -1000,6 +1084,7 @@ function hostRender(s){
   if(s.phase==='gameOver'){ hostWinner(s); $('#hNext').style.display='none'; $('#hReveal').style.display='none';
     $('#hResults').classList.remove('hidden'); renderPartyResults($('#hPartyStats'),$('#hBests'),s.players,avatarHtml); }
   else { $('#hWinner').innerHTML=''; $('#hResults').classList.add('hidden'); }
+  $('#hShare').classList.toggle('hidden', s.phase!=='gameOver');
   hostLb(s);
 }
 /* Same beats as local party: numbers, then badges in lockstep, then the payoff.
@@ -1075,6 +1160,15 @@ $('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hReveal').addEventListener('click',()=>NET.send({type:'forceReveal'}));
 $('#hNext').addEventListener('click',()=>NET.send({type:'next'}));
 $('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
+$('#hShare').addEventListener('click',async()=>{
+  const s=NET.state; if(!s) return;
+  const btn=$('#hShare'); btn.disabled=true;
+  const roundsPlayed=s.mode==='rounds'?s.target:s.round;
+  const context=`Online Party · ${s.players.length} players · ${roundsPlayed} round${roundsPlayed===1?'':'s'}`;
+  const info=partyShareInfo(s.players,{context});
+  const outcome=await shareOrCopyText(buildPartyShareText(info));
+  btn.disabled=false; flashShareStatus(btn,outcome);
+});
 
 /* ----- player (phone) ----- */
 function startJoin(prefill){ NET.role='player'; showOnlyOnline('playerView'); $('#playerGame').classList.add('hidden'); $('#joinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
@@ -1099,6 +1193,7 @@ function playerRender(s){
   else if(s.phase==='gameOver'){ roll.classList.add('hidden'); const top=ranked[0]; const won=top.pid===NET.pid; status.textContent=won?'🏆 You win!':`${top.name} wins!`; $('#pWinner').innerHTML=`<div class="winner pop"><div class="t">FINAL</div><div class="n" style="color:${top.color}">${escapeHtml(top.name)} 👑</div><div class="small mt8">${top.score.toLocaleString()} EP</div></div>`; SFX.win(won?'mythic':'rare');
     $('#pResults').classList.remove('hidden'); renderPartyResults($('#pPartyStats'),$('#pBests'),s.players,avatarHtml); }
   if(s.phase!=='gameOver'){ $('#pWinner').innerHTML=''; $('#pResults').classList.add('hidden'); }
+  $('#pShare').classList.toggle('hidden', s.phase!=='gameOver');
   // own EP/rarity only after a reveal
   if(s.phase==='roundEnd'&&me.lastNumber!=null){ /* keep shown */ }
   // mini leaderboard
@@ -1147,6 +1242,15 @@ async function playerRevealManualBadges(s){
   NET.playerManual=null;
 }
 $('#pRoll').addEventListener('click',()=>{ SFX.resume(); NET.send({type:'rollReady'}); $('#pRoll').disabled=true; });
+$('#pShare').addEventListener('click',async()=>{
+  const s=NET.state; if(!s) return;
+  const btn=$('#pShare'); btn.disabled=true;
+  const roundsPlayed=s.mode==='rounds'?s.target:s.round;
+  const context=`Online Party · ${s.players.length} players · ${roundsPlayed} round${roundsPlayed===1?'':'s'}`;
+  const info=partyShareInfo(s.players,{context});
+  const outcome=await shareOrCopyText(buildPartyShareText(info));
+  btn.disabled=false; flashShareStatus(btn,outcome);
+});
 
 $('#joinBack').addEventListener('click',()=>{ try{NET.ws&&NET.ws.close()}catch(e){}; showOnlyOnline('onlineChoose'); });
 
@@ -1200,7 +1304,7 @@ function partyLeave(){
   cancelBreakdown(); document.body.classList.remove('revealing');
   LP.started=false; LP.animating=false; LP.round=1;
   $('#localGame').classList.add('hidden'); $('#localSetup').classList.remove('hidden');
-  $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML=''; $('#lpResults').classList.add('hidden'); $('#lpRevealDigit').classList.add('hidden');
+  $('#lpRollAll').classList.remove('hidden'); $('#lpRollAll').disabled=false; $('#lpWinner').innerHTML=''; $('#lpResults').classList.add('hidden'); $('#lpRevealDigit').classList.add('hidden'); $('#lpShare').classList.add('hidden');
   partyGo('choose');
 }
 $('#partyLeave').addEventListener('click',partyLeave);
