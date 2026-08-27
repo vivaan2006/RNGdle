@@ -1,0 +1,24 @@
+name: Deploy RNGparty to Fly.io
+
+# Runs for every push to main, from anyone with push access — no per-person
+# setup needed. Deliberately NOT triggered on other branches (e.g. horsrng),
+# so in-progress work never gets deployed by accident.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rngdle-party/**"
+      - ".github/workflows/fly-deploy.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency: deploy-rngparty   # never let two deploys race each other
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        working-directory: rngdle-party
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
