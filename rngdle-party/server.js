@@ -4,8 +4,10 @@
 // server-side with the SAME extracted engine so every screen stays in sync.
 
 import "./engine.js";                 // sets globalThis.RNGDLE
+import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
 const R = globalThis.RNGDLE;
+const D = globalThis.RNGPARTY_DRINKS;
 
 const PORT = Number(process.env.PORT || 3000);
 // All of these must match index.html — the server holds the round open for as
@@ -14,7 +16,7 @@ const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js" };
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -28,6 +30,7 @@ function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room
 function stateMsg(room){
   return { type:"state", phase:room.phase, round:room.round, target:room.target, mode:room.mode,
     autoNext:room.autoNext, revealMode:room.revealMode, revealStep:room.revealStep, revealMaxLen:room.revealMaxLen,
+    drinking:room.drinking, drink:drinkMsg(room),
     players:[...room.players.values()].map(p=>({
       pid:p.pid, name:p.name, color:p.color, score:p.score, rolls:p.rolls, ready:p.ready,
       lastNumber: p.last?p.last.number:null, lastScore:p.last?p.last.score:null,
@@ -83,11 +86,55 @@ function beginReveal(room){
   clearTimeout(room.revealTimer);
   room.revealTimer=setTimeout(()=>endReveal(room), (pendings.length?revealMs(pendings):0) + 700);
 }
+/* ---------- drinking game ----------
+   After a reveal the round no longer ends on its own. It goes:
+     assigning  — players holding a "pick someone" rule choose a target
+     drinking   — everyone sees their tally and confirms they drank
+   then straight back to collecting, so the next prompt is "roll". */
+function drinkMsg(room){
+  if(!room.drinkRolls) return null;
+  return { rolls:room.drinkRolls, choices:room.drinkChoices||{},
+           tally:room.drinkTally||null, confirmed:[...(room.drinkConfirmed||[])] };
+}
+function startDrinks(room){
+  const players=[...room.players.values()].filter(p=>p.last);
+  if(!players.length){ finishDrinks(room); return; }
+  const scores=players.map(p=>p.last.score);
+  const hi=Math.max(...scores), lo=Math.min(...scores);
+  const solo=players.length===1;
+  room.drinkRolls=players.map(p=>({ pid:p.pid, name:p.name,
+    effects: D.effectsFor(R.roll(p.last.number), {
+      isHighest: !solo && p.last.score===hi,
+      isLowest:  !solo && p.last.score===lo && hi!==lo,
+      soloPlayer: solo }) }));
+  room.drinkChoices={}; room.drinkConfirmed=new Set();
+  if(room.drinkRolls.some(r=>r.effects.some(D.needsTarget))){ room.phase="assigning"; pushState(room); }
+  else beginDrinking(room);
+}
+function beginDrinking(room){
+  const pids=[...room.players.keys()];
+  room.drinkTally=D.buildTally(room.drinkRolls, room.drinkChoices, pids);
+  room.phase="drinking";
+  // nothing to drink = nothing to confirm, or the round would wait on them forever
+  for(const pid of pids){ const t=room.drinkTally[pid]; if(!t||(!t.sips&&!t.shots)) room.drinkConfirmed.add(pid); }
+  pushState(room);
+  maybeFinishDrinks(room);
+}
+function maybeFinishDrinks(room){
+  if([...room.players.keys()].every(pid=>room.drinkConfirmed.has(pid))) finishDrinks(room);
+}
+function finishDrinks(room){
+  room.drinkRolls=null; room.drinkChoices=null; room.drinkTally=null; room.drinkConfirmed=null;
+  if(room.mode==="rounds" && room.round>=room.target){ room.phase="gameOver"; pushState(room); return; }
+  advanceRound(room);              // straight to collecting: next prompt is "roll"
+}
+
 function endReveal(room){
   for(const p of room.players.values()){ if(p.pending){ p.score+=p.pending.score; p.rolls++;
     if(p.pending.score>(p.bestScore||0)){ p.bestScore=p.pending.score; p.bestScoreTier=p.pending.rarity; p.bestNumber=p.pending.number; }
     if(p.pending.topBadge && (!p.bestBadge || p.pending.topBadge.score>p.bestBadge.score)) p.bestBadge=p.pending.topBadge;
     p.pending=null; } p.ready=false; }
+  if(room.drinking){ startDrinks(room); return; }   // drinks replace the round-end pause
   const over = room.mode==="rounds" && room.round>=room.target;
   room.phase = over ? "gameOver" : "roundEnd";
   pushState(room);
@@ -101,7 +148,7 @@ function maybeAutoReveal(room){
   if(ps.length>0 && ps.every(p=>p.ready)) beginReveal(room);
 }
 function advanceRound(room){
-  if(room.phase!=="roundEnd") return;
+  if(room.phase!=="roundEnd" && room.phase!=="drinking" && room.phase!=="assigning") return;
   clearTimeout(room.autoNextTimer);
   room.round++; room.phase="collecting";
   for(const p of room.players.values()){ p.ready=false; p.pending=null; p.last=null; }
@@ -113,7 +160,8 @@ function handle(ws, m){
   if(m.type==="host"){
     const code=makeCode();
     const room={ code, hostWs:ws, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
-      autoNext:(m.autoNext!==false), autoNextTimer:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
+      autoNext:(m.autoNext!==false), autoNextTimer:null, drinking:!!m.drinking,
+      drinkRolls:null, drinkChoices:null, drinkTally:null, drinkConfirmed:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code}); pushState(room); return;
   }
@@ -134,6 +182,7 @@ function handle(ws, m){
       if(m.mode) room.mode = m.mode==="endless"?"endless":"rounds";
       if([3,5,10].includes(+m.target)) room.target=+m.target;
       if(m.revealMode) room.revealMode = m.revealMode==="manual"?"manual":"auto";
+      if(typeof m.drinking==="boolean") room.drinking=m.drinking;
     }
     if(typeof m.autoNext==="boolean") room.autoNext=m.autoNext;
     pushState(room); return;
@@ -162,6 +211,22 @@ function handle(ws, m){
       room.revealTimer=setTimeout(()=>endReveal(room), badgeScheduleMs(pendings.map(p=>p.tiers||[])) + 700);
     }
     return;
+  }
+  if(m.type==="assignDrink" && info.pid && room.phase==="assigning"){
+    const roll=room.drinkRolls&&room.drinkRolls.find(r=>r.pid===info.pid); if(!roll) return;
+    const i=+m.idx, e=roll.effects[i];
+    if(!e || !D.needsTarget(e) || !room.players.has(m.toPid)) return;
+    room.drinkChoices[info.pid+":"+i]=m.toPid;
+    const pending=room.drinkRolls.some(r=>r.effects.some((x,j)=>D.needsTarget(x)&&!room.drinkChoices[r.pid+":"+j]));
+    if(pending) pushState(room); else beginDrinking(room);
+    return;
+  }
+  if(m.type==="drinkDone" && info.pid && room.phase==="drinking"){
+    room.drinkConfirmed.add(info.pid); pushState(room); maybeFinishDrinks(room); return;
+  }
+  // escape hatch: someone locked their phone mid-round and the table is waiting
+  if(m.type==="skipDrinks" && info.isHost && (room.phase==="assigning"||room.phase==="drinking")){
+    finishDrinks(room); return;
   }
   if(m.type==="endGame" && info.isHost){ clearTimeout(room.revealTimer); clearTimeout(room.autoNextTimer); room.phase="gameOver"; pushState(room); return; }
 }
