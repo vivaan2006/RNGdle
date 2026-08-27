@@ -114,6 +114,23 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 @media(max-width:520px){.actionbar{gap:9px;padding:11px 12px}}
 
 /* ---- drinking game ---- */
+/* Phone drink prompts take the whole screen — above the header (20) and the
+   sticky action bar (40) — so nothing is ever below the fold. */
+.drinkmodal{position:fixed;inset:0;z-index:200;background:var(--background);
+  display:flex;align-items:center;justify-content:center;padding:22px 18px;overflow-y:auto}
+.dmwrap{width:100%;max-width:440px;margin:auto;text-align:center}
+.dmstep{font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--prose-3);font-weight:800;margin-bottom:10px}
+.dmtitle{font-size:21px;font-weight:800;margin-bottom:6px}
+.dmbig{font-size:clamp(34px,11vw,46px);font-weight:800;color:#f59e0b;line-height:1.15;margin:10px 0 4px;letter-spacing:-1px}
+.dmsub{color:var(--prose-2);font-size:14px}
+.dmsub b{color:var(--foreground)}
+.dmtot{font-size:12.5px;color:var(--prose-3);margin-top:16px;padding-top:13px;border-top:1px solid var(--card-line)}
+.dmtot b{color:#f59e0b;font-weight:800}
+.dmlines{text-align:left;margin:4px 0 18px}
+.drinkmodal .pickgrid{margin-top:20px}
+.drinkmodal .pickbtn{padding:17px 12px;font-size:15px}
+.drinkmodal .drinktotal{font-size:clamp(36px,12vw,48px);margin:10px 0 16px}
+.mt8{margin-top:8px}
 .drinktoggle{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
 .drinkline{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--card-line);font-size:13px}
 .drinkline:last-child{border-bottom:0}
@@ -1227,28 +1244,53 @@ function hostDrinkRender(s){
   }).join('');
 }
 
-/* ---- phone ---- */
+/* ---- phone ----
+   Fullscreen, because the badge list pushes anything inline far below the fold
+   and you should never have to hunt for what you owe. */
 function playerDrinkRender(s){
   const box=$('#pDrink');
-  if(!s.drink || (s.phase!=='assigning' && s.phase!=='drinking')){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.classList.remove('hidden');
+  const hide=()=>{ box.className='hidden'; box.innerHTML=''; };
+  if(!s.drink || (s.phase!=='assigning' && s.phase!=='drinking')) return hide();
   const me=s.drink.rolls.find(r=>r.pid===NET.pid);
+
   if(s.phase==='assigning'){
-    const mine=me?me.effects.map((e,i)=>({e,i})).filter(x=>x.e.target==='choose'&&!s.drink.choices[NET.pid+':'+x.i]):[];
-    if(!mine.length){ box.innerHTML='<div class="panel"><h3>🍻 Handing out drinks</h3><div class="small">Waiting for everyone else to choose…</div></div>'; return; }
-    const x=mine[0];   // one at a time, so the choice is unambiguous
-    box.innerHTML=`<div class="panel"><h3>🍻 Who's drinking?</h3>${effectRow(x.e)}
+    const mine = me ? me.effects.map((e,i)=>({e,i})).filter(x=>x.e.target==='choose') : [];
+    const pending = mine.filter(x=>!s.drink.choices[NET.pid+':'+x.i]);
+    box.className='drinkmodal';
+    if(!pending.length){
+      box.innerHTML=`<div class="dmwrap"><div class="dmtitle">🍻 Handing out drinks</div>
+        <div class="dmsub">${mine.length?'All yours are assigned.':'Nothing to hand out this round.'} Waiting for everyone else…</div></div>`;
+      return;
+    }
+    const x=pending[0], step=mine.length-pending.length+1;
+    // everything this player is handing out this round, not just this one rule
+    const tot={sips:0,shots:0};
+    mine.forEach(y=>{ if(y.e.unit==='shot') tot.shots+=y.e.amount; else tot.sips+=y.e.amount; });
+    box.innerHTML=`<div class="dmwrap">
+      ${mine.length>1?`<div class="dmstep">Give-out ${step} of ${mine.length}</div>`:''}
+      <div class="dmtitle">🍻 Who drinks?</div>
+      <div class="dmbig">${x.e.emoji} ${x.e.amount} ${x.e.unit}${x.e.amount===1?'':'s'}</div>
+      <div class="dmsub">${escapeHtml(x.e.label)}${x.e.alsoSelf?' <b>— you drink it too</b>':''}</div>
+      <div class="dmtot">Handing out <b>${DR.describe(tot)}</b> in total this round</div>
       <div class="pickgrid">${s.players.filter(p=>x.e.alsoSelf||p.pid!==NET.pid)
-        .map(p=>`<button class="secbtn pickbtn" data-to="${p.pid}" data-idx="${x.i}">${avatarHtml(p,'s')} ${escapeHtml(p.name)}</button>`).join('')}</div></div>`;
+        .map(p=>`<button class="secbtn pickbtn" data-to="${p.pid}" data-idx="${x.i}">${avatarHtml(p,'s')} ${escapeHtml(p.name)}</button>`).join('')}</div>
+    </div>`;
     box.querySelectorAll('.pickbtn').forEach(b=>b.addEventListener('click',()=>{
       SFX.resume(); NET.send({type:'assignDrink',idx:+b.dataset.idx,toPid:b.dataset.to});
     },{once:true}));
     return;
   }
+
   const t=s.drink.tally&&s.drink.tally[NET.pid];
   const done=s.drink.confirmed.includes(NET.pid);
-  box.innerHTML=`<div class="panel"><h3>🍻 Your round</h3><div class="drinktotal">${DR.describe(t)||'Nothing this round 🎉'}</div>${tallyLines(t)}
-    ${done?'<div class="small mt8">✓ Waiting for everyone else…</div>':'<button class="bigbtn" id="pDrankBtn">I drank it 🍻</button>'}</div>`;
+  box.className='drinkmodal';
+  box.innerHTML=`<div class="dmwrap">
+    <div class="dmtitle">🍻 Your round</div>
+    <div class="drinktotal">${DR.describe(t)||'Nothing this round 🎉'}</div>
+    <div class="dmlines">${tallyLines(t)}</div>
+    ${done?'<div class="dmsub mt8">✓ Waiting for everyone else…</div>'
+          :'<button class="bigbtn" id="pDrankBtn">I drank it 🍻</button>'}
+  </div>`;
   const btn=$('#pDrankBtn');
   if(btn) btn.addEventListener('click',()=>{ SFX.resume(); btn.disabled=true; NET.send({type:'drinkDone'}); },{once:true});
 }
