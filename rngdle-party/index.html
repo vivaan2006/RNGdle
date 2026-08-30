@@ -1218,7 +1218,7 @@ const NET={ ws:null, role:null, code:null, pid:null, token:null, state:null, pre
   },
   onMsg(m){
     if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); hostLobbyReady(m.code); }
-    else if(m.type==='joined'){ this.pid=m.pid; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(m); }
+    else if(m.type==='joined'){ this.pid=m.pid; this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(m); }
     else if(m.type==='error'){
       if(this.reconnecting){ this.reconnecting=false; this.reconnectFailed=true; clearSession(); renderConnBar(); }
       else onNetError(m.msg);
