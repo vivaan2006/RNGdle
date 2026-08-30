@@ -38,7 +38,7 @@ function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room
 function stateMsg(room){
   return { type:"state", phase:room.phase, round:room.round, target:room.target, mode:room.mode,
     autoNext:room.autoNext, revealMode:room.revealMode, revealStep:room.revealStep, revealMaxLen:room.revealMaxLen,
-    drinking:room.drinking, drink:drinkMsg(room),
+    drinking:room.drinking, difficulty:room.difficulty, drink:drinkMsg(room),
     hostConnected:room.hostConnected,
     players:[...room.players.values()].map(p=>({
       pid:p.pid, name:p.name, color:p.color, score:p.score, rolls:p.rolls, ready:p.ready, connected:p.connected,
@@ -115,7 +115,7 @@ function startDrinks(room){
     effects: D.effectsFor(R.roll(p.last.number), {
       isHighest: !solo && p.last.score===hi,
       isLowest:  !solo && p.last.score===lo && hi!==lo,
-      soloPlayer: solo }) }));
+      soloPlayer: solo, difficulty: room.difficulty }) }));
   room.drinkChoices={}; room.drinkConfirmed=new Set();
   if(room.drinkRolls.some(r=>r.effects.some(D.needsTarget))){ room.phase="assigning"; pushState(room); }
   else beginDrinking(room);
@@ -170,7 +170,7 @@ function handle(ws, m){
     const code=makeCode();
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
-      autoNext:(m.autoNext!==false), autoNextTimer:null, drinking:!!m.drinking,
+      autoNext:(m.autoNext!==false), autoNextTimer:null, drinking:!!m.drinking, difficulty:(D.DIFFICULTY[m.difficulty]?m.difficulty:"medium"),
       drinkRolls:null, drinkChoices:null, drinkTally:null, drinkConfirmed:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
@@ -209,12 +209,13 @@ function handle(ws, m){
   }
   const room = rooms.get(info.roomCode); if(!room) return;
   if(m.type==="configure" && info.isHost){
-    if(room.phase==="lobby"){
-      if(m.mode) room.mode = m.mode==="endless"?"endless":"rounds";
-      if([3,5,10].includes(+m.target)) room.target=+m.target;
-      if(m.revealMode) room.revealMode = m.revealMode==="manual"?"manual":"auto";
-      if(typeof m.drinking==="boolean") room.drinking=m.drinking;
-    }
+    // Every setting is changeable mid-party. Shortening the round target below
+    // the current round just means the next round end is the last one.
+    if(m.mode) room.mode = m.mode==="endless"?"endless":"rounds";
+    if([3,5,10].includes(+m.target)) room.target=+m.target;
+    if(m.revealMode) room.revealMode = m.revealMode==="manual"?"manual":"auto";
+    if(typeof m.drinking==="boolean") room.drinking=m.drinking;
+    if(D.DIFFICULTY[m.difficulty]) room.difficulty=m.difficulty;
     if(typeof m.autoNext==="boolean") room.autoNext=m.autoNext;
     pushState(room); return;
   }

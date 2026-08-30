@@ -55,6 +55,16 @@
   // Nobody needs eleven shots because the dice were funny.
   const CAP = { shot: 3, sip: 8 };
 
+  /* How hard the table is drinking. `mult` scales every amount; `skip` drops
+     whole rules. Tuned by simulation against sips-per-person-per-round:
+     easy ~1-1.5, medium ~3, hard ~4-5. */
+  const DIFFICULTY = {
+    easy:   { label: 'Easy',   mult: 0.5, skip: ['rarity:common', 'ctx:bottom'] },
+    medium: { label: 'Medium', mult: 1,   skip: [] },
+    hard:   { label: 'Hard',   mult: 1.8, skip: [] }
+  };
+  const scaleAmount = (n, mult) => Math.max(1, Math.round(n * mult));
+
   /**
    * Effects owed for one roll.
    * @param result  a full RNGDLE.roll() result
@@ -63,11 +73,15 @@
    */
   function effectsFor(result, ctx) {
     ctx = ctx || {};
+    const diff = DIFFICULTY[ctx.difficulty] || DIFFICULTY.medium;
     const out = [];
-    const push = (key, r) => out.push({
-      key, label: r.label, emoji: r.emoji, amount: r.amount,
-      unit: r.unit, target: r.target, alsoSelf: !!r.alsoSelf
-    });
+    const push = (key, r) => {
+      if (diff.skip.indexOf(key) !== -1) return;
+      out.push({
+        key, label: r.label, emoji: r.emoji, amount: scaleAmount(r.amount, diff.mult),
+        unit: r.unit, target: r.target, alsoSelf: !!r.alsoSelf
+      });
+    };
 
     const rarity = RARITY[result.cardRarity];          // null tiers (uncommon) owe nothing
     if (rarity) push('rarity:' + result.cardRarity, rarity);
@@ -136,6 +150,6 @@
     return bits.join(' + ');
   }
 
-  global.RNGPARTY_DRINKS = { effectsFor, needsTarget, buildTally, describe, RARITY, BADGE_RULES, CAP };
+  global.RNGPARTY_DRINKS = { effectsFor, needsTarget, buildTally, describe, RARITY, BADGE_RULES, CAP, DIFFICULTY };
 
 })(typeof window !== 'undefined' ? window : globalThis);

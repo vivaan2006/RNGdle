@@ -287,10 +287,12 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 body.revealing #soloView .eprow,
 body.revealing #soloView .rollbar,
 body.revealing #soloView .stats,
-body.revealing .actionbar,
+body.revealing .actionbar:not(#lpActions),
 body.revealing #lpWinner,
 body.revealing #hWinner,
 body.revealing #localGame > .panel,
+body.revealing #lpSettings,
+body.revealing #hSettings,
 body.revealing #hostGame > .panel,
 body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
@@ -369,17 +371,12 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 .info{display:none}
 .pbreak .info{display:inline-block;position:relative;cursor:help;color:var(--prose-3);font-size:13px;line-height:1;flex:none}
 .pbreak .info:hover,.pbreak .info:focus{color:var(--foreground);outline:none}
-.info .tip{position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(4px);
+.tipbox{position:fixed;z-index:300;left:0;top:0;pointer-events:none;
   background:var(--surface-raised);border:1px solid var(--outline);border-radius:9px;padding:9px 11px;
-  font-size:11.5px;line-height:1.4;font-weight:500;letter-spacing:0;text-transform:none;color:var(--prose-2);
-  width:max-content;max-width:220px;text-align:left;white-space:normal;
-  opacity:0;visibility:hidden;transition:opacity .16s ease,transform .16s ease;
-  z-index:70;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.info .tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
-  border:6px solid transparent;border-top-color:var(--outline)}
-.info:hover .tip,.info:focus .tip{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
-/* lift the whole card so a tooltip can't slide under a neighbouring one */
-.pcard:has(.info:hover),.pcard:has(.info:focus){z-index:60}
+  font-size:12px;line-height:1.45;font-weight:500;color:var(--prose-2);text-align:left;
+  white-space:normal;overflow-wrap:anywhere;box-shadow:0 8px 24px rgba(0,0,0,.45);
+  opacity:0;visibility:hidden;transition:opacity .14s ease}
+.tipbox.on{opacity:1;visibility:visible}
 
 /* The payoff: rarity + percentile land last, a little larger, with a pop. */
 #soloRarity{gap:14px;min-height:30px}
@@ -494,19 +491,24 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <div class="plist" id="lpList"></div>
           <div class="small mt8" id="lpHint">Add at least 2 players.</div>
         </div>
-        <div class="panel"><h3>Format</h3>
-          <div class="cfgrow"><span class="small">Mode</span>
-            <div class="seg" id="lpModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
-          <div class="cfgrow" id="lpRoundsCfg"><span class="small">Rounds</span>
-            <div class="seg" id="lpRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div>
-            <span class="small">· all roll each round · highest total EP wins</span></div>
-          <div class="cfgrow"><span class="small">Reveal</span>
-            <div class="seg" id="lpRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div>
-            <span class="small">· manual: click through each digit yourself</span></div>
-          <div class="cfgrow"><label class="small drinktoggle"><input type="checkbox" id="lpDrink"> 🍻 Drinking game</label>
-            <span class="small">· rolls hand out sips and shots</span></div>
-        </div>
         <button class="bigbtn" id="lpStart">Start Party 🎲</button>
+      </div>
+
+      <!-- lives outside #localSetup so the same controls stay usable mid-game -->
+      <div class="panel" id="lpSettings"><h3>Format</h3>
+        <div class="cfgrow"><span class="small">Mode</span>
+          <div class="seg" id="lpModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
+        <div class="cfgrow" id="lpRoundsCfg"><span class="small">Rounds</span>
+          <div class="seg" id="lpRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div>
+          <span class="small">· all roll each round · highest total EP wins</span></div>
+        <div class="cfgrow"><span class="small">Reveal</span>
+          <div class="seg" id="lpRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div>
+          <span class="small">· manual: click through each digit yourself</span></div>
+        <div class="cfgrow"><label class="small drinktoggle"><input type="checkbox" id="lpDrink"> 🍻 Drinking game</label>
+          <span class="small">· rolls hand out sips and shots</span></div>
+        <div class="cfgrow" id="lpDiffCfg"><span class="small">Drinks</span>
+          <div class="seg" id="lpDiffSeg"><button data-d="easy">Easy</button><button class="on" data-d="medium">Medium</button><button data-d="hard">Hard</button></div>
+          <span class="small" id="lpDiffHint">· ~3 sips each per round</span></div>
       </div>
 
       <div id="localGame" class="hidden">
@@ -522,6 +524,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
         <div class="actionbar" id="lpActions">
           <button class="rollbtn big" id="lpRollAll" style="max-width:420px">ROLL EVERYONE</button>
           <button class="rollbtn big hidden" id="lpRevealDigit" style="max-width:420px">Reveal digit 1 ▶</button>
+          <button class="secbtn" id="lpSettingsBtn">⚙ Settings</button>
           <button class="secbtn" id="lpEnd">End game</button><button class="secbtn" id="lpNew">New party</button>
           <button class="secbtn hidden" id="lpShare">📤 Share Results</button>
         </div>
@@ -542,22 +545,24 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 
       <!-- HOST -->
       <div id="hostView" class="hidden">
+        <div class="panel" id="hSettings"><h3>Format</h3>
+          <div class="cfgrow"><span class="small">Mode</span>
+            <div class="seg" id="hModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
+          <div class="cfgrow" id="hRoundsCfg"><span class="small">Rounds</span>
+            <div class="seg" id="hRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div></div>
+          <div class="cfgrow"><span class="small">Reveal</span>
+            <div class="seg" id="hRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div></div>
+          <div class="cfgrow"><label class="small drinktoggle"><input type="checkbox" id="hDrink"> 🍻 Drinking game</label>
+            <span class="small">· phones hand out drinks between rounds</span></div>
+          <div class="cfgrow" id="hDiffCfg"><span class="small">Drinks</span>
+            <div class="seg" id="hDiffSeg"><button data-d="easy">Easy</button><button class="on" data-d="medium">Medium</button><button data-d="hard">Hard</button></div>
+            <span class="small" id="hDiffHint">· ~3 sips each per round</span></div>
+        </div>
         <div id="hostLobby">
           <div class="codebox">
             <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
             <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
             <button class="secbtn copybtn" id="copyLink">Copy join link</button>
-          </div>
-          <div class="panel"><h3>Format</h3>
-            <div class="cfgrow"><span class="small">Mode</span>
-              <div class="seg" id="hModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
-            <div class="cfgrow" id="hRoundsCfg"><span class="small">Rounds</span>
-              <div class="seg" id="hRoundSeg"><button data-r="3">3</button><button class="on" data-r="5">5</button><button data-r="10">10</button></div></div>
-            <div class="cfgrow"><span class="small">Reveal</span>
-              <div class="seg" id="hRevealSeg"><button class="on" data-reveal="auto">Auto</button><button data-reveal="manual">Manual</button></div></div>
-            <div class="cfgrow"><label class="small drinktoggle"><input type="checkbox" id="hDrink"> 🍻 Drinking game</label>
-              <span class="small">· phones hand out drinks between rounds</span>
-              <span class="small">· manual: you click through each digit</span></div>
           </div>
           <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="grid" id="hLobbyGrid"></div>
             <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
@@ -581,6 +586,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <button class="rollbtn hidden" id="hRevealDigit">Reveal digit 1 ▶</button>
             <button class="rollbtn" id="hNext">Next round →</button>
             <button class="secbtn" id="hSkipDrinks" style="display:none">Skip drinks →</button>
+            <button class="secbtn" id="hSettingsBtn">⚙ Settings</button>
             <label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="hAutoNext" checked> Auto-advance rounds</label>
             <button class="secbtn" id="hEndGame">End game</button>
             <button class="secbtn hidden" id="hShare">📤 Share Results</button>
@@ -871,6 +877,9 @@ async function renderBreakdown(result,container,opts={}){
     container.insertBefore(slot, container.querySelector('.badgeslot'));   // null → appends (first badge)
     requestAnimationFrame(()=>requestAnimationFrame(()=>slot.classList.add('open')));  // let 0fr paint, then grow
     slot.addEventListener('transitionend',()=>slot.classList.add('grown'),{once:true}); // release overflow so tooltips can escape
+    // .dropin's fill-mode leaves a transform behind, which would make a fixed
+    // tooltip position against the badge instead of the viewport, and clip it.
+    c.el.addEventListener('animationend',()=>c.el.classList.remove('dropin'),{once:true});
     SFX.badge(c.tier);
     // A shared schedule keeps every player's k-th badge landing at the same instant.
     await sleep(schedule ? schedule[i] : stepGap(c.tier));
@@ -884,7 +893,7 @@ function buildBadgeCard(b,nested,result){ const tier=R.getBadgeRarityTier(b.scor
     // Party cards are too narrow for the description, so it lives behind this icon.
     // tabindex makes it reachable by tap and keyboard, not just hover.
     if(b.description){const info=document.createElement('span');info.className='info';info.tabIndex=0;info.setAttribute('role','button');info.setAttribute('aria-label',`What ${b.label} means`);
-      info.innerHTML=`<span aria-hidden="true">ⓘ</span><span class="tip">${escapeHtml(b.description)}</span>`;top.appendChild(info);}
+      info.dataset.desc=b.description; info.textContent='ⓘ'; top.appendChild(info);}
     const ep=document.createElement('span');ep.className='epv';ep.textContent=`+${b.score.toLocaleString()} EP`;top.appendChild(ep);card.appendChild(top);
     const desc=document.createElement('div');desc.className='desc';desc.textContent=b.description||'';card.appendChild(desc);
     card.appendChild(digitRow(result.number,contributorIndices(b.id,result.number),tier));
@@ -1016,7 +1025,17 @@ $('#wiGo').addEventListener('click',wiCompute);
 $('#wiInput').addEventListener('keydown',e=>{if(e.key==='Enter')wiCompute();});
 
 /* ================= LOCAL PARTY (simultaneous) ================= */
-const LP={players:[],mode:'rounds',target:5,round:1,started:false,animating:false,revealMode:'auto',rollHistory:[],drinking:false,drinkRolls:null,drinkChoices:null};
+const LP={players:[],mode:'rounds',target:5,round:1,started:false,animating:false,revealMode:'auto',rollHistory:[],drinking:false,difficulty:'medium',drinkRolls:null,drinkChoices:null};
+const DIFF_HINT={easy:'· ~1 sip each per round',medium:'· ~3 sips each per round',hard:'· ~4-5 sips each per round'};
+/* The settings panel lives outside the setup view so it can be reopened mid-party. */
+function toggleSettings(panelId){ const p=$('#'+panelId); p.classList.toggle('hidden'); if(!p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+$('#lpSettingsBtn').addEventListener('click',()=>toggleSettings('lpSettings'));
+$('#hSettingsBtn').addEventListener('click',()=>toggleSettings('hSettings'));
+$('#lpDiffSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  LP.difficulty=b.dataset.d; $('#lpDiffHint').textContent=DIFF_HINT[LP.difficulty];});
+$('#lpDrink').addEventListener('change',e=>{LP.drinking=e.target.checked;$('#lpDiffCfg').style.display=e.target.checked?'flex':'none';});
+$('#lpDiffCfg').style.display='none';
 function lpAvatar(p,size='s'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 function lpRenderSetup(){ const list=$('#lpList');list.innerHTML='';
   LP.players.forEach((p,i)=>{const c=document.createElement('div');c.className='pchip';c.innerHTML=`${lpAvatar(p)}<span class="pn">${escapeHtml(p.name)}</span>`;const rm=document.createElement('button');rm.className='rm';rm.textContent='✕';rm.onclick=()=>{LP.players.splice(i,1);lpRenderSetup();};c.appendChild(rm);list.appendChild(c);});
@@ -1040,7 +1059,7 @@ function lpBuildGrid(){ const grid=$('#lpGrid');grid.innerHTML=''; LP.cards={};
       <div class="pbreak"></div>`;
     grid.appendChild(card); LP.cards[p.name]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rank:card.querySelector('.prank'),brk:card.querySelector('.pbreak')}; });
 }
-function lpStart(){ if(LP.players.length<2)return; SFX.resume(); LP.drinking=$('#lpDrink').checked;
+function lpStart(){ if(LP.players.length<2)return; SFX.resume(); LP.drinking=$('#lpDrink').checked; $('#lpSettings').classList.add('hidden');
   LP.players.forEach(p=>{p.score=0;p.rolls=0;p.totalBadges=0;p.bestRarity=null;p.bestScore=0;p.bestScoreTier=null;p.bestBadge=null;p.bestNumber=null;}); LP.round=1;LP.started=true;LP.rollHistory=[];
   $('#localSetup').classList.add('hidden');$('#localGame').classList.remove('hidden');$('#lpWinner').innerHTML='';$('#lpResults').classList.add('hidden');
   $('#lpGrid').classList.remove('hidden');$('#lpRoundTag').classList.remove('hidden');$('#lpShare').classList.add('hidden');
@@ -1110,6 +1129,7 @@ async function lpRollAll(){ if(LP.animating)return; LP.animating=true; SFX.resum
   // Only restore the shared focus-mode class if we're still the active reveal —
   // otherwise we'd yank the UI back into a solo roll that started meanwhile.
   if(gen===breakdownRun) document.body.classList.remove('revealing');
+  LP.drinking=$('#lpDrink').checked;   // re-read: the toggle is live mid-party
   if(LP.drinking){ lpStartDrinks(results); return; }   // round stays open until the table has drunk
   lpFinishRound();
 }
@@ -1121,7 +1141,8 @@ function lpStartDrinks(results){
   LP.drinkRolls=LP.players.map(p=>({ pid:p.name, name:p.name,
     effects: DR.effectsFor(results[p.name], {
       isHighest:!solo && results[p.name].totalScore===hi,
-      isLowest:!solo && results[p.name].totalScore===lo && hi!==lo, soloPlayer:solo }) }));
+      isLowest:!solo && results[p.name].totalScore===lo && hi!==lo,
+      soloPlayer:solo, difficulty:LP.difficulty }) }));
   LP.drinkChoices={};
   $('#lpDrinkPanel').classList.remove('hidden');
   lpDrinkRender();
@@ -1251,13 +1272,37 @@ $('#hRoundSeg').addEventListener('click',e=>{const b=e.target.closest('button');
 $('#hRevealSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');NET.revealMode=b.dataset.reveal;NET.send({type:'configure',mode:NET.mode,target:NET.target,revealMode:NET.revealMode});});
 $('#hAutoNext').addEventListener('change',e=>NET.send({type:'configure',autoNext:e.target.checked}));
 $('#hDrink').addEventListener('change',e=>{NET.drinking=e.target.checked;NET.send({type:'configure',drinking:e.target.checked});});
+$('#hDiffSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  NET.send({type:'configure',difficulty:b.dataset.d});});
 $('#hRevealDigit').addEventListener('click',()=>NET.send({type:'revealStep'}));
-function startHost(){ NET.role='host'; showOnlyOnline('hostView'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode,drinking:NET.drinking})); }
+function startHost(){ NET.role='host'; showOnlyOnline('hostView'); $('#hSettings').classList.remove('hidden'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode,drinking:NET.drinking})); }
 function hostLobbyReady(code){ partyNav(); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 function avatarHtml(p,size='m'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 /* p.connected is only present on players coming from the server (online
    rooms); local party has no such concept, so undefined silently means "on". */
 function offlineTag(p){ return p.connected===false ? '<span class="offlinetag">· OFFLINE</span>' : ''; }
+/* Badge tooltips sit inside the capped grid's scroll container, which clips
+   anything absolutely positioned — badly once a description wraps to 2+ lines.
+   Switch to fixed and place it by hand, clamped into the viewport. */
+let tipBox=null;
+function placeTip(info){
+  if(!tipBox){ tipBox=document.createElement('div'); tipBox.className='tipbox'; document.body.appendChild(tipBox); }
+  tipBox.textContent=info.dataset.desc||'';
+  tipBox.style.maxWidth=Math.min(280,innerWidth-24)+'px';
+  tipBox.classList.add('on');
+  const r=info.getBoundingClientRect(), t=tipBox.getBoundingClientRect();
+  let left=Math.max(12,Math.min(r.left+r.width/2-t.width/2, innerWidth-t.width-12));
+  let top=r.top-t.height-9;
+  if(top<8) top=r.bottom+9;                       // no room above: flip below
+  tipBox.style.left=Math.round(left)+'px'; tipBox.style.top=Math.round(top)+'px';
+}
+function clearTip(){ if(tipBox) tipBox.classList.remove('on'); }
+document.addEventListener('mouseover',e=>{ const i=e.target.closest&&e.target.closest('.info'); if(i) placeTip(i); else clearTip(); });
+document.addEventListener('focusin', e=>{ const i=e.target.closest&&e.target.closest('.info'); if(i) placeTip(i); });
+document.addEventListener('focusout',clearTip);
+addEventListener('scroll',clearTip,true);
+
 /* ================= DRINKING GAME (shared rendering) ================= */
 const DR = window.RNGPARTY_DRINKS;
 function drinkPill(t){ const d=DR.describe(t); return d ? `<span class="drinkamt">${d}</span>` : `<span class="drinkclear">nothing 🎉</span>`; }
@@ -1348,6 +1393,16 @@ function playerDrinkRender(s){
 }
 
 function hostRender(s){
+  // settings mirror the server in every phase (hostRender returns early in lobby)
+  $('#hAutoNext').checked = !!s.autoNext;
+  $('#hDrink').checked = !!s.drinking;
+  [...$('#hModeSeg').children].forEach(x=>x.classList.toggle('on',x.dataset.mode===s.mode));
+  [...$('#hRoundSeg').children].forEach(x=>x.classList.toggle('on',+x.dataset.r===s.target));
+  [...$('#hRevealSeg').children].forEach(x=>x.classList.toggle('on',x.dataset.reveal===s.revealMode));
+  if(s.difficulty){ [...$('#hDiffSeg').children].forEach(x=>x.classList.toggle('on',x.dataset.d===s.difficulty)); $('#hDiffHint').textContent=DIFF_HINT[s.difficulty]||''; }
+  $('#hRoundsCfg').style.display = s.mode==='rounds'?'flex':'none';
+  $('#hDiffCfg').style.display = s.drinking?'flex':'none';
+
   if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden');
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
     const g=$('#hLobbyGrid');g.innerHTML=''; s.players.forEach(p=>{const c=document.createElement('div');c.className='pcard';c.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span>${offlineTag(p)}</div>`;g.appendChild(c);});
@@ -1383,8 +1438,6 @@ function hostRender(s){
   $('#hSkipDrinks').style.display = drinkPhase ? 'inline-block':'none';
   if(drinkPhase) $('#hWaitMsg').textContent = s.phase==='assigning' ? 'Handing out drinks on phones…' : 'Waiting for everyone to drink…';
   $('#hNext').textContent = (s.mode==='rounds'&&s.round>=s.target)?'See results →':'Next round →';
-  $('#hAutoNext').checked = !!s.autoNext;
-  $('#hDrink').checked = !!s.drinking;
   const revealingManually = s.phase==='revealing' && s.revealMode==='manual' && s.revealStep<s.revealMaxLen;
   $('#hRevealDigit').style.display = revealingManually ? 'inline-block':'none';
   if(revealingManually) $('#hRevealDigit').textContent = `Reveal digit ${Math.min(s.revealStep+1,s.revealMaxLen)} of ${s.revealMaxLen} ▶`;
