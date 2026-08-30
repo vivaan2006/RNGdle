@@ -31,9 +31,13 @@ function genHorses(){
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
+// How long a dropped connection (host or player) gets to reconnect with its
+// resume token before the seat is actually given up.
+const RECONNECT_GRACE_MS = 45000;
 
 function makeCode(){ const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let c; do{ c=Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join(""); }while(rooms.has(c)); return c; }
 function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
+function token(){ return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36); }
 function send(ws,o){ try{ ws.send(JSON.stringify(o)); }catch(e){} }
 function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room.hostWs.send(s)}catch(e){} } for(const p of room.players.values()){ if(p.ws){ try{p.ws.send(s)}catch(e){} } } }
 
@@ -41,7 +45,8 @@ function stateMsg(room){
   return { type:"state", phase:room.phase, drinkingMode:room.drinkingMode, horses:room.horses,
     ranking:room.phase==='racing'||room.phase==='results'?room.ranking:null,
     raceStartAt:room.raceStartAt, raceDurationMs:RACE_MS,
-    players:[...room.players.values()].map(p=>({ pid:p.pid, name:p.name, color:p.color, horseId:p.horseId, ready:p.ready })) };
+    hostConnected:room.hostConnected,
+    players:[...room.players.values()].map(p=>({ pid:p.pid, name:p.name, color:p.color, horseId:p.horseId, ready:p.ready, connected:p.connected })) };
 }
 function pushState(room){ broadcast(room, stateMsg(room)); }
 
@@ -63,21 +68,43 @@ function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
     const code=makeCode();
-    const room={ code, hostWs:ws, players:new Map(), phase:"lobby", drinkingMode:!!m.drinkingMode,
+    const hostToken=token();
+    const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), phase:"lobby", drinkingMode:!!m.drinkingMode,
       horses:null, ranking:null, raceStartAt:null, raceTimer:null };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
-    send(ws,{type:"hosted",code}); pushState(room); return;
+    send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
   }
   if(m.type==="join"){
     const code=String(m.code||"").toUpperCase().trim();
     const room=rooms.get(code);
     if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
     const name=String(m.name||"Player").slice(0,18).trim()||"Player";
-    const id=pid();
+    if([...room.players.values()].some(p=>p.name.toLowerCase()===name.toLowerCase())){
+      send(ws,{type:"error",msg:`"${name}" is already in this room — pick a different name.`}); return;
+    }
+    const id=pid(), seatToken=token();
     const color=COLORS[room.players.size % COLORS.length];
-    room.players.set(id,{ pid:id, name, color, ws, horseId:null, ready:false });
+    room.players.set(id,{ pid:id, resumeToken:seatToken, connected:true, disconnectTimer:null, name, color, ws, horseId:null, ready:false });
     meta.set(ws,{ roomCode:code, pid:id });
-    send(ws,{type:"joined",pid:id,code}); pushState(room); return;
+    send(ws,{type:"joined",pid:id,code,token:seatToken}); pushState(room); return;
+  }
+  if(m.type==="resume"){
+    const code=String(m.code||"").toUpperCase().trim();
+    const room=rooms.get(code);
+    if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
+    if(!m.pid){   // host resuming
+      if(!m.token || m.token!==room.hostToken){ send(ws,{type:"error",msg:"Could not resume as host — start a new race."}); return; }
+      clearTimeout(room.hostGraceTimer); room.hostGraceTimer=null;
+      room.hostWs=ws; room.hostConnected=true;
+      meta.set(ws,{ roomCode:code, isHost:true });
+      send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
+    }
+    const p=room.players.get(m.pid);
+    if(!p || !m.token || m.token!==p.resumeToken){ send(ws,{type:"error",msg:"Could not resume — join as a new player instead."}); return; }
+    clearTimeout(p.disconnectTimer); p.disconnectTimer=null;
+    p.ws=ws; p.connected=true;
+    meta.set(ws,{ roomCode:code, pid:m.pid });
+    send(ws,{type:"joined",pid:m.pid,code,token:p.resumeToken}); pushState(room); return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
   if(m.type==="configure" && info.isHost && room.phase==="lobby"){
@@ -113,14 +140,30 @@ function handleClose(ws){
   const info=meta.get(ws); meta.delete(ws); if(!info) return;
   const room=rooms.get(info.roomCode); if(!room) return;
   if(info.isHost){
-    clearTimeout(room.raceTimer);
-    broadcast(room,{type:"error",msg:"Host ended the race."});
-    rooms.delete(room.code); return;
+    if(room.hostWs!==ws) return;   // stale close after the host already reconnected elsewhere
+    room.hostConnected=false; room.hostWs=null;
+    pushState(room);
+    clearTimeout(room.hostGraceTimer);
+    room.hostGraceTimer=setTimeout(()=>{
+      clearTimeout(room.raceTimer);
+      broadcast(room,{type:"error",msg:"Host didn't reconnect in time — race ended."});
+      rooms.delete(room.code);
+    }, RECONNECT_GRACE_MS);
+    return;
   }
   if(info.pid){
-    room.players.delete(info.pid);
-    if(room.phase==="picking") maybeAutoRace(room);
+    const p=room.players.get(info.pid); if(!p || p.ws!==ws) return;   // stale close after a resume elsewhere
+    p.connected=false; p.ws=null;
     pushState(room);
+    if(room.phase==="picking") maybeAutoRace(room);
+    clearTimeout(p.disconnectTimer);
+    p.disconnectTimer=setTimeout(()=>{
+      if(room.players.get(info.pid)===p && !p.connected){
+        room.players.delete(info.pid);
+        if(room.phase==="picking") maybeAutoRace(room);
+        pushState(room);
+      }
+    }, RECONNECT_GRACE_MS);
   }
 }
 
