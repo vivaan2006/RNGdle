@@ -163,14 +163,17 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 @keyframes ddin{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 .panel.dropdown{animation:ddin .16s ease both}
 
-/* Slim strip during the game — the code has to stay readable for latecomers
-   without eating the screen the player cards need. */
-.codebox.mini{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:10px 16px;margin:10px 0 0}
-.codebox.mini .lbl{font-size:9px;margin:0}
-.codebox.mini .lbl.mt16{margin:0}
-.codebox.mini .url{font-size:12px;margin:0}
-.codebox.mini .code{font-size:26px;letter-spacing:6px;margin:0}
-.codebox.mini .copybtn{margin:0;padding:6px 12px;font-size:11px}
+/* Room code chip: lives in the sticky header, so it survives focus mode and
+   is readable at a glance for anyone still trying to join. Code only — the
+   full join link stays on the lobby screen where there's room for it. */
+.roomchip{display:flex;align-items:center;gap:7px;border:1px solid var(--card-line);
+  background:var(--surface);border-radius:9px;padding:5px 11px;cursor:pointer;transition:.15s}
+.roomchip:hover{border-color:var(--outline);background:var(--surface-raised)}
+.roomchip .rl{font-size:9px;letter-spacing:1px;color:var(--prose-3);font-weight:800}
+.roomchip .rc{font-family:'Space Mono',ui-monospace,monospace;font-weight:700;font-size:16px;letter-spacing:3px}
+.roomchip.copied .rc{color:#22c55e}
+.roomchip.copied .rl::after{content:' COPIED'}
+@media(max-width:520px){.roomchip{padding:4px 8px;gap:5px}.roomchip .rc{font-size:14px;letter-spacing:2px}.roomchip .rl{display:none}}
 
 .partybar{display:flex;align-items:center;gap:10px;margin:16px 0 2px;flex-wrap:wrap}
 .partybar .crumb{color:var(--prose-3);font-size:11px;letter-spacing:.7px;text-transform:uppercase;font-weight:700}
@@ -312,7 +315,6 @@ body.revealing #hWinner,
 body.revealing #localGame > .panel,
 body.revealing #lpSettings,
 body.revealing #hSettings,
-body.revealing #hCodeBox.mini,
 body.revealing #hostGame > .panel,
 body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
@@ -417,6 +419,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 <header>
   <div class="hbar">
     <button class="logo" id="homeLogo" title="All games">RNG<b>party</b></button>
+    <button class="roomchip hidden" id="roomChip" title="Copy join link"><span class="rl">ROOM</span><span class="rc" id="roomChipCode">····</span></button>
     <div class="tabs hidden" id="tabs">
       <button class="tab active" data-tab="solo">Solo</button>
       <button class="tab" data-tab="party">🎉 Party</button>
@@ -1286,7 +1289,7 @@ const NET={ ws:null, role:null, code:null, pid:null, token:null, state:null, pre
   },
   onMsg(m){
     if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); hostLobbyReady(m.code); }
-    else if(m.type==='joined'){ this.pid=m.pid; this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(m); }
+    else if(m.type==='joined'){ this.pid=m.pid; this.code=m.code; this.token=m.token; showRoomChip(m.code); this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(m); }
     else if(m.type==='error'){
       if(this.reconnecting){ this.reconnecting=false; this.reconnectFailed=true; clearSession(); renderConnBar(); }
       else onNetError(m.msg);
@@ -1324,7 +1327,14 @@ $('#hDiffSeg').addEventListener('click',e=>{const b=e.target.closest('button');i
   NET.send({type:'configure',difficulty:b.dataset.d});});
 $('#hRevealDigit').addEventListener('click',()=>NET.send({type:'revealStep'}));
 function startHost(){ NET.role='host'; showOnlyOnline('hostView'); $('#hSettings').classList.remove('hidden'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode,drinking:NET.drinking})); }
-function hostLobbyReady(code){ partyNav(); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+function hostLobbyReady(code){ partyNav(); showRoomChip(code); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+function showRoomChip(code){
+  const chip=$('#roomChip'); if(!code){ chip.classList.add('hidden'); return; }
+  $('#roomChipCode').textContent=code; chip.classList.remove('hidden');
+  const url=`${location.origin}/?room=${code}`;
+  chip.onclick=()=>{ if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=>{
+    chip.classList.add('copied'); setTimeout(()=>chip.classList.remove('copied'),1200); }); };
+}
 function avatarHtml(p,size='m'){return `<span class="av ${size}" style="background:${p.color}">${p.name[0].toUpperCase()}</span>`;}
 /* p.connected is only present on players coming from the server (online
    rooms); local party has no such concept, so undefined silently means "on". */
@@ -1462,7 +1472,7 @@ function hostRender(s){
   $('#hRoundsCfg').style.display = s.mode==='rounds'?'flex':'none';
   $('#hDiffCfg').style.display = s.drinking?'flex':'none';
 
-  if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden'); $('#hCodeBox').classList.remove('mini');
+  if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden'); $('#hCodeBox').classList.remove('hidden');
     $('#hSettings').classList.remove('hidden','dropdown'); $('#hSettings').removeAttribute('style');
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
     const g=$('#hLobbyGrid');g.innerHTML=''; s.players.forEach(p=>{const c=document.createElement('div');c.className='pcard';c.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span>${offlineTag(p)}</div>`;g.appendChild(c);});
@@ -1471,7 +1481,7 @@ function hostRender(s){
     return;
   }
   $('#hostLobby').classList.add('hidden'); $('#hostGame').classList.remove('hidden');
-  $('#hCodeBox').classList.add('mini');
+  $('#hCodeBox').classList.add('hidden');
   if(!$('#hSettings').classList.contains('dropdown')) $('#hSettings').classList.add('hidden');
   $('#hRoundTag').textContent = s.mode==='rounds'?`Round ${s.round} of ${s.target}`:`Round ${s.round}`;
   // build/refresh grid
@@ -1727,7 +1737,7 @@ function partyNav(){
     crumb = shown('localGame') ? 'Local party · in progress' : 'Local party · setup';
     canSwitch = !shown('localGame'); to='online';
   } else {
-    if(shown('hostView'))        crumb = 'Online · hosting'+(NET.code?' · '+NET.code:'');
+    if(shown('hostView'))        crumb = 'Online · hosting';
     else if(shown('playerView')) crumb = shown('playerGame') ? 'Online · playing' : 'Online · joining';
     else                         crumb = 'Online party';
     canSwitch = shown('onlineChoose'); to='local';
@@ -1748,6 +1758,7 @@ function partyLeave(){
   NET.manualClose=true; clearTimeout(NET.reconnectTimer);
   try{ NET.ws && NET.ws.close(); }catch(e){}
   NET.ws=null; NET.role=null; NET.code=null; NET.pid=null; NET.token=null; NET.state=null; NET.prevPhase=null;
+  showRoomChip(null);
   NET.reconnecting=false; NET.reconnectFailed=false; NET.reconnectAttempts=0;
   clearSession(); renderConnBar();
   cancelBreakdown(); document.body.classList.remove('revealing');
