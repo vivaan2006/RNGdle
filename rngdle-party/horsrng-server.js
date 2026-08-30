@@ -3,7 +3,7 @@
 // WebSocket path (/horsrng-ws). The only thing shared is the HTTP server
 // process itself (see server.js).
 
-const RACE_MS = 60000;                 // ~1 minute race, per spec
+const RACE_MS = 25000;                 // 20-30s race, per spec
 const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
 
 const NAMES = [
