@@ -153,6 +153,15 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 .pickbtn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;font-size:14px}
 .mb8{margin-bottom:8px}
 
+/* Slim strip during the game — the code has to stay readable for latecomers
+   without eating the screen the player cards need. */
+.codebox.mini{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:10px 16px;margin:10px 0 0}
+.codebox.mini .lbl{font-size:9px;margin:0}
+.codebox.mini .lbl.mt16{margin:0}
+.codebox.mini .url{font-size:12px;margin:0}
+.codebox.mini .code{font-size:26px;letter-spacing:6px;margin:0}
+.codebox.mini .copybtn{margin:0;padding:6px 12px;font-size:11px}
+
 .partybar{display:flex;align-items:center;gap:10px;margin:16px 0 2px;flex-wrap:wrap}
 .partybar .crumb{color:var(--prose-3);font-size:11px;letter-spacing:.7px;text-transform:uppercase;font-weight:700}
 .partybar .spacer{flex:1}
@@ -293,6 +302,7 @@ body.revealing #hWinner,
 body.revealing #localGame > .panel,
 body.revealing #lpSettings,
 body.revealing #hSettings,
+body.revealing #hCodeBox.mini,
 body.revealing #hostGame > .panel,
 body.revealing #playerGame > .panel,
 body.revealing #playerGame .eprow,
@@ -545,6 +555,12 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 
       <!-- HOST -->
       <div id="hostView" class="hidden">
+        <!-- outside #hostLobby so latecomers can always read the code -->
+        <div class="codebox" id="hCodeBox">
+          <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
+          <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
+          <button class="secbtn copybtn" id="copyLink">Copy join link</button>
+        </div>
         <div class="panel" id="hSettings"><h3>Format</h3>
           <div class="cfgrow"><span class="small">Mode</span>
             <div class="seg" id="hModeSeg"><button class="on" data-mode="rounds">Rounds</button><button data-mode="endless">Endless</button></div></div>
@@ -559,11 +575,6 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
             <span class="small" id="hDiffHint">· ~3 sips each per round</span></div>
         </div>
         <div id="hostLobby">
-          <div class="codebox">
-            <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
-            <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
-            <button class="secbtn copybtn" id="copyLink">Copy join link</button>
-          </div>
           <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="grid" id="hLobbyGrid"></div>
             <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
           <button class="bigbtn" id="hStart" disabled>Start Party 🎲</button>
@@ -1392,6 +1403,18 @@ function playerDrinkRender(s){
   if(btn) btn.addEventListener('click',()=>{ SFX.resume(); btn.disabled=true; NET.send({type:'drinkDone'}); },{once:true});
 }
 
+/* Draw whatever the server already knows, without animating. Used after a grid
+   rebuild so a mid-round joiner doesn't wipe the numbers already on screen. */
+function hostPaintKnown(s){
+  s.players.forEach(p=>{ const c=NET.hostCards[p.pid]; if(!c) return;
+    c.sc.innerHTML=`${p.score.toLocaleString()} <small>EP</small>`;
+    if(p.lastNumber==null) return;
+    c.num.textContent=String(p.lastNumber);
+    if(p.lastRarity){ applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); }
+    if(p.lastScore!=null) c.rr.textContent=`+${p.lastScore.toLocaleString()}`;
+    if(c.brk && !c.brk.children.length) renderBreakdown(R.roll(p.lastNumber),c.brk,{header:false,stagger:false});
+  });
+}
 function hostRender(s){
   // settings mirror the server in every phase (hostRender returns early in lobby)
   $('#hAutoNext').checked = !!s.autoNext;
@@ -1403,7 +1426,7 @@ function hostRender(s){
   $('#hRoundsCfg').style.display = s.mode==='rounds'?'flex':'none';
   $('#hDiffCfg').style.display = s.drinking?'flex':'none';
 
-  if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden');
+  if(s.phase==='lobby'){ $('#hostLobby').classList.remove('hidden'); $('#hostGame').classList.add('hidden'); $('#hCodeBox').classList.remove('mini');
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
     const g=$('#hLobbyGrid');g.innerHTML=''; s.players.forEach(p=>{const c=document.createElement('div');c.className='pcard';c.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span>${offlineTag(p)}</div>`;g.appendChild(c);});
     $('#hLobbyHint').textContent=s.players.length<1?'Waiting for players to join…':`${s.players.length} player${s.players.length===1?'':'s'} in — start whenever you're ready.`;
@@ -1411,16 +1434,25 @@ function hostRender(s){
     return;
   }
   $('#hostLobby').classList.add('hidden'); $('#hostGame').classList.remove('hidden');
+  $('#hCodeBox').classList.add('mini');
   $('#hRoundTag').textContent = s.mode==='rounds'?`Round ${s.round} of ${s.target}`:`Round ${s.round}`;
   // build/refresh grid
   const grid=$('#hGrid');
   grid.classList.toggle('capped', s.players.length>4);
-  if(NET.prevPhase==='lobby' || grid.children.length!==s.players.length || s.phase==='revealing' && grid.dataset.round!==String(s.round)){
+  // Key off who is here, not how many. A join and a leave between renders keeps
+  // the count equal, so the joiner never got a card — and hostReveal skips
+  // players without one, which is why their number showed on their phone and
+  // nowhere else.
+  const pidKey=s.players.map(p=>p.pid).join(',');
+  if(NET.prevPhase==='lobby' || grid.dataset.pids!==pidKey || (s.phase==='revealing' && grid.dataset.round!==String(s.round))){
+    // Rebuilding detaches the nodes a running reveal writes into, so retire it.
+    NET.revealRun=(NET.revealRun||0)+1;
     grid.innerHTML=''; NET.hostCards={};
     s.players.forEach(p=>{ const card=document.createElement('div');card.className='pcard';
       card.innerHTML=`<div class="phead">${avatarHtml(p)}<span class="pnm">${escapeHtml(p.name)}</span><span class="prank"></span></div><div class="pnum mono"></div><div class="rarityrow" style="margin-top:2px"></div><div class="pfoot"><span class="rr"></span><span class="psc">${p.score.toLocaleString()} <small>EP</small></span></div><div class="pbreak"></div><span class="readytag"></span>`;
       grid.appendChild(card); NET.hostCards[p.pid]={el:card,num:card.querySelector('.pnum'),rar:card.querySelector('.rarityrow'),sc:card.querySelector('.psc'),rr:card.querySelector('.rr'),rank:card.querySelector('.prank'),ready:card.querySelector('.readytag'),brk:card.querySelector('.pbreak')}; });
-    grid.dataset.round=String(s.round);
+    grid.dataset.round=String(s.round); grid.dataset.pids=pidKey;
+    hostPaintKnown(s);   // a rebuild mid-round must not leave everyone blank
   }
   const ranked=[...s.players].sort((a,b)=>b.score-a.score); const rankOf={}; ranked.forEach((p,i)=>rankOf[p.pid]=i+1);
   s.players.forEach(p=>{ const c=NET.hostCards[p.pid]; if(!c)return;
@@ -1456,6 +1488,7 @@ async function hostReveal(s){
   if(s.revealMode==='manual'){ hostRevealManualStart(s); return; }
   const live=s.players.filter(p=>p.lastNumber!=null && NET.hostCards[p.pid]);
   if(!live.length) return;
+  const run=(NET.revealRun=(NET.revealRun||0)+1);   // a grid rebuild bumps this and retires us
   cancelBreakdown();
   document.body.classList.add('revealing');
   const results={}; live.forEach(p=>results[p.pid]=R.roll(p.lastNumber));
@@ -1466,8 +1499,10 @@ async function hostReveal(s){
   SFX.spinStart(); for(let i=0;i<maxLen;i++) setTimeout(()=>SFX.lock(i),(i+1)*PER_DIGIT + (i===maxLen-1?LAST_EXTRA:0));  // last digit is held back, its click must be too
   await Promise.all(live.map(p=>revealNumber(NET.hostCards[p.pid].num,p.lastNumber,{sound:false})));
   SFX.spinStop();
+  if(run!==NET.revealRun) return;   // grid rebuilt under us; hostPaintKnown has it
   const schedule=sharedSchedule(live.map(p=>results[p.pid]));
   await Promise.all(live.map(p=>renderBreakdown(results[p.pid],NET.hostCards[p.pid].brk,{header:false,schedule,reserve:true})));
+  if(run!==NET.revealRun) return;
   let best='common';
   live.forEach(p=>{ const c=NET.hostCards[p.pid];
     applyCardRarity(c.el,p.lastRarity); showRarity(c.rar,p.lastRarity,p.lastPct); c.rar.classList.add('reveal');
