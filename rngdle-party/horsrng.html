@@ -78,12 +78,15 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 .av{border-radius:50%;display:grid;place-items:center;font-weight:800;color:#1a1205;flex:none;width:30px;height:30px;font-size:13px}
 .plist{display:flex;flex-direction:column;gap:8px}
 .pchip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px}
+.pchip .rm{margin-left:auto;background:transparent;border:0;color:var(--prose-3);font-size:16px;padding:2px 6px;cursor:pointer}
 
 /* horse cards */
 .horsegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:16px}
 .horsecard{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:14px;text-align:left;transition:.15s;width:100%}
 button.horsecard{cursor:pointer}
 button.horsecard:hover{border-color:#f59e0b88}
+.horsecard.clickable{cursor:pointer}
+.horsecard.clickable:hover{border-color:#f59e0b88}
 .horsecard.selected{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b}
 .horsecard-name{font-weight:800;font-size:16px;margin-bottom:10px}
 .statrow{display:grid;grid-template-columns:minmax(72px,1.5fr) 2fr auto;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
@@ -193,7 +196,7 @@ button.horsecard:hover{border-color:#f59e0b88}
 
 .actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 20px;background:var(--surface);border-top:1px solid var(--card-line);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
 .statusbig{text-align:center;font-size:15px;color:var(--prose-2);flex-basis:100%}
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px}
 @media(max-width:520px){.choices{grid-template-columns:1fr}}
 .choice{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:22px 18px;text-align:center;transition:.15s}
 .choice:hover{border-color:#f59e0b;transform:translateY(-2px)}
@@ -226,6 +229,8 @@ button.horsecard:hover{border-color:#f59e0b88}
         <div class="d">Show this on a TV/laptop. Friends join from their phones.</div></div>
       <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a race</div>
         <div class="d">Enter the room code from the host screen.</div></div>
+      <div class="choice" id="localBtn"><div class="ic">🎉</div><div class="t">Local party</div>
+        <div class="d">One shared screen, no phones. Add players, then pick a horse for each.</div></div>
     </div>
   </div>
 
@@ -279,6 +284,41 @@ button.horsecard:hover{border-color:#f59e0b88}
     <div class="actionbar hidden" id="hResultActions">
       <button class="rollbtn" id="hRematch">Race Again 🐎</button>
       <button class="secbtn" id="hEndGame">End Game</button>
+    </div>
+    <!-- Local party's race/results reuse the #hRace/#hResultsWrap markup
+         above (same animation, same layout) — only the action bar differs,
+         since these buttons reset local state instead of sending to a room. -->
+    <div class="actionbar hidden" id="hlpResultActions">
+      <button class="rollbtn" id="hlpRematch">Race Again 🐎</button>
+      <button class="secbtn" id="hlpEndGame">End Game</button>
+    </div>
+  </div>
+
+  <!-- ===== LOCAL PARTY (one shared screen, no phones) ===== -->
+  <div id="localPartyView" class="hidden">
+    <div id="hlpSetup">
+      <div class="panel"><h3>Players</h3>
+        <div class="prow"><input class="inp" id="hlpName" placeholder="Player name" maxlength="18" autocomplete="off"></div>
+        <button class="secbtn" id="hlpAdd">Add player</button>
+        <div class="plist mt16" id="hlpList"></div>
+        <div class="small mt8" id="hlpHint">Add at least 1 player.</div>
+      </div>
+      <div class="panel"><h3>Format</h3>
+        <div class="toggle-row"><div><div class="t">🍻 Drinking Mode</div><div class="d">Losers drink based on how they finish — last place takes a shot.</div></div>
+          <label class="switch"><input type="checkbox" id="hlpDrinkToggle"><span class="track"><span class="knob"></span></span></label></div>
+      </div>
+      <button class="bigbtn" id="hlpStart" disabled>Start Picking 🐎</button>
+      <div class="center mt16"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="hlpPick" class="hidden">
+      <h3 class="small" style="text-transform:uppercase;letter-spacing:.5px" id="hlpPickProgress">Player 1 of 1</h3>
+      <div class="codebox" style="padding:14px 20px;margin-bottom:6px" id="hlpPickName"></div>
+      <div class="small">Pick the horse this player is backing.</div>
+      <div class="horsegrid" id="hlpHorseGrid"></div>
+      <div class="actionbar">
+        <button class="secbtn" id="hlpPickBack">← Previous player</button>
+      </div>
     </div>
   </div>
 
@@ -447,7 +487,7 @@ function horseCardInner(h){
 }
 function horseCardHtml(h,opts){
   opts=opts||{};
-  return `<div class="horsecard${opts.selected?' selected':''}" data-horse="${h.id}">
+  return `<div class="horsecard${opts.selected?' selected':''}${opts.clickable?' clickable':''}" data-horse="${h.id}">
     ${horseCardInner(h)}
     ${opts.pickCount!=null?`<div class="pickcount">${opts.pickCount} pick${opts.pickCount===1?'':'s'} so far</div>`:''}
   </div>`;
@@ -477,6 +517,119 @@ function renderResults(container,s){
   }
   container.innerHTML=html;
 }
+
+/* ---------- local party (one shared screen, no room/WS at all) ----------
+   Reuses the exact same horse-generation shape and race/results rendering
+   as the online game (genHorses()/startRaceAnimation()/renderResults()) so
+   the two modes stay visually identical — only how players and their picks
+   get collected differs. Duplicated here rather than imported from
+   horsrng-server.js since that's server-only module code the browser can't
+   load, and horsrng-server.js predates this by design (see genHorses() /
+   NAMES / STATS there — kept in sync by hand, small and stable). */
+const AVATAR_COLORS=['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
+const LOCAL_RACE_MS=25000;
+const NAMES=[
+  "Seabiscuit's Revenge","Sir Trots-a-Lot","Whinny the Pooh","Notorious H.O.R.S.E.","Hoof Hearted",
+  "Buckshot Betty","Neighin' Aggression","Stable Genius","Trojan Stallion","Mane Event",
+  "The Boston Stallion","Chestnut Thunder","Foals Gold","Colonel Mustang","Big Girthy",
+  "The Untamed Beast","Prancy McPranceface","Lil' Nas Neigh","Sir Squats-a-Lot","Thunder Thighs",
+  "Ridin' Dirty","Gallop Gang","Bareback Mountain","Sir Reigns-a-Lot","Filly Cyrus","Clop Culture",
+];
+const STATS=[
+  "Zestiness","Girth","Rizz","Stamina","Chaos Energy","Drip","Confidence (Unearned)","Feral Instinct",
+  "Thirst Level","Mane Volume","Cuddle Aggression","Existential Dread","Flirtation Skill",
+  "Horse Girl Appeal","Unhinged-ness","Business Savvy","Cursed Energy","Main Character Energy",
+  "Sneaky Tactics","Immaculate Vibes",
+];
+function statLabel(v){ return v>=85?'Legendary':v>=65?'Unreasonable':v>=40?'Respectable':v>=15?'Mild':'Concerning'; }
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function genHorses(){
+  const names=shuffle(NAMES).slice(0,6);
+  return names.map((name,i)=>({
+    id:'h'+i, name,
+    stats: shuffle(STATS).slice(0,4).map(label=>{ const value=1+Math.floor(Math.random()*100); return {label,value,tag:statLabel(value)}; }),
+  }));
+}
+
+const HLP={ players:[], horses:null, ranking:null, drinkingMode:false, pickIndex:0, resultsTimer:null };
+function startLocalParty(){ showOnly('localPartyView'); $('#hlpPick').classList.add('hidden'); $('#hlpSetup').classList.remove('hidden'); hlpRenderSetup(); }
+function hlpRenderSetup(){
+  const list=$('#hlpList'); list.innerHTML='';
+  HLP.players.forEach((p,i)=>{
+    const c=document.createElement('div'); c.className='pchip';
+    c.innerHTML=`${avatarHtml(p)}<span class="pn">${escapeHtml(p.name)}</span>`;
+    const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
+    rm.onclick=()=>{ HLP.players.splice(i,1); hlpRenderSetup(); };
+    c.appendChild(rm); list.appendChild(c);
+  });
+  $('#hlpHint').textContent = HLP.players.length<1 ? 'Add at least 1 player.' : `${HLP.players.length} player${HLP.players.length===1?'':'s'} ready.`;
+  $('#hlpStart').disabled = HLP.players.length<1;
+}
+function hlpAdd(){
+  const inp=$('#hlpName'); const n=inp.value.trim();
+  if(!n || HLP.players.length>=12) return;
+  if(HLP.players.some(p=>p.name.toLowerCase()===n.toLowerCase())){ $('#hlpHint').textContent=`"${n}" is already in — pick a different name.`; return; }
+  HLP.players.push({ pid:'lp'+Math.random().toString(36).slice(2,8), name:n, color:AVATAR_COLORS[HLP.players.length%AVATAR_COLORS.length], horseId:null, ready:false });
+  inp.value=''; inp.focus(); hlpRenderSetup();
+}
+$('#hlpAdd').addEventListener('click',hlpAdd);
+$('#hlpName').addEventListener('keydown',e=>{ if(e.key==='Enter') hlpAdd(); });
+$('#hlpStart').addEventListener('click',()=>{
+  if(HLP.players.length<1) return;
+  RaceSFX.resume();
+  HLP.drinkingMode=$('#hlpDrinkToggle').checked;
+  HLP.players.forEach(p=>{ p.horseId=null; p.ready=false; });
+  HLP.horses=genHorses(); HLP.pickIndex=0;
+  $('#hlpSetup').classList.add('hidden'); $('#hlpPick').classList.remove('hidden');
+  hlpRenderPick();
+});
+function hlpRenderPick(){
+  const p=HLP.players[HLP.pickIndex];
+  $('#hlpPickProgress').textContent=`Player ${HLP.pickIndex+1} of ${HLP.players.length}`;
+  $('#hlpPickName').innerHTML=`${avatarHtml(p)} <b>${escapeHtml(p.name)}</b> — who are they backing?`;
+  $('#hlpPickBack').disabled=HLP.pickIndex===0;
+  const counts={}; HLP.players.forEach(pp=>{ if(pp.horseId) counts[pp.horseId]=(counts[pp.horseId]||0)+1; });
+  $('#hlpHorseGrid').innerHTML=HLP.horses.map(h=>horseCardHtml(h,{pickCount:counts[h.id]||0,selected:h.id===p.horseId,clickable:true})).join('');
+  [...$('#hlpHorseGrid').children].forEach(el=>el.addEventListener('click',()=>{
+    RaceSFX.resume(); p.horseId=el.dataset.horse; p.ready=true;
+    if(HLP.pickIndex<HLP.players.length-1){ HLP.pickIndex++; hlpRenderPick(); } else { hlpBeginRace(); }
+  }));
+}
+$('#hlpPickBack').addEventListener('click',()=>{ if(HLP.pickIndex>0){ HLP.pickIndex--; hlpRenderPick(); } });
+function hlpState(phase){
+  return { phase, drinkingMode:HLP.drinkingMode, horses:HLP.horses, ranking:HLP.ranking,
+    raceStartAt:HLP.raceStartAt, raceDurationMs:LOCAL_RACE_MS, players:HLP.players };
+}
+function hlpBeginRace(){
+  HLP.ranking=shuffle(HLP.horses.map(h=>h.id));
+  HLP.raceStartAt=Date.now();
+  showOnly('hostView');
+  $('#hLobby').classList.add('hidden'); $('#hPicking').classList.add('hidden');
+  $('#hPickActions').classList.add('hidden'); $('#hResultActions').classList.add('hidden'); $('#hlpResultActions').classList.add('hidden');
+  $('#hResultsWrap').classList.add('hidden'); $('#hRace').classList.remove('hidden');
+  clearTimeout(HLP.resultsTimer);
+  startRaceAnimation(hlpState('racing'));
+  HLP.resultsTimer=setTimeout(hlpShowResults, LOCAL_RACE_MS+400);
+}
+function hlpShowResults(){
+  $('#hRace').classList.add('hidden');
+  $('#hResultsWrap').classList.remove('hidden'); renderResults($('#hResultsWrap'),hlpState('results'));
+  $('#hlpResultActions').classList.remove('hidden');
+  RaceSFX.fanfare();
+}
+$('#hlpRematch').addEventListener('click',()=>{
+  HLP.players.forEach(p=>{ p.horseId=null; p.ready=false; });
+  HLP.horses=genHorses(); HLP.pickIndex=0;
+  $('#hResultsWrap').classList.add('hidden'); $('#hlpResultActions').classList.add('hidden');
+  showOnly('localPartyView'); $('#hlpSetup').classList.add('hidden'); $('#hlpPick').classList.remove('hidden');
+  hlpRenderPick();
+});
+$('#hlpEndGame').addEventListener('click',()=>{
+  clearTimeout(HLP.resultsTimer);
+  $('#hResultsWrap').classList.add('hidden'); $('#hlpResultActions').classList.add('hidden');
+  showOnly('localPartyView'); $('#hlpPick').classList.add('hidden'); $('#hlpSetup').classList.remove('hidden');
+  hlpRenderSetup();
+});
 
 /* ---------- host ---------- */
 function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host',drinkingMode:$('#hDrinkToggle').checked})); }
@@ -816,9 +969,10 @@ function playerRender(s){
 }
 
 /* ---------- chooser / nav ---------- */
-function showOnly(id){ ['chooseView','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+function showOnly(id){ ['chooseView','hostView','playerView','localPartyView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
 $('#hostBtn').addEventListener('click',startHost);
 $('#joinBtn').addEventListener('click',()=>startJoin());
+$('#localBtn').addEventListener('click',startLocalParty);
 
 /* ---------- init / deep-link ---------- */
 function resumeFromSession(sess){
