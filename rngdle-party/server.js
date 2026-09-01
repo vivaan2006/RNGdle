@@ -7,6 +7,7 @@ import "./engine.js";                 // sets globalThis.RNGDLE
 import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
 import * as HorsRNG from "./horsrng-server.js";   // separate game, separate rooms, separate ws path
+import * as Imposter from "./imposter-server.js"; // separate game, separate rooms, separate ws path
 const R = globalThis.RNGDLE;
 const D = globalThis.RNGPARTY_DRINKS;
 
@@ -18,7 +19,8 @@ const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js",
-  "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html" };
+  "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
+  "/imposter": "imposter.html", "/imposter.html": "imposter.html" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -309,8 +311,9 @@ const onMessage = (ws,msg) => { try{ handle(ws, JSON.parse(msg)); }catch(e){ /* 
 const onClose   = ws => { handleClose(ws); };
 
 const WS_ROUTES = {
-  "/ws":         { open:onOpen, message:onMessage, close:onClose },
-  "/horsrng-ws": { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
+  "/ws":          { open:onOpen, message:onMessage, close:onClose },
+  "/horsrng-ws":  { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
+  "/imposter-ws": { open:Imposter.open, message:Imposter.message, close:Imposter.close },
 };
 
 if (globalThis.Bun) {
