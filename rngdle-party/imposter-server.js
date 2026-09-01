@@ -39,13 +39,14 @@ function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 function defaultSettings(){
-  return { mode:'word', difficulty:'medium', showCategory:true, categories:WORD_CATEGORIES.slice(), numberMin:1, numberMax:100 };
+  return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:WORD_CATEGORIES.slice(), numberMin:1, numberMax:100 };
 }
 function sanitizeSettings(room, m){
   const s=room.settings;
   if(m.mode==='word'||m.mode==='number') s.mode=m.mode;
   if(['easy','medium','hard'].includes(m.difficulty)) s.difficulty=m.difficulty;
   if(typeof m.showCategory==='boolean') s.showCategory=m.showCategory;
+  if(typeof m.drinkingMode==='boolean') s.drinkingMode=m.drinkingMode;
   if(Array.isArray(m.categories)){ const c=m.categories.filter(x=>WORD_CATEGORIES.includes(x)); if(c.length) s.categories=c; }
   if(Number.isFinite(m.numberMin)) s.numberMin=Math.max(0,Math.min(999998,Math.round(m.numberMin)));
   if(Number.isFinite(m.numberMax)) s.numberMax=Math.max(s.numberMin+1,Math.min(999999,Math.round(m.numberMax)));
@@ -68,14 +69,14 @@ function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room
 // of the guess).
 function stateMsg(room){
   const base = { type:"state", phase:room.phase, settings:room.settings, hostConnected:room.hostConnected,
-    goesFirstPid:room.goesFirstPid, directorPid:room.directorPid,
+    goesFirstPid:room.goesFirstPid, direction:room.direction,
     players:[...room.players.values()].map(p=>({ pid:p.pid, name:p.name, color:p.color, connected:p.connected, voted:room.votes.has(p.pid) })) };
   if(room.phase==="guessing" || room.phase==="results"){
     base.imposterPid=room.imposterPid; base.accusedPid=room.accusedPid; base.imposterCaught=room.imposterCaught;
   }
   if(room.phase==="results"){
     base.secret=room.secret; base.votes=Object.fromEntries(room.votes);
-    base.guess=room.guess; base.guessCorrect=room.guessCorrect; base.imposterWon=room.imposterWon;
+    base.guessCorrect=room.guessCorrect; base.imposterWon=room.imposterWon;
   }
   return base;
 }
@@ -95,14 +96,12 @@ function secretMsgFor(room, p){
   return msg;
 }
 function sendSecrets(room){ for(const p of room.players.values()){ if(p.ws) send(p.ws, secretMsgFor(room,p)); } }
-// Sent only to the caught imposter once guessing opens — the category's
-// full word list (for a pick-a-word guess UI) or the number range.
-function guessPromptFor(room){
-  const s=room.settings;
-  return s.mode==='word'
-    ? { type:"guessPrompt", mode:'word', category:room.secret.category, options:WORD_BANK[room.secret.category] }
-    : { type:"guessPrompt", mode:'number', min:s.numberMin, max:s.numberMax };
-}
+// Sent only to the host once the imposter is caught: the caught imposter
+// says their guess out loud (no in-app word list, so it can't be skimmed),
+// and the host — who else already knows the secret — taps right or wrong.
+// Never broadcast: sending this via stateMsg would hand the answer to the
+// imposter's own phone before they've guessed.
+function hostSecretMsg(room){ return { type:"hostSecret", secret:room.secret }; }
 
 function genSecret(room){
   const s=room.settings;
@@ -122,9 +121,10 @@ function beginRound(room){
   room.imposterPid=pick([...room.players.keys()]);
   room.secret=genSecret(room);
   room.votes=new Map();
-  room.accusedPid=null; room.imposterCaught=null; room.guess=null; room.guessCorrect=null; room.imposterWon=null;
+  room.accusedPid=null; room.imposterCaught=null; room.guessCorrect=null; room.imposterWon=null;
   const order=shuffle([...room.players.keys()]);
-  room.goesFirstPid=order[0]; room.directorPid=order[1]||order[0];
+  room.goesFirstPid=order[0];
+  room.direction = Math.random()<0.5 ? 'cw' : 'ccw';
   sendSecrets(room);
   pushState(room);
 }
@@ -155,14 +155,13 @@ function finishVoting(room){
   if(room.imposterCaught){
     room.phase="guessing";
     pushState(room);
-    const imposter=room.players.get(room.imposterPid);
-    if(imposter && imposter.ws) send(imposter.ws, guessPromptFor(room));
+    if(room.hostWs) send(room.hostWs, hostSecretMsg(room));
   } else {
-    finishResults(room, null, null);
+    finishResults(room, null);
   }
 }
-function finishResults(room, guess, guessCorrect){
-  room.guess=guess; room.guessCorrect=guessCorrect;
+function finishResults(room, guessCorrect){
+  room.guessCorrect=guessCorrect;
   room.imposterWon = !room.imposterCaught || guessCorrect===true;
   room.phase="results";
   pushState(room);
@@ -175,7 +174,7 @@ function handle(ws, m){
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), phase:"lobby",
       settings:defaultSettings(), imposterPid:null, secret:null, votes:new Map(), accusedPid:null, imposterCaught:null,
-      goesFirstPid:null, directorPid:null, guess:null, guessCorrect:null, imposterWon:null };
+      goesFirstPid:null, direction:null, guessCorrect:null, imposterWon:null };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
   }
@@ -204,7 +203,9 @@ function handle(ws, m){
       clearTimeout(room.hostGraceTimer); room.hostGraceTimer=null;
       room.hostWs=ws; room.hostConnected=true;
       meta.set(ws,{ roomCode:code, isHost:true });
-      send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
+      send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room);
+      if(room.phase==="guessing") send(ws, hostSecretMsg(room));
+      return;
     }
     const p=room.players.get(m.pid);
     if(!p || !m.token || m.token!==p.resumeToken){ send(ws,{type:"error",msg:"Could not resume — join as a new player instead."}); return; }
@@ -213,7 +214,6 @@ function handle(ws, m){
     meta.set(ws,{ roomCode:code, pid:m.pid });
     send(ws,{type:"joined",pid:m.pid,code,token:p.resumeToken}); pushState(room);
     if(room.phase!=="lobby") send(ws, secretMsgFor(room, p));
-    if(room.phase==="guessing" && m.pid===room.imposterPid) send(ws, guessPromptFor(room));
     return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
@@ -235,18 +235,13 @@ function handle(ws, m){
     room.votes.set(info.pid, m.targetPid);
     pushState(room); maybeFinishVoting(room); return;
   }
-  if(m.type==="guess" && info.pid===room.imposterPid && room.phase==="guessing"){
-    const s=room.settings;
-    const correct = s.mode==='word' ? String(m.value)===room.secret.word : Number(m.value)===room.secret.number;
-    finishResults(room, m.value, correct); return;
-  }
-  if(m.type==="skipGuess" && info.isHost && room.phase==="guessing"){
-    finishResults(room, null, false); return;
+  if(m.type==="guessResult" && info.isHost && room.phase==="guessing"){
+    finishResults(room, m.correct===true); return;
   }
   if(m.type==="endGame" && info.isHost){
     room.phase="lobby"; room.imposterPid=null; room.secret=null; room.votes=new Map();
-    room.accusedPid=null; room.imposterCaught=null; room.goesFirstPid=null; room.directorPid=null;
-    room.guess=null; room.guessCorrect=null; room.imposterWon=null;
+    room.accusedPid=null; room.imposterCaught=null; room.goesFirstPid=null; room.direction=null;
+    room.guessCorrect=null; room.imposterWon=null;
     pushState(room); return;
   }
 }

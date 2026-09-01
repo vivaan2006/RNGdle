@@ -118,10 +118,12 @@ button.revealcard:hover{border-color:#f59e0b88}
 .turncard .row{display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;font-weight:700;margin-top:8px}
 .turncard .row:first-of-type{margin-top:14px}
 
-.votegrid,.guessgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
-.voteopt,.guessopt{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:16px 10px;text-align:center;font-weight:700;font-size:15px;transition:.15s}
-.voteopt:hover,.guessopt:hover{border-color:#f59e0b88}
+.votegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
+.voteopt{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:16px 10px;text-align:center;font-weight:700;font-size:15px;transition:.15s}
+.voteopt:hover{border-color:#f59e0b88}
 .voteopt.selected{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b;background:#f59e0b11}
+.voteopt.done{opacity:.45;cursor:default;border-color:#22c55e88}
+.voteopt.done:hover{border-color:#22c55e88}
 
 .reveal{text-align:center;padding:24px;border-radius:14px;margin-top:18px}
 .reveal.win{background:linear-gradient(135deg,#22c55e22,transparent);border:1px solid #22c55e55}
@@ -186,7 +188,7 @@ button.revealcard:hover{border-color:#f59e0b88}
       <div class="turncard pop">
         <div class="small">EVERYONE'S CHECKED THEIR PHONE — TALK IT OUT</div>
         <div class="row">🎙️ <span id="hGoesFirst"></span> goes first</div>
-        <div class="row">🗂️ <span id="hDirector"></span> is directing the round</div>
+        <div class="row">🔁 Going <span id="hDirection"></span></div>
       </div>
       <div class="panel"><h3 id="hDiscussCount">Players</h3><div class="plist" id="hDiscussList"></div></div>
       <div class="actionbar">
@@ -208,10 +210,11 @@ button.revealcard:hover{border-color:#f59e0b88}
 
     <div id="hGuessing" class="hidden">
       <div class="reveal lose pop"><div class="t">IMPOSTER CAUGHT</div><div class="n" id="hCaughtName"></div>
-        <div class="d">They get one guess at the real secret before it's final.</div></div>
-      <div class="panel center"><div class="small">Waiting on their guess…</div></div>
+        <div class="d">They say their guess out loud — mark whether they got it right.</div></div>
+      <div class="panel center" id="hGuessSecret"></div>
       <div class="actionbar">
-        <button class="secbtn" id="hSkipGuess">Skip Guess</button>
+        <button class="rollbtn" id="hGuessRight">✅ They got it right</button>
+        <button class="secbtn" id="hGuessWrong">❌ They got it wrong</button>
       </div>
     </div>
 
@@ -240,7 +243,7 @@ button.revealcard:hover{border-color:#f59e0b88}
         <div id="pSecretCard"></div>
         <div class="turncard pop">
           <div class="row" style="margin-top:0">🎙️ <span id="pGoesFirst"></span> goes first</div>
-          <div class="row">🗂️ <span id="pDirector"></span> is directing</div>
+          <div class="row">🔁 Going <span id="pDirection"></span></div>
         </div>
       </div>
       <div id="pVoting" class="hidden">
@@ -248,7 +251,10 @@ button.revealcard:hover{border-color:#f59e0b88}
         <div class="votegrid" id="pVoteGrid"></div>
       </div>
       <div id="pGuessing" class="hidden">
-        <div id="pGuessBody"></div>
+        <div class="panel center">
+          <h3>You've been caught! 🕵️</h3>
+          <div class="small mt8">Say your real guess out loud — the host will mark it right or wrong.</div>
+        </div>
       </div>
       <div id="pResultsWrap" class="hidden"></div>
       <div class="actionbar hidden" id="pActions">
@@ -272,15 +278,21 @@ button.revealcard:hover{border-color:#f59e0b88}
     </div>
 
     <div id="ilpReveal" class="hidden">
-      <h3 class="small" style="text-transform:uppercase;letter-spacing:.5px" id="ilpRevealProgress">Player 1 of 1</h3>
-      <div class="small">Everyone else look away — pass the screen to:</div>
-      <button class="revealcard pop" id="ilpRevealCard">
-        <div class="prompt">Tap to reveal — only <b id="ilpRevealName"></b> should be looking</div>
-        <div class="lbl" id="ilpRevealLbl"></div>
-        <div class="word" id="ilpRevealWord"></div>
-      </button>
+      <div id="ilpRevealGridWrap">
+        <h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Pass the phone around</h3>
+        <div class="small center">Tap your name to see your secret, hit "Got it" to hide it, then pass it on.</div>
+        <div class="votegrid mt16" id="ilpRevealGrid"></div>
+      </div>
+      <div id="ilpRevealCardWrap" class="hidden">
+        <div class="small center">Only <b id="ilpRevealName"></b> should be looking</div>
+        <div class="revealcard shown pop mt8" id="ilpRevealCard">
+          <div class="lbl" id="ilpRevealLbl"></div>
+          <div class="word" id="ilpRevealWord"></div>
+        </div>
+      </div>
       <div class="actionbar">
-        <button class="rollbtn" id="ilpRevealNext" disabled>Got it — hide &amp; pass on ▶</button>
+        <button class="rollbtn hidden" id="ilpRevealHide">Got it — hide ▶</button>
+        <button class="rollbtn" id="ilpRevealContinue" disabled>Everyone's seen it — Continue ▶</button>
       </div>
     </div>
 
@@ -288,7 +300,7 @@ button.revealcard:hover{border-color:#f59e0b88}
       <div class="turncard pop">
         <div class="small">EVERYONE'S SEEN THEIR WORD — TALK IT OUT</div>
         <div class="row">🎙️ <span id="ilpGoesFirst"></span> goes first</div>
-        <div class="row">🗂️ <span id="ilpDirector"></span> is directing the round</div>
+        <div class="row">🔁 Going <span id="ilpDirection"></span></div>
       </div>
       <div class="actionbar">
         <button class="rollbtn" id="ilpStartVoting">Start Voting ▶</button>
@@ -303,8 +315,12 @@ button.revealcard:hover{border-color:#f59e0b88}
 
     <div id="ilpGuessing" class="hidden">
       <div class="reveal lose pop"><div class="t">IMPOSTER CAUGHT</div><div class="n" id="ilpCaughtName"></div>
-        <div class="d">They get one guess at the real secret before it's final.</div></div>
-      <div id="ilpGuessBody"></div>
+        <div class="d">They say their guess out loud — the table marks whether they got it right.</div></div>
+      <div class="panel center" id="ilpGuessSecret"></div>
+      <div class="actionbar">
+        <button class="rollbtn" id="ilpGuessRight">✅ They got it right</button>
+        <button class="secbtn" id="ilpGuessWrong">❌ They got it wrong</button>
+      </div>
     </div>
 
     <div id="ilpResults" class="hidden"></div>
@@ -321,6 +337,7 @@ function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'
 function avatarHtml(p){return `<span class="av" style="background:${p.color}">${escapeHtml(p.name[0].toUpperCase())}</span>`;}
 function offlineTag(p){ return p.connected===false ? '<span class="offlinetag">· OFFLINE</span>' : ''; }
 function difficultyLabel(d){ return d==='easy'?'1 sip':d==='hard'?'a shot':'a few sips'; }
+function directionLabel(d){ return d==='ccw' ? 'counter-clockwise ↺' : 'clockwise ↻'; }
 
 // Must match the category NAMES in imposter-server.js's WORD_BANK exactly
 // (kept in sync by hand — the actual word LISTS stay server-only for online
@@ -372,7 +389,7 @@ function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(
 function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
 
 /* ---------- network (online play only — local play never touches this) ---------- */
-const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevPhase:null, mySecret:null, myGuessPrompt:null,
+const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevPhase:null, mySecret:null, hostSecret:null,
   manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
   connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/imposter-ws`);
     this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
@@ -397,7 +414,7 @@ const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, p
       else onNetError(m.msg);
     }
     else if(m.type==='secret'){ this.mySecret=m; if(this.role==='player') renderPlayerSecret(); }
-    else if(m.type==='guessPrompt'){ this.myGuessPrompt=m; if(this.role==='player') renderPlayerGuessing(); }
+    else if(m.type==='hostSecret'){ this.hostSecret=m.secret; if(this.role==='host' && this.state) hostRender(this.state); }
     else if(m.type==='state'){ this.applyState(m); }
   },
   applyState(s){ const prevPhase=this.prevPhase; this.state=s;
@@ -430,8 +447,12 @@ function settingsPanelHtml(){
       <div class="setlabel">Number range</div>
       <div class="prow mt8"><input class="inp" id="setNumMin" type="number" placeholder="Min"><input class="inp" id="setNumMax" type="number" placeholder="Max"></div>
     </div>
-    <div class="setlabel">Drink difficulty</div>
-    <div class="seg" id="setDiffSeg"><button data-d="easy">Easy · 1 sip</button><button data-d="medium">Medium · few sips</button><button data-d="hard">Hard · shot</button></div>
+    <div class="toggle-row"><div><div class="t">🍻 Drinking mode</div><div class="d">Losers drink based on the difficulty below. Turn off to just play for the deduction.</div></div>
+      <label class="switch"><input type="checkbox" id="setDrinkMode"><span class="track"><span class="knob"></span></span></label></div>
+    <div id="setDrinkSettings">
+      <div class="setlabel">Drink difficulty</div>
+      <div class="seg" id="setDiffSeg"><button data-d="easy">Easy · 1 sip</button><button data-d="medium">Medium · few sips</button><button data-d="hard">Hard · shot</button></div>
+    </div>
     <div class="toggle-row"><div><div class="t">💡 Show category to imposter</div><div class="d">Gives the imposter the category (never the actual word/number) as a bluffing hint.</div></div>
       <label class="switch"><input type="checkbox" id="setShowCat"><span class="track"><span class="knob"></span></span></label></div>`;
 }
@@ -444,6 +465,7 @@ function wireSettingsPanel(getSettings, onChange){
     if(next.length) onChange({categories:next});
   });
   $('#setShowCat').addEventListener('change',e=>onChange({showCategory:e.target.checked}));
+  $('#setDrinkMode').addEventListener('change',e=>onChange({drinkingMode:e.target.checked}));
   const commitRange=()=>{ const min=+$('#setNumMin').value, max=+$('#setNumMax').value; if(Number.isFinite(min)&&Number.isFinite(max)&&max>min) onChange({numberMin:min,numberMax:max}); };
   $('#setNumMin').addEventListener('change',commitRange);
   $('#setNumMax').addEventListener('change',commitRange);
@@ -454,6 +476,8 @@ function renderSettingsPanel(set){
   if(!$('#setCatGrid').children.length) $('#setCatGrid').innerHTML = CATEGORY_NAMES.map(c=>`<button class="catchip" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
   [...$('#setCatGrid').children].forEach(b=>b.classList.toggle('on', set.categories.includes(b.dataset.cat)));
   $('#setShowCat').checked=set.showCategory;
+  $('#setDrinkMode').checked=set.drinkingMode;
+  $('#setDrinkSettings').classList.toggle('hidden', !set.drinkingMode);
   if(document.activeElement!==$('#setNumMin')) $('#setNumMin').value=set.numberMin;
   if(document.activeElement!==$('#setNumMax')) $('#setNumMax').value=set.numberMax;
   $('#setWordSettings').classList.toggle('hidden', set.mode!=='word');
@@ -463,30 +487,34 @@ function renderSettingsPanel(set){
 /* ---------- shared results/guess rendering (built from a state object
    shaped like the server's, so both online (NET.state) and local (ILP) can
    reuse the exact same rendering code) ---------- */
+function secretLineHtml(secret, settings){
+  return settings.mode==='word'
+    ? `${escapeHtml(secret.category)}: <b>${escapeHtml(secret.word)}</b>`
+    : `Number: <b>${secret.number}</b> <span class="small">(range ${settings.numberMin}-${settings.numberMax})</span>`;
+}
 function renderResultsHtml(s, myPid){
   const byId={}; s.players.forEach(p=>byId[p.pid]=p);
   const imposter=byId[s.imposterPid];
+  const drinking=s.settings.drinkingMode!==false;
   const amount=difficultyLabel(s.settings.difficulty);
-  const secretLine = s.settings.mode==='word'
-    ? `${escapeHtml(s.secret.category)}: <b>${escapeHtml(s.secret.word)}</b>`
-    : `Number: <b>${s.secret.number}</b> <span class="small">(range ${s.settings.numberMin}-${s.settings.numberMax})</span>`;
+  const secretLine = secretLineHtml(s.secret, s.settings);
   const guessLine = s.accusedPid!=null && s.imposterCaught
-    ? (s.guess==null ? `<div class="small mt8">They didn't guess.</div>` : `<div class="small mt8">Their guess: <b>${escapeHtml(String(s.guess))}</b> — ${s.guessCorrect?'correct! 😱':'wrong.'}</div>`)
+    ? `<div class="small mt8">Their guess was ${s.guessCorrect?'correct! 😱':'wrong.'}</div>`
     : '';
 
   let banner;
   if(myPid==null){
     banner = s.imposterWon
-      ? { cls:'lose', t:'IMPOSTER WINS', n:imposter.name, d:`Everyone except ${escapeHtml(imposter.name)} drinks ${amount}.` }
-      : { cls:'win', t:'IMPOSTER LOSES', n:imposter.name, d:`${escapeHtml(imposter.name)} drinks ${amount}.` };
+      ? { cls:'lose', t:'IMPOSTER WINS', n:imposter.name, d: drinking?`Everyone except ${escapeHtml(imposter.name)} drinks ${amount}.`:`${escapeHtml(imposter.name)} got away with it.` }
+      : { cls:'win', t:'IMPOSTER LOSES', n:imposter.name, d: drinking?`${escapeHtml(imposter.name)} drinks ${amount}.`:`${escapeHtml(imposter.name)} got caught.` };
   } else if(myPid===s.imposterPid){
     banner = s.imposterWon
-      ? { cls:'win', t:'YOU WERE THE IMPOSTER', n:'…and you won', d:`Everyone else drinks ${amount}. 😈` }
-      : { cls:'lose', t:'YOU WERE THE IMPOSTER', n:'…and you lost', d:`Drink ${amount}. 🥴` };
+      ? { cls:'win', t:'YOU WERE THE IMPOSTER', n:'…and you won', d: drinking?`Everyone else drinks ${amount}. 😈`:'You got away with it. 😈' }
+      : { cls:'lose', t:'YOU WERE THE IMPOSTER', n:'…and you lost', d: drinking?`Drink ${amount}. 🥴`:'They got you. 🥴' };
   } else {
     banner = s.imposterWon
-      ? { cls:'lose', t:'IMPOSTER GOT AWAY', n:`It was ${imposter.name}!`, d:`You drink ${amount}.` }
-      : { cls:'win', t:'IMPOSTER CAUGHT', n:`It was ${imposter.name}!`, d:`They drink ${amount}. 🎉` };
+      ? { cls:'lose', t:'IMPOSTER GOT AWAY', n:`It was ${imposter.name}!`, d: drinking?`You drink ${amount}.`:'Better luck next round.' }
+      : { cls:'win', t:'IMPOSTER CAUGHT', n:`It was ${imposter.name}!`, d: drinking?`They drink ${amount}. 🎉`:'Nice work! 🎉' };
   }
 
   let html=`<div class="reveal ${banner.cls} pop"><div class="t">${banner.t}</div><div class="n">${escapeHtml(banner.n)}</div><div class="d">${banner.d}</div></div>`;
@@ -514,7 +542,8 @@ function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${loc
 $('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hStartVoting').addEventListener('click',()=>NET.send({type:'startVoting'}));
 $('#hForceResults').addEventListener('click',()=>NET.send({type:'forceResults'}));
-$('#hSkipGuess').addEventListener('click',()=>NET.send({type:'skipGuess'}));
+$('#hGuessRight').addEventListener('click',()=>NET.send({type:'guessResult',correct:true}));
+$('#hGuessWrong').addEventListener('click',()=>NET.send({type:'guessResult',correct:false}));
 $('#hPlayAgain').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
 
@@ -536,7 +565,7 @@ function hostRender(s){
     $('#hStart').disabled=!enough;
   } else if(s.phase==='discussing'){
     $('#hGoesFirst').textContent=byId[s.goesFirstPid]?.name||'—';
-    $('#hDirector').textContent=byId[s.directorPid]?.name||'—';
+    $('#hDirection').textContent=directionLabel(s.direction);
     $('#hDiscussCount').textContent=`Players (${s.players.length})`;
     $('#hDiscussList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
   } else if(s.phase==='voting'){
@@ -545,6 +574,7 @@ function hostRender(s){
     $('#hVotingList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}<span class="tick">${p.voted?'✅':'⏳'}</span></div>`).join('');
   } else if(s.phase==='guessing'){
     $('#hCaughtName').textContent=byId[s.imposterPid]?.name||'—';
+    $('#hGuessSecret').innerHTML = NET.hostSecret ? secretLineHtml(NET.hostSecret, s.settings) : '<div class="small">Waiting for the secret…</div>';
   } else if(s.phase==='results'){
     $('#hResults').innerHTML=renderResultsHtml(s, null);
     $('#hResultActions').classList.remove('hidden');
@@ -570,7 +600,7 @@ function playerRender(s){
   if(s.phase==='discussing'){
     renderPlayerSecret();
     $('#pGoesFirst').textContent=byId[s.goesFirstPid]?.name||'—';
-    $('#pDirector').textContent=byId[s.directorPid]?.name||'—';
+    $('#pDirection').textContent=directionLabel(s.direction);
   } else if(s.phase==='voting'){
     const others=s.players.filter(p=>p.pid!==NET.pid);
     $('#pVoteGrid').innerHTML=others.map(p=>`<button class="voteopt${NET.myVote===p.pid?' selected':''}" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div></button>`).join('');
@@ -580,8 +610,6 @@ function playerRender(s){
     }));
     $('#pActions').classList.remove('hidden');
     $('#pStatus').textContent = me.voted ? 'Vote in — you can still change it until everyone has voted.' : 'Tap who you think the imposter is.';
-  } else if(s.phase==='guessing' && NET.pid===s.imposterPid){
-    renderPlayerGuessing();
   } else if(s.phase==='results'){
     $('#pResultsWrap').innerHTML=renderResultsHtml(s, NET.pid);
   }
@@ -597,26 +625,13 @@ function renderPlayerSecret(){
     el.innerHTML=`<div class="secretcard pop"><div class="lbl">YOUR NUMBER</div><div class="word">${sec.number}</div></div>`;
   }
 }
-function renderPlayerGuessing(){
-  const gp=NET.myGuessPrompt; const el=$('#pGuessBody'); if(!gp) return;
-  if(gp.mode==='word'){
-    el.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Caught! What's the real word?</h3><div class="small center">Category: ${escapeHtml(gp.category)}</div>
-      <div class="guessgrid" id="pGuessGrid">${gp.options.map(w=>`<button class="guessopt" data-w="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}</div>`;
-    [...$('#pGuessGrid').children].forEach(b=>b.addEventListener('click',()=>{ ISFX.resume(); NET.send({type:'guess',value:b.dataset.w}); }));
-  } else {
-    el.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Caught! What's the real number?</h3><div class="small center">Range: ${gp.min}-${gp.max}</div>
-      <div class="prow mt16"><input class="inp" id="pGuessNum" type="number" placeholder="${gp.min}-${gp.max}"></div>
-      <button class="bigbtn" id="pGuessNumGo">Submit Guess</button>`;
-    $('#pGuessNumGo').addEventListener('click',()=>{ const v=+$('#pGuessNum').value; if(Number.isFinite(v)) NET.send({type:'guess',value:v}); });
-  }
-}
 
 /* ==================================================================
    LOCAL PARTY (fully client-side, no room/WS at all)
    ================================================================== */
-const ILP={ players:[], settings:null, imposterPid:null, secret:null, goesFirstPid:null, directorPid:null,
-  revealIdx:0, votes:{}, accusedPid:null, imposterCaught:null, guess:null, guessCorrect:null, imposterWon:null };
-function ilpDefaultSettings(){ return { mode:'word', difficulty:'medium', showCategory:true, categories:CATEGORY_NAMES.slice(), numberMin:1, numberMax:100 }; }
+const ILP={ players:[], settings:null, imposterPid:null, secret:null, goesFirstPid:null, direction:null,
+  revealed:new Set(), revealPendingPid:null, votes:{}, accusedPid:null, imposterCaught:null, guessCorrect:null, imposterWon:null };
+function ilpDefaultSettings(){ return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:CATEGORY_NAMES.slice(), numberMin:1, numberMax:100 }; }
 function ilpGenSecret(){
   const s=ILP.settings;
   if(s.mode==='word'){ const category=pick(s.categories.length?s.categories:CATEGORY_NAMES); return { category, word:pick(WORD_BANK[category]) }; }
@@ -661,44 +676,64 @@ $('#ilpStart').addEventListener('click',()=>{
   ISFX.resume();
   ILP.imposterPid=pick(ILP.players.map(p=>p.pid));
   ILP.secret=ilpGenSecret();
-  ILP.revealIdx=0; ILP.votes={}; ILP.accusedPid=null; ILP.imposterCaught=null; ILP.guess=null; ILP.guessCorrect=null; ILP.imposterWon=null;
+  ILP.revealed=new Set(); ILP.revealPendingPid=null;
+  ILP.votes={}; ILP.accusedPid=null; ILP.imposterCaught=null; ILP.guessCorrect=null; ILP.imposterWon=null;
   const order=shuffle(ILP.players.map(p=>p.pid));
-  ILP.goesFirstPid=order[0]; ILP.directorPid=order[1]||order[0];
+  ILP.goesFirstPid=order[0];
+  ILP.direction = Math.random()<0.5 ? 'cw' : 'ccw';
   $('#ilpSetup').classList.add('hidden'); $('#ilpReveal').classList.remove('hidden');
-  ilpRenderReveal();
+  ilpRenderRevealGrid();
 });
-function ilpRenderReveal(){
-  const p=ILP.players[ILP.revealIdx];
-  $('#ilpRevealProgress').textContent=`Player ${ILP.revealIdx+1} of ${ILP.players.length}`;
-  $('#ilpRevealName').textContent=p.name;
-  const card=$('#ilpRevealCard'); card.classList.remove('shown','imposter');
-  $('#ilpRevealLbl').textContent=''; $('#ilpRevealWord').textContent='';
-  $('#ilpRevealNext').disabled=true;
-  card.onclick=()=>{
-    ISFX.resume(); card.classList.add('shown');
-    const isImposter=p.pid===ILP.imposterPid;
-    if(isImposter){
-      card.classList.add('imposter');
-      $('#ilpRevealLbl').textContent='YOU ARE THE';
-      $('#ilpRevealWord').textContent='🕵️ IMPOSTER'+(ILP.settings.showCategory ? (ILP.settings.mode==='word'?` (category: ${ILP.secret.category})`:` (range: ${ILP.settings.numberMin}-${ILP.settings.numberMax})`) : '');
-    } else if(ILP.settings.mode==='word'){
-      $('#ilpRevealLbl').textContent=ILP.secret.category;
-      $('#ilpRevealWord').textContent=ILP.secret.word;
-    } else {
-      $('#ilpRevealLbl').textContent='YOUR NUMBER';
-      $('#ilpRevealWord').textContent=ILP.secret.number;
-    }
-    $('#ilpRevealNext').disabled=false;
-  };
+function ilpRenderRevealGrid(){
+  $('#ilpRevealCardWrap').classList.add('hidden');
+  $('#ilpRevealGridWrap').classList.remove('hidden');
+  $('#ilpRevealHide').classList.add('hidden');
+  $('#ilpRevealContinue').classList.remove('hidden');
+  $('#ilpRevealGrid').innerHTML=ILP.players.map(p=>{
+    const done=ILP.revealed.has(p.pid);
+    return `<button class="voteopt${done?' done':''}" data-pid="${p.pid}"${done?' disabled':''}>${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}${done?' ✓':''}</div></button>`;
+  }).join('');
+  [...$('#ilpRevealGrid').children].forEach(b=>{
+    if(b.disabled) return;
+    b.addEventListener('click',()=>{ ISFX.resume(); ilpShowReveal(b.dataset.pid); });
+  });
+  $('#ilpRevealContinue').disabled = ILP.revealed.size < ILP.players.length;
 }
-$('#ilpRevealNext').addEventListener('click',()=>{
-  if(ILP.revealIdx<ILP.players.length-1){ ILP.revealIdx++; ilpRenderReveal(); }
-  else { $('#ilpReveal').classList.add('hidden'); $('#ilpDiscuss').classList.remove('hidden'); ilpRenderDiscuss(); }
+function ilpShowReveal(pid){
+  const p=ILP.players.find(x=>x.pid===pid); if(!p) return;
+  ILP.revealPendingPid=pid;
+  $('#ilpRevealGridWrap').classList.add('hidden');
+  $('#ilpRevealCardWrap').classList.remove('hidden');
+  $('#ilpRevealHide').classList.remove('hidden');
+  $('#ilpRevealContinue').classList.add('hidden');
+  $('#ilpRevealName').textContent=p.name;
+  const card=$('#ilpRevealCard'); card.classList.remove('imposter');
+  const isImposter=p.pid===ILP.imposterPid;
+  if(isImposter){
+    card.classList.add('imposter');
+    $('#ilpRevealLbl').textContent='YOU ARE THE';
+    $('#ilpRevealWord').textContent='🕵️ IMPOSTER'+(ILP.settings.showCategory ? (ILP.settings.mode==='word'?` (category: ${ILP.secret.category})`:` (range: ${ILP.settings.numberMin}-${ILP.settings.numberMax})`) : '');
+  } else if(ILP.settings.mode==='word'){
+    $('#ilpRevealLbl').textContent=ILP.secret.category;
+    $('#ilpRevealWord').textContent=ILP.secret.word;
+  } else {
+    $('#ilpRevealLbl').textContent='YOUR NUMBER';
+    $('#ilpRevealWord').textContent=ILP.secret.number;
+  }
+}
+$('#ilpRevealHide').addEventListener('click',()=>{
+  if(ILP.revealPendingPid) ILP.revealed.add(ILP.revealPendingPid);
+  ILP.revealPendingPid=null;
+  ilpRenderRevealGrid();
+});
+$('#ilpRevealContinue').addEventListener('click',()=>{
+  if(ILP.revealed.size<ILP.players.length) return;
+  $('#ilpReveal').classList.add('hidden'); $('#ilpDiscuss').classList.remove('hidden'); ilpRenderDiscuss();
 });
 function ilpRenderDiscuss(){
   const byId={}; ILP.players.forEach(p=>byId[p.pid]=p);
   $('#ilpGoesFirst').textContent=byId[ILP.goesFirstPid]?.name||'—';
-  $('#ilpDirector').textContent=byId[ILP.directorPid]?.name||'—';
+  $('#ilpDirection').textContent=directionLabel(ILP.direction);
 }
 $('#ilpStartVoting').addEventListener('click',()=>{ $('#ilpDiscuss').classList.add('hidden'); $('#ilpVote').classList.remove('hidden'); ilpRenderVote(); });
 function ilpRenderVote(){
@@ -709,30 +744,18 @@ function ilpRenderVote(){
     ILP.imposterCaught = ILP.accusedPid===ILP.imposterPid;
     $('#ilpVote').classList.add('hidden');
     if(ILP.imposterCaught){ $('#ilpGuessing').classList.remove('hidden'); ilpRenderGuessing(); }
-    else ilpFinishResults(null,null);
+    else ilpFinishResults(null);
   }));
 }
 function ilpRenderGuessing(){
   const byId={}; ILP.players.forEach(p=>byId[p.pid]=p);
   $('#ilpCaughtName').textContent=byId[ILP.imposterPid]?.name||'—';
-  const body=$('#ilpGuessBody');
-  if(ILP.settings.mode==='word'){
-    const options=WORD_BANK[ILP.secret.category];
-    body.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">What's the real word? (category: ${escapeHtml(ILP.secret.category)})</h3>
-      <div class="guessgrid" id="ilpGuessGrid">${options.map(w=>`<button class="guessopt" data-w="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}</div>
-      <div class="actionbar"><button class="secbtn" id="ilpSkipGuess">Skip Guess</button></div>`;
-    [...$('#ilpGuessGrid').children].forEach(b=>b.addEventListener('click',()=>{ ISFX.resume(); ilpFinishResults(b.dataset.w, b.dataset.w===ILP.secret.word); }));
-  } else {
-    body.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">What's the real number? (range ${ILP.settings.numberMin}-${ILP.settings.numberMax})</h3>
-      <div class="prow mt16"><input class="inp" id="ilpGuessNum" type="number"></div>
-      <button class="bigbtn" id="ilpGuessNumGo">Submit Guess</button>
-      <div class="actionbar"><button class="secbtn" id="ilpSkipGuess">Skip Guess</button></div>`;
-    $('#ilpGuessNumGo').addEventListener('click',()=>{ const v=+$('#ilpGuessNum').value; if(Number.isFinite(v)) ilpFinishResults(v, v===ILP.secret.number); });
-  }
-  $('#ilpSkipGuess').addEventListener('click',()=>ilpFinishResults(null,false));
+  $('#ilpGuessSecret').innerHTML=secretLineHtml(ILP.secret, ILP.settings);
 }
-function ilpFinishResults(guess, guessCorrect){
-  ILP.guess=guess; ILP.guessCorrect=guessCorrect;
+$('#ilpGuessRight').addEventListener('click',()=>{ ISFX.resume(); ilpFinishResults(true); });
+$('#ilpGuessWrong').addEventListener('click',()=>{ ISFX.resume(); ilpFinishResults(false); });
+function ilpFinishResults(guessCorrect){
+  ILP.guessCorrect=guessCorrect;
   ILP.imposterWon = !ILP.imposterCaught || guessCorrect===true;
   $('#ilpGuessing').classList.add('hidden');
   // The "votes" the shared results renderer displays are for flavor only in
@@ -740,7 +763,7 @@ function ilpFinishResults(guess, guessCorrect){
   // everyone having "voted" for the accused, which reads naturally.
   const votes={}; ILP.players.forEach(p=>{ if(p.pid!==ILP.accusedPid) votes[p.pid]=ILP.accusedPid; });
   const s={ settings:ILP.settings, players:ILP.players, imposterPid:ILP.imposterPid, secret:ILP.secret,
-    accusedPid:ILP.accusedPid, imposterCaught:ILP.imposterCaught, votes, guess:ILP.guess, guessCorrect:ILP.guessCorrect, imposterWon:ILP.imposterWon };
+    accusedPid:ILP.accusedPid, imposterCaught:ILP.imposterCaught, votes, guessCorrect:ILP.guessCorrect, imposterWon:ILP.imposterWon };
   $('#ilpResults').classList.remove('hidden'); $('#ilpResults').innerHTML=renderResultsHtml(s, null);
   $('#ilpResultActions').classList.remove('hidden');
   if(ILP.imposterWon) ISFX.lose(); else ISFX.win();
