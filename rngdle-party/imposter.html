@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ImpostRNG — RNGparty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#0a0a0a; --foreground:#fafafa;
+  --surface:oklch(25.7% .014 295); --surface-raised:oklch(31.1% .014 295);
+  --outline:oklch(39.5% .014 295); --prose-2:#c4c4c4; --prose-3:#9a9a9a;
+  --card:#111112; --card-line:oklch(30% .012 295);
+}
+html:not(.dark){
+  --background:#fafafa; --foreground:#0a0a0a;
+  --surface:#f1f1f4; --surface-raised:#e8e8ec; --outline:#d3d3da;
+  --prose-2:#3f3f46; --prose-3:#6b6b74; --card:#ffffff; --card-line:#e5e5ea;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--background);color:var(--foreground);font-family:Inter,-apple-system,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace}
+button{font-family:inherit;cursor:pointer;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px 120px}
+.hidden{display:none!important}
+.center{text-align:center}.mt8{margin-top:8px}.mt16{margin-top:16px}
+.small{font-size:12px;color:var(--prose-3)}
+
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
+.hbar{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.5px;background:none;border:0;padding:0;color:inherit;font-family:inherit;text-decoration:none}
+.logo b{color:#f59e0b}
+.gametitle{font-weight:700;font-size:14px;color:var(--prose-2);padding-left:10px;border-left:1px solid var(--card-line)}
+.hspace{flex:1}
+.iconbtn{border:1px solid var(--card-line);background:var(--surface);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:15px}
+
+.panel{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:18px;margin-top:18px}
+.panel h3{margin:0 0 14px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--prose-2)}
+.prow{display:flex;gap:8px;margin-bottom:10px}
+.inp{flex:1;min-width:0;background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:12px 13px;color:var(--foreground);font-size:15px;font-family:inherit}
+.inp:focus{outline:2px solid #f59e0b55;border-color:#f59e0b}
+.bigbtn{width:100%;border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;padding:14px;border-radius:11px;margin-top:14px}
+.bigbtn:disabled{opacity:.5}
+.secbtn{border:1px solid var(--card-line);background:var(--surface);padding:9px 16px;border-radius:9px;font-weight:600;font-size:13px}
+.rollbtn{border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;letter-spacing:.3px;padding:13px 30px;border-radius:11px}
+.rollbtn:disabled{opacity:.45}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:12px 14px;margin-top:10px}
+.toggle-row .t{font-weight:700;font-size:14px}
+.toggle-row .d{font-size:11.5px;color:var(--prose-3);margin-top:2px}
+.switch{position:relative;width:44px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch .track{position:absolute;inset:0;background:var(--outline);border-radius:999px;transition:.2s}
+.switch .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+.track{background:#f59e0b}
+.switch input:checked+.track .knob{transform:translateX(18px)}
+
+.seg{display:flex;background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:3px;margin-top:10px}
+.seg button{flex:1;border:0;background:transparent;color:var(--prose-3);font-weight:600;font-size:12.5px;padding:8px 10px;border-radius:7px}
+.seg button.on{background:var(--surface-raised);color:var(--foreground)}
+.setlabel{font-weight:700;font-size:13px;margin-top:16px}
+.setlabel:first-child{margin-top:0}
+
+.catgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.catchip{border:1px solid var(--card-line);background:var(--surface);color:var(--prose-3);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:999px;transition:.15s}
+.catchip.on{background:#f59e0b;border-color:#f59e0b;color:#1a1205}
+
+.codebox{text-align:center;background:linear-gradient(135deg,var(--surface),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:20px;margin-top:6px}
+.codebox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
+.codebox .code{font-size:44px;font-weight:800;letter-spacing:8px;margin:6px 0}
+.codebox .url{font-size:13px;color:var(--prose-2);word-break:break-all}
+
+.connbar{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin:14px 0}
+.connbar.warn{background:#f59e0b1a;border:1px solid #f59e0b55;color:#f59e0b}
+.connbar.bad{background:#ef44441a;border:1px solid #ef444455;color:#ef4444}
+.connbar .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:connspin .7s linear infinite;flex:none}
+@keyframes connspin{to{transform:rotate(360deg)}}
+.offlinetag{color:#ef4444;font-weight:700;font-size:10.5px;letter-spacing:.3px;margin-left:6px}
+
+.av{border-radius:50%;display:grid;place-items:center;font-weight:800;color:#1a1205;flex:none;width:30px;height:30px;font-size:13px}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pchip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px}
+.pchip .rm{margin-left:auto;background:transparent;border:0;color:var(--prose-3);font-size:16px;padding:2px 6px;cursor:pointer}
+.pchip .tick{margin-left:auto;font-size:15px}
+button.pchip{width:100%;text-align:left;cursor:pointer;transition:.15s}
+button.pchip:hover{border-color:#f59e0b88}
+
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px}
+.choice{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:22px 18px;text-align:center;transition:.15s}
+.choice:hover{border-color:#f59e0b;transform:translateY(-2px)}
+.choice .ic{font-size:34px}
+.choice .t{font-weight:800;font-size:17px;margin-top:10px}
+.choice .d{font-size:12px;color:var(--prose-3);margin-top:6px;line-height:1.5}
+.phone{max-width:460px;margin:0 auto}
+@keyframes pop{0%{transform:scale(.96);opacity:.4}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .28s ease}
+
+.secretcard{text-align:center;background:linear-gradient(135deg,var(--surface),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:30px 20px;margin-top:6px}
+.secretcard .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
+.secretcard .word{font-size:34px;font-weight:800;margin:10px 0;word-break:break-word}
+.secretcard.imposter{border-color:#ef444488;background:linear-gradient(135deg,#ef444422,var(--surface-raised))}
+.secretcard.imposter .word{color:#ef4444;font-size:22px}
+
+.revealcard{text-align:center;background:linear-gradient(135deg,var(--surface),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:40px 20px;margin-top:6px;transition:.15s}
+button.revealcard{width:100%;cursor:pointer}
+button.revealcard:hover{border-color:#f59e0b88}
+.revealcard .prompt{font-size:16px;color:var(--prose-2);font-weight:700}
+.revealcard .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3);display:none}
+.revealcard .word{font-size:30px;font-weight:800;margin-top:8px;display:none;word-break:break-word}
+.revealcard.shown .prompt{display:none}
+.revealcard.shown .lbl{display:block}
+.revealcard.shown .word{display:block}
+.revealcard.shown.imposter .word{color:#ef4444;font-size:22px}
+
+.turncard{text-align:center;background:linear-gradient(135deg,#f59e0b22,transparent);border:1px solid #f59e0b55;border-radius:14px;padding:20px;margin-top:18px}
+.turncard .row{display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;font-weight:700;margin-top:8px}
+.turncard .row:first-of-type{margin-top:14px}
+
+.votegrid,.guessgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
+.voteopt,.guessopt{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:16px 10px;text-align:center;font-weight:700;font-size:15px;transition:.15s}
+.voteopt:hover,.guessopt:hover{border-color:#f59e0b88}
+.voteopt.selected{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b;background:#f59e0b11}
+
+.reveal{text-align:center;padding:24px;border-radius:14px;margin-top:18px}
+.reveal.win{background:linear-gradient(135deg,#22c55e22,transparent);border:1px solid #22c55e55}
+.reveal.lose{background:linear-gradient(135deg,#ef444422,transparent);border:1px solid #ef444455}
+.reveal .t{font-size:12px;letter-spacing:2px;font-weight:700}
+.reveal.win .t{color:#22c55e}
+.reveal.lose .t{color:#ef4444}
+.reveal .n{font-size:26px;font-weight:800;margin-top:6px}
+.reveal .d{font-size:14px;color:var(--prose-2);margin-top:10px;line-height:1.5}
+
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbrow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:11px 14px}
+.lbrow .nm{font-weight:700;font-size:14px}
+.lbrow .meta{font-size:11.5px;color:var(--prose-3)}
+.lbrow .sc{margin-left:auto;text-align:right;font-weight:700;font-size:13px;color:var(--prose-2)}
+
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 20px;background:var(--surface);border-top:1px solid var(--card-line);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+.statusbig{text-align:center;font-size:15px;color:var(--prose-2);flex-basis:100%}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <a class="logo" href="/">RNG<b>party</b></a>
+    <span class="gametitle">🕵️ ImpostRNG</span>
+    <div class="hspace"></div>
+    <button class="iconbtn" id="muteBtn" title="Sound">🔊</button>
+    <button class="iconbtn" id="themeBtn" title="Theme">🌙</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="connbar hidden" id="connBar"></div>
+  <!-- ===== CHOOSE ===== -->
+  <div id="chooseView">
+    <div class="choices">
+      <div class="choice" id="hostBtn"><div class="ic">🖥️</div><div class="t">Host on this screen</div>
+        <div class="d">Show this on a TV/laptop. Friends join from their phones.</div></div>
+      <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a game</div>
+        <div class="d">Enter the room code from the host screen.</div></div>
+      <div class="choice" id="localBtn"><div class="ic">🎉</div><div class="t">Local party</div>
+        <div class="d">One shared screen, no phones. Pass it around to reveal.</div></div>
+    </div>
+  </div>
+
+  <!-- ===== HOST (online) ===== -->
+  <div id="hostView" class="hidden">
+    <div id="hLobby">
+      <div class="codebox">
+        <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
+        <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
+        <button class="secbtn" id="copyLink" style="margin-top:10px">Copy join link</button>
+      </div>
+      <div class="panel" id="hSettingsPanel"></div>
+      <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="plist" id="hLobbyList"></div>
+        <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
+      <button class="bigbtn" id="hStart" disabled>Start Round 🕵️</button>
+    </div>
+
+    <div id="hDiscuss" class="hidden">
+      <div class="turncard pop">
+        <div class="small">EVERYONE'S CHECKED THEIR PHONE — TALK IT OUT</div>
+        <div class="row">🎙️ <span id="hGoesFirst"></span> goes first</div>
+        <div class="row">🗂️ <span id="hDirector"></span> is directing the round</div>
+      </div>
+      <div class="panel"><h3 id="hDiscussCount">Players</h3><div class="plist" id="hDiscussList"></div></div>
+      <div class="actionbar">
+        <button class="rollbtn" id="hStartVoting">Start Voting ▶</button>
+      </div>
+    </div>
+
+    <div id="hVoting" class="hidden">
+      <div class="panel center">
+        <h3>Voting</h3>
+        <div class="small">Everyone's picking who they think the imposter is.</div>
+        <div class="mt16" id="hVoteProgress" style="font-weight:800;font-size:20px"></div>
+      </div>
+      <div class="panel"><h3>Players</h3><div class="plist" id="hVotingList"></div></div>
+      <div class="actionbar">
+        <button class="rollbtn" id="hForceResults">Reveal Now ▶</button>
+      </div>
+    </div>
+
+    <div id="hGuessing" class="hidden">
+      <div class="reveal lose pop"><div class="t">IMPOSTER CAUGHT</div><div class="n" id="hCaughtName"></div>
+        <div class="d">They get one guess at the real secret before it's final.</div></div>
+      <div class="panel center"><div class="small">Waiting on their guess…</div></div>
+      <div class="actionbar">
+        <button class="secbtn" id="hSkipGuess">Skip Guess</button>
+      </div>
+    </div>
+
+    <div id="hResults" class="hidden"></div>
+    <div class="actionbar hidden" id="hResultActions">
+      <button class="rollbtn" id="hPlayAgain">Play Again 🕵️</button>
+      <button class="secbtn" id="hEndGame">End Game</button>
+    </div>
+  </div>
+
+  <!-- ===== PLAYER (phone) ===== -->
+  <div id="playerView" class="hidden phone">
+    <div id="pJoinForm">
+      <div class="panel"><h3>Join the game</h3>
+        <div class="prow"><input class="inp" id="jCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"></div>
+        <div class="prow"><input class="inp" id="jName" placeholder="Your name" maxlength="18" autocomplete="off"></div>
+        <button class="bigbtn" id="jGo">Join 🕵️</button>
+        <div id="joinErr"></div>
+      </div>
+      <div class="center"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="pGame" class="hidden">
+      <div id="pWaitingLobby" class="center panel">Waiting for the host to start…</div>
+      <div id="pDiscuss" class="hidden">
+        <div id="pSecretCard"></div>
+        <div class="turncard pop">
+          <div class="row" style="margin-top:0">🎙️ <span id="pGoesFirst"></span> goes first</div>
+          <div class="row">🗂️ <span id="pDirector"></span> is directing</div>
+        </div>
+      </div>
+      <div id="pVoting" class="hidden">
+        <h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Who's the imposter?</h3>
+        <div class="votegrid" id="pVoteGrid"></div>
+      </div>
+      <div id="pGuessing" class="hidden">
+        <div id="pGuessBody"></div>
+      </div>
+      <div id="pResultsWrap" class="hidden"></div>
+      <div class="actionbar hidden" id="pActions">
+        <div class="statusbig" id="pStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LOCAL PARTY (one shared screen, no phones) ===== -->
+  <div id="localPartyView" class="hidden">
+    <div id="ilpSetup">
+      <div class="panel"><h3>Players</h3>
+        <div class="prow"><input class="inp" id="ilpName" placeholder="Player name" maxlength="18" autocomplete="off"></div>
+        <button class="secbtn" id="ilpAdd">Add player</button>
+        <div class="plist mt16" id="ilpList"></div>
+        <div class="small mt8" id="ilpHint">Add at least 3 players.</div>
+      </div>
+      <div class="panel" id="ilpSettingsPanel"></div>
+      <button class="bigbtn" id="ilpStart" disabled>Start Round 🕵️</button>
+      <div class="center mt16"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="ilpReveal" class="hidden">
+      <h3 class="small" style="text-transform:uppercase;letter-spacing:.5px" id="ilpRevealProgress">Player 1 of 1</h3>
+      <div class="small">Everyone else look away — pass the screen to:</div>
+      <button class="revealcard pop" id="ilpRevealCard">
+        <div class="prompt">Tap to reveal — only <b id="ilpRevealName"></b> should be looking</div>
+        <div class="lbl" id="ilpRevealLbl"></div>
+        <div class="word" id="ilpRevealWord"></div>
+      </button>
+      <div class="actionbar">
+        <button class="rollbtn" id="ilpRevealNext" disabled>Got it — hide &amp; pass on ▶</button>
+      </div>
+    </div>
+
+    <div id="ilpDiscuss" class="hidden">
+      <div class="turncard pop">
+        <div class="small">EVERYONE'S SEEN THEIR WORD — TALK IT OUT</div>
+        <div class="row">🎙️ <span id="ilpGoesFirst"></span> goes first</div>
+        <div class="row">🗂️ <span id="ilpDirector"></span> is directing the round</div>
+      </div>
+      <div class="actionbar">
+        <button class="rollbtn" id="ilpStartVoting">Start Voting ▶</button>
+      </div>
+    </div>
+
+    <div id="ilpVote" class="hidden">
+      <h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Group vote — who does the table accuse?</h3>
+      <div class="small center">Take a show of hands, then tap the table's pick.</div>
+      <div class="votegrid" id="ilpVoteGrid"></div>
+    </div>
+
+    <div id="ilpGuessing" class="hidden">
+      <div class="reveal lose pop"><div class="t">IMPOSTER CAUGHT</div><div class="n" id="ilpCaughtName"></div>
+        <div class="d">They get one guess at the real secret before it's final.</div></div>
+      <div id="ilpGuessBody"></div>
+    </div>
+
+    <div id="ilpResults" class="hidden"></div>
+    <div class="actionbar hidden" id="ilpResultActions">
+      <button class="rollbtn" id="ilpPlayAgain">Play Again 🕵️</button>
+      <button class="secbtn" id="ilpEndGame">End Game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function avatarHtml(p){return `<span class="av" style="background:${p.color}">${escapeHtml(p.name[0].toUpperCase())}</span>`;}
+function offlineTag(p){ return p.connected===false ? '<span class="offlinetag">· OFFLINE</span>' : ''; }
+function difficultyLabel(d){ return d==='easy'?'1 sip':d==='hard'?'a shot':'a few sips'; }
+
+// Must match the category NAMES in imposter-server.js's WORD_BANK exactly
+// (kept in sync by hand — the actual word LISTS stay server-only for online
+// play, since sending them to the client would leak them to a snooping
+// imposter's dev tools; local play duplicates the full bank below since
+// there's no untrusted client there — the shared screen IS the "server").
+const CATEGORY_NAMES = ["Animals","Food & Drink","Movies & TV","Locations","Objects","Jobs","People","Games","Clash Royale Cards"];
+const WORD_BANK = {
+  Animals: ["Elephant","Giraffe","Penguin","Octopus","Kangaroo","Dolphin","Cheetah","Owl","Koala","Flamingo","Hedgehog","Peacock","Otter","Raccoon","Chameleon"],
+  "Food & Drink": ["Pizza","Sushi","Tacos","Pancakes","Ramen","Burrito","Croissant","Margarita","Espresso","Popcorn","Nachos","Waffles","Dumplings","Milkshake","BBQ Ribs"],
+  "Movies & TV": ["The Office","Star Wars","Titanic","Breaking Bad","Friends","Jurassic Park","The Matrix","Shrek","Stranger Things","Game of Thrones","Toy Story","Avatar","The Godfather","Frozen","Squid Game"],
+  Locations: ["Beach","Airport","Casino","Library","Hospital","Prison","Space Station","Cruise Ship","Desert Island","Ski Resort","Amusement Park","Submarine","Nightclub","Farm","Volcano"],
+  Objects: ["Umbrella","Chainsaw","Trampoline","Telescope","Skateboard","Vacuum","Fireworks","Kite","Anchor","Parachute","Toaster","Mirror","Compass","Ladder","Piñata"],
+  Jobs: ["Firefighter","Surgeon","DJ","Pilot","Detective","Bartender","Lifeguard","Magician","Astronaut","Chef","Referee","Bodyguard","Tattoo Artist","Zookeeper","Wedding Planner"],
+  People: ["Albert Einstein","William Shakespeare","Cleopatra","Sherlock Holmes","Batman","Abraham Lincoln","Leonardo da Vinci","Beethoven","Julius Caesar","Wonder Woman","Isaac Newton","Robin Hood","Napoleon","Mozart","Dracula"],
+  Games: ["Minecraft","Fortnite","Chess","Among Us","Monopoly","Mario Kart","Roblox","Call of Duty","Uno","Tetris","Pokémon","Candy Crush","Animal Crossing","Grand Theft Auto","Clash Royale"],
+  "Clash Royale Cards": ["Knight","Giant","Wizard","Hog Rider","P.E.K.K.A","Balloon","Golem","Mega Knight","Electro Wizard","Musketeer","Goblin Barrel","Prince","Valkyrie","Miner","Sparky"],
+};
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* ---------- SOUND (Web Audio, fully synthesized, zero deps) ---------- */
+const ISFX = (function(){
+  let ctx, muted = localStorage.getItem('imposter_mute')==='1';
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null} } if(ctx.state==='suspended')ctx.resume(); return ctx; }
+  function blip(freq,dur,type,gain,glideTo){ if(muted)return; const c=ac(); if(!c)return; const o=c.createOscillator(),g=c.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(freq,c.currentTime);
+    if(glideTo) o.frequency.exponentialRampToValueAtTime(glideTo,c.currentTime+dur);
+    g.gain.setValueAtTime(gain,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+dur); }
+  return {
+    resume(){ ac(); },
+    tick(){ blip(700,.06,'square',.05); },
+    vote(){ blip(500,.08,'sine',.06,650); },
+    win(){ blip(523,.12,'sine',.08,784); setTimeout(()=>blip(784,.18,'sine',.08),110); },
+    lose(){ blip(300,.22,'sawtooth',.07,140); },
+    isMuted(){ return muted; },
+    toggle(){ muted=!muted; localStorage.setItem('imposter_mute',muted?'1':'0'); return muted; },
+  };
+})();
+$('#muteBtn').textContent=ISFX.isMuted()?'🔇':'🔊';
+$('#muteBtn').addEventListener('click',()=>{const m=ISFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)ISFX.resume();});
+$('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
+
+/* ---------- session persistence (reconnect) ---------- */
+const SESSION_KEY='imposter_session';
+function loadSession(){ try{ const raw=sessionStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify({code:NET.code, role:NET.role, pid:NET.pid, token:NET.token})); }catch(e){} }
+function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+
+/* ---------- network (online play only — local play never touches this) ---------- */
+const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevPhase:null, mySecret:null, myGuessPrompt:null,
+  manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
+  connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/imposter-ws`);
+    this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
+    this.ws.onclose=()=>this.handleClose(); this.ws.onerror=()=>{}; },
+  send(o){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(o)); },
+  handleClose(){
+    if(this.manualClose){ this.manualClose=false; return; }
+    if(!this.role) return;
+    this.reconnecting=true; renderConnBar();
+    clearTimeout(this.reconnectTimer);
+    const delay=Math.min(1000*Math.pow(1.6,this.reconnectAttempts),6000);
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectAttempts++;
+      this.connect(()=>this.send({type:'resume',code:this.code,pid:this.pid,token:this.token}));
+    },delay);
+  },
+  onMsg(m){
+    if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); hostLobbyReady(m.code); }
+    else if(m.type==='joined'){ this.pid=m.pid; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(); }
+    else if(m.type==='error'){
+      if(this.reconnecting){ this.reconnecting=false; this.reconnectFailed=true; clearSession(); renderConnBar(); }
+      else onNetError(m.msg);
+    }
+    else if(m.type==='secret'){ this.mySecret=m; if(this.role==='player') renderPlayerSecret(); }
+    else if(m.type==='guessPrompt'){ this.myGuessPrompt=m; if(this.role==='player') renderPlayerGuessing(); }
+    else if(m.type==='state'){ this.applyState(m); }
+  },
+  applyState(s){ const prevPhase=this.prevPhase; this.state=s;
+    if(this.role==='host') hostRender(s); else playerRender(s);
+    this.prevPhase=s.phase;
+    if(this.role==='player') renderConnBar();
+  }
+};
+function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small" style="color:#ef4444">${escapeHtml(msg)}</div>`; }
+function renderConnBar(){
+  const bar=$('#connBar'); if(!bar) return;
+  if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
+  if(NET.reconnectFailed){ bar.className='connbar bad'; bar.textContent="⚠️ Couldn't reconnect — the game may have ended."; return; }
+  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Host disconnected — waiting for them to reconnect…'; return; }
+  bar.className='connbar hidden';
+}
+
+/* ---------- shared settings-panel renderer (used by both online host and
+   local party — takes the current settings object, an `onChange(patch)`
+   callback, and whether category/number inputs are live-editable here) ---------- */
+function settingsPanelHtml(){
+  return `<h3>Settings</h3>
+    <div class="setlabel">Round type</div>
+    <div class="seg" id="setModeSeg"><button data-mode="word">Word</button><button data-mode="number">Number</button></div>
+    <div id="setWordSettings">
+      <div class="setlabel">Categories</div>
+      <div class="catgrid" id="setCatGrid"></div>
+    </div>
+    <div id="setNumberSettings" class="hidden">
+      <div class="setlabel">Number range</div>
+      <div class="prow mt8"><input class="inp" id="setNumMin" type="number" placeholder="Min"><input class="inp" id="setNumMax" type="number" placeholder="Max"></div>
+    </div>
+    <div class="setlabel">Drink difficulty</div>
+    <div class="seg" id="setDiffSeg"><button data-d="easy">Easy · 1 sip</button><button data-d="medium">Medium · few sips</button><button data-d="hard">Hard · shot</button></div>
+    <div class="toggle-row"><div><div class="t">💡 Show category to imposter</div><div class="d">Gives the imposter the category (never the actual word/number) as a bluffing hint.</div></div>
+      <label class="switch"><input type="checkbox" id="setShowCat"><span class="track"><span class="knob"></span></span></label></div>`;
+}
+function wireSettingsPanel(getSettings, onChange){
+  $('#setModeSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; onChange({mode:b.dataset.mode}); });
+  $('#setDiffSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; onChange({difficulty:b.dataset.d}); });
+  $('#setCatGrid').addEventListener('click',e=>{ const b=e.target.closest('.catchip'); if(!b)return;
+    const cur=getSettings().categories; const has=cur.includes(b.dataset.cat);
+    const next = has ? cur.filter(c=>c!==b.dataset.cat) : [...cur,b.dataset.cat];
+    if(next.length) onChange({categories:next});
+  });
+  $('#setShowCat').addEventListener('change',e=>onChange({showCategory:e.target.checked}));
+  const commitRange=()=>{ const min=+$('#setNumMin').value, max=+$('#setNumMax').value; if(Number.isFinite(min)&&Number.isFinite(max)&&max>min) onChange({numberMin:min,numberMax:max}); };
+  $('#setNumMin').addEventListener('change',commitRange);
+  $('#setNumMax').addEventListener('change',commitRange);
+}
+function renderSettingsPanel(set){
+  [...$('#setModeSeg').children].forEach(b=>b.classList.toggle('on', b.dataset.mode===set.mode));
+  [...$('#setDiffSeg').children].forEach(b=>b.classList.toggle('on', b.dataset.d===set.difficulty));
+  if(!$('#setCatGrid').children.length) $('#setCatGrid').innerHTML = CATEGORY_NAMES.map(c=>`<button class="catchip" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+  [...$('#setCatGrid').children].forEach(b=>b.classList.toggle('on', set.categories.includes(b.dataset.cat)));
+  $('#setShowCat').checked=set.showCategory;
+  if(document.activeElement!==$('#setNumMin')) $('#setNumMin').value=set.numberMin;
+  if(document.activeElement!==$('#setNumMax')) $('#setNumMax').value=set.numberMax;
+  $('#setWordSettings').classList.toggle('hidden', set.mode!=='word');
+  $('#setNumberSettings').classList.toggle('hidden', set.mode!=='number');
+}
+
+/* ---------- shared results/guess rendering (built from a state object
+   shaped like the server's, so both online (NET.state) and local (ILP) can
+   reuse the exact same rendering code) ---------- */
+function renderResultsHtml(s, myPid){
+  const byId={}; s.players.forEach(p=>byId[p.pid]=p);
+  const imposter=byId[s.imposterPid];
+  const amount=difficultyLabel(s.settings.difficulty);
+  const secretLine = s.settings.mode==='word'
+    ? `${escapeHtml(s.secret.category)}: <b>${escapeHtml(s.secret.word)}</b>`
+    : `Number: <b>${s.secret.number}</b> <span class="small">(range ${s.settings.numberMin}-${s.settings.numberMax})</span>`;
+  const guessLine = s.accusedPid!=null && s.imposterCaught
+    ? (s.guess==null ? `<div class="small mt8">They didn't guess.</div>` : `<div class="small mt8">Their guess: <b>${escapeHtml(String(s.guess))}</b> — ${s.guessCorrect?'correct! 😱':'wrong.'}</div>`)
+    : '';
+
+  let banner;
+  if(myPid==null){
+    banner = s.imposterWon
+      ? { cls:'lose', t:'IMPOSTER WINS', n:imposter.name, d:`Everyone except ${escapeHtml(imposter.name)} drinks ${amount}.` }
+      : { cls:'win', t:'IMPOSTER LOSES', n:imposter.name, d:`${escapeHtml(imposter.name)} drinks ${amount}.` };
+  } else if(myPid===s.imposterPid){
+    banner = s.imposterWon
+      ? { cls:'win', t:'YOU WERE THE IMPOSTER', n:'…and you won', d:`Everyone else drinks ${amount}. 😈` }
+      : { cls:'lose', t:'YOU WERE THE IMPOSTER', n:'…and you lost', d:`Drink ${amount}. 🥴` };
+  } else {
+    banner = s.imposterWon
+      ? { cls:'lose', t:'IMPOSTER GOT AWAY', n:`It was ${imposter.name}!`, d:`You drink ${amount}.` }
+      : { cls:'win', t:'IMPOSTER CAUGHT', n:`It was ${imposter.name}!`, d:`They drink ${amount}. 🎉` };
+  }
+
+  let html=`<div class="reveal ${banner.cls} pop"><div class="t">${banner.t}</div><div class="n">${escapeHtml(banner.n)}</div><div class="d">${banner.d}</div></div>`;
+  html+=`<div class="panel"><h3>The secret</h3><div>${secretLine}</div>${guessLine}</div>`;
+  html+=`<div class="panel"><h3>Votes</h3><div class="lb">`;
+  s.players.forEach(p=>{
+    const votedFor=s.votes[p.pid]!=null?byId[s.votes[p.pid]]:null;
+    const isAccused=s.accusedPid&&p.pid===s.accusedPid;
+    html+=`<div class="lbrow"><div><div class="nm">${escapeHtml(p.name)}${p.pid===s.imposterPid?' 🕵️':''}</div><div class="meta">voted ${votedFor?escapeHtml(votedFor.name):'no one'}</div></div>${isAccused?'<div class="sc">Most accused</div>':''}</div>`;
+  });
+  html+=`</div></div>`;
+  return html;
+}
+
+/* ==================================================================
+   ONLINE (host + phones)
+   ================================================================== */
+function showOnly(id){ ['chooseView','hostView','playerView','localPartyView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+function startHost(){ NET.role='host'; showOnly('hostView'); $('#hSettingsPanel').innerHTML=settingsPanelHtml(); wireSettingsPanel(()=>NET.state.settings, patch=>NET.send({type:'configure',...patch})); NET.connect(()=>NET.send({type:'host'})); }
+function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pGame').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
+$('#hostBtn').addEventListener('click',startHost);
+$('#joinBtn').addEventListener('click',()=>startJoin());
+function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/imposter?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+
+$('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
+$('#hStartVoting').addEventListener('click',()=>NET.send({type:'startVoting'}));
+$('#hForceResults').addEventListener('click',()=>NET.send({type:'forceResults'}));
+$('#hSkipGuess').addEventListener('click',()=>NET.send({type:'skipGuess'}));
+$('#hPlayAgain').addEventListener('click',()=>NET.send({type:'start'}));
+$('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
+
+function hostRender(s){
+  $('#hResultActions').classList.add('hidden');
+  $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
+  $('#hDiscuss').classList.toggle('hidden', s.phase!=='discussing');
+  $('#hVoting').classList.toggle('hidden', s.phase!=='voting');
+  $('#hGuessing').classList.toggle('hidden', s.phase!=='guessing');
+  $('#hResults').classList.toggle('hidden', s.phase!=='results');
+  const byId={}; s.players.forEach(p=>byId[p.pid]=p);
+
+  if(s.phase==='lobby'){
+    renderSettingsPanel(s.settings);
+    $('#hLobbyCount').textContent=`Players (${s.players.length})`;
+    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
+    const enough=s.players.length>=3;
+    $('#hLobbyHint').textContent = s.players.length===0 ? 'Waiting for players to join…' : !enough ? `Need at least 3 players (${s.players.length} so far).` : `${s.players.length} players in — start whenever you're ready.`;
+    $('#hStart').disabled=!enough;
+  } else if(s.phase==='discussing'){
+    $('#hGoesFirst').textContent=byId[s.goesFirstPid]?.name||'—';
+    $('#hDirector').textContent=byId[s.directorPid]?.name||'—';
+    $('#hDiscussCount').textContent=`Players (${s.players.length})`;
+    $('#hDiscussList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
+  } else if(s.phase==='voting'){
+    const votedCount=s.players.filter(p=>p.voted).length;
+    $('#hVoteProgress').textContent=`${votedCount}/${s.players.length} voted`;
+    $('#hVotingList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}<span class="tick">${p.voted?'✅':'⏳'}</span></div>`).join('');
+  } else if(s.phase==='guessing'){
+    $('#hCaughtName').textContent=byId[s.imposterPid]?.name||'—';
+  } else if(s.phase==='results'){
+    $('#hResults').innerHTML=renderResultsHtml(s, null);
+    $('#hResultActions').classList.remove('hidden');
+    if(NET.prevPhase!=='results'){ if(s.imposterWon) ISFX.lose(); else ISFX.win(); }
+  }
+}
+
+/* ---------- player: join flow ---------- */
+$('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.trim(); if(!code||!name){onNetError('Enter a code and your name');return;} ISFX.resume(); if(!NET.ws||NET.ws.readyState>1) NET.connect(()=>NET.send({type:'join',code,name})); else NET.send({type:'join',code,name}); });
+$('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
+function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
+
+function playerRender(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
+  const byId={}; s.players.forEach(p=>byId[p.pid]=p);
+  $('#pWaitingLobby').classList.toggle('hidden', s.phase!=='lobby');
+  $('#pDiscuss').classList.toggle('hidden', s.phase!=='discussing');
+  $('#pVoting').classList.toggle('hidden', s.phase!=='voting');
+  $('#pGuessing').classList.toggle('hidden', s.phase!=='guessing' || NET.pid!==s.imposterPid);
+  $('#pResultsWrap').classList.toggle('hidden', s.phase!=='results');
+  $('#pActions').classList.add('hidden');
+
+  if(s.phase==='discussing'){
+    renderPlayerSecret();
+    $('#pGoesFirst').textContent=byId[s.goesFirstPid]?.name||'—';
+    $('#pDirector').textContent=byId[s.directorPid]?.name||'—';
+  } else if(s.phase==='voting'){
+    const others=s.players.filter(p=>p.pid!==NET.pid);
+    $('#pVoteGrid').innerHTML=others.map(p=>`<button class="voteopt${NET.myVote===p.pid?' selected':''}" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div></button>`).join('');
+    [...$('#pVoteGrid').children].forEach(b=>b.addEventListener('click',()=>{
+      ISFX.resume(); ISFX.vote(); NET.myVote=b.dataset.pid; NET.send({type:'vote',targetPid:b.dataset.pid});
+      [...$('#pVoteGrid').children].forEach(x=>x.classList.toggle('selected',x===b));
+    }));
+    $('#pActions').classList.remove('hidden');
+    $('#pStatus').textContent = me.voted ? 'Vote in — you can still change it until everyone has voted.' : 'Tap who you think the imposter is.';
+  } else if(s.phase==='guessing' && NET.pid===s.imposterPid){
+    renderPlayerGuessing();
+  } else if(s.phase==='results'){
+    $('#pResultsWrap').innerHTML=renderResultsHtml(s, NET.pid);
+  }
+}
+function renderPlayerSecret(){
+  const sec=NET.mySecret; const el=$('#pSecretCard'); if(!sec){ el.innerHTML=''; return; }
+  if(sec.isImposter){
+    el.innerHTML=`<div class="secretcard imposter pop"><div class="lbl">YOU ARE THE</div><div class="word">🕵️ IMPOSTER</div>
+      ${sec.category?`<div class="small">Category: ${escapeHtml(sec.category)}</div>`:sec.range?`<div class="small">Range: ${sec.range[0]}-${sec.range[1]}</div>`:`<div class="small">No hints this round — good luck bluffing.</div>`}</div>`;
+  } else if(sec.word!=null){
+    el.innerHTML=`<div class="secretcard pop">${sec.category?`<div class="lbl">${escapeHtml(sec.category)}</div>`:''}<div class="word">${escapeHtml(sec.word)}</div></div>`;
+  } else {
+    el.innerHTML=`<div class="secretcard pop"><div class="lbl">YOUR NUMBER</div><div class="word">${sec.number}</div></div>`;
+  }
+}
+function renderPlayerGuessing(){
+  const gp=NET.myGuessPrompt; const el=$('#pGuessBody'); if(!gp) return;
+  if(gp.mode==='word'){
+    el.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Caught! What's the real word?</h3><div class="small center">Category: ${escapeHtml(gp.category)}</div>
+      <div class="guessgrid" id="pGuessGrid">${gp.options.map(w=>`<button class="guessopt" data-w="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}</div>`;
+    [...$('#pGuessGrid').children].forEach(b=>b.addEventListener('click',()=>{ ISFX.resume(); NET.send({type:'guess',value:b.dataset.w}); }));
+  } else {
+    el.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Caught! What's the real number?</h3><div class="small center">Range: ${gp.min}-${gp.max}</div>
+      <div class="prow mt16"><input class="inp" id="pGuessNum" type="number" placeholder="${gp.min}-${gp.max}"></div>
+      <button class="bigbtn" id="pGuessNumGo">Submit Guess</button>`;
+    $('#pGuessNumGo').addEventListener('click',()=>{ const v=+$('#pGuessNum').value; if(Number.isFinite(v)) NET.send({type:'guess',value:v}); });
+  }
+}
+
+/* ==================================================================
+   LOCAL PARTY (fully client-side, no room/WS at all)
+   ================================================================== */
+const ILP={ players:[], settings:null, imposterPid:null, secret:null, goesFirstPid:null, directorPid:null,
+  revealIdx:0, votes:{}, accusedPid:null, imposterCaught:null, guess:null, guessCorrect:null, imposterWon:null };
+function ilpDefaultSettings(){ return { mode:'word', difficulty:'medium', showCategory:true, categories:CATEGORY_NAMES.slice(), numberMin:1, numberMax:100 }; }
+function ilpGenSecret(){
+  const s=ILP.settings;
+  if(s.mode==='word'){ const category=pick(s.categories.length?s.categories:CATEGORY_NAMES); return { category, word:pick(WORD_BANK[category]) }; }
+  return { number: s.numberMin + Math.floor(Math.random()*(s.numberMax-s.numberMin+1)) };
+}
+function startLocalParty(){
+  showOnly('localPartyView');
+  if(!ILP.settings) ILP.settings=ilpDefaultSettings();
+  $('#ilpReveal').classList.add('hidden'); $('#ilpDiscuss').classList.add('hidden'); $('#ilpVote').classList.add('hidden');
+  $('#ilpGuessing').classList.add('hidden'); $('#ilpResults').classList.add('hidden'); $('#ilpResultActions').classList.add('hidden');
+  $('#ilpSetup').classList.remove('hidden');
+  $('#ilpSettingsPanel').innerHTML=settingsPanelHtml();
+  wireSettingsPanel(()=>ILP.settings, patch=>{ Object.assign(ILP.settings,patch); renderSettingsPanel(ILP.settings); });
+  renderSettingsPanel(ILP.settings);
+  ilpRenderSetup();
+}
+function ilpRenderSetup(){
+  const list=$('#ilpList'); list.innerHTML='';
+  ILP.players.forEach((p,i)=>{
+    const c=document.createElement('div'); c.className='pchip';
+    c.innerHTML=`${avatarHtml(p)}<span class="pn">${escapeHtml(p.name)}</span>`;
+    const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
+    rm.onclick=()=>{ ILP.players.splice(i,1); ilpRenderSetup(); };
+    c.appendChild(rm); list.appendChild(c);
+  });
+  const enough=ILP.players.length>=3;
+  $('#ilpHint').textContent = ILP.players.length===0 ? 'Add at least 3 players.' : !enough ? `Need at least 3 players (${ILP.players.length} so far).` : `${ILP.players.length} players ready.`;
+  $('#ilpStart').disabled=!enough;
+}
+function ilpAdd(){
+  const inp=$('#ilpName'); const n=inp.value.trim();
+  if(!n || ILP.players.length>=12) return;
+  if(ILP.players.some(p=>p.name.toLowerCase()===n.toLowerCase())){ $('#ilpHint').textContent=`"${n}" is already in — pick a different name.`; return; }
+  const AVATAR_COLORS=['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
+  ILP.players.push({ pid:'ilp'+ILP.players.length+'_'+Math.random().toString(36).slice(2,6), name:n, color:AVATAR_COLORS[ILP.players.length%AVATAR_COLORS.length] });
+  inp.value=''; inp.focus(); ilpRenderSetup();
+}
+$('#ilpAdd').addEventListener('click',ilpAdd);
+$('#ilpName').addEventListener('keydown',e=>{ if(e.key==='Enter') ilpAdd(); });
+$('#ilpStart').addEventListener('click',()=>{
+  if(ILP.players.length<3) return;
+  ISFX.resume();
+  ILP.imposterPid=pick(ILP.players.map(p=>p.pid));
+  ILP.secret=ilpGenSecret();
+  ILP.revealIdx=0; ILP.votes={}; ILP.accusedPid=null; ILP.imposterCaught=null; ILP.guess=null; ILP.guessCorrect=null; ILP.imposterWon=null;
+  const order=shuffle(ILP.players.map(p=>p.pid));
+  ILP.goesFirstPid=order[0]; ILP.directorPid=order[1]||order[0];
+  $('#ilpSetup').classList.add('hidden'); $('#ilpReveal').classList.remove('hidden');
+  ilpRenderReveal();
+});
+function ilpRenderReveal(){
+  const p=ILP.players[ILP.revealIdx];
+  $('#ilpRevealProgress').textContent=`Player ${ILP.revealIdx+1} of ${ILP.players.length}`;
+  $('#ilpRevealName').textContent=p.name;
+  const card=$('#ilpRevealCard'); card.classList.remove('shown','imposter');
+  $('#ilpRevealLbl').textContent=''; $('#ilpRevealWord').textContent='';
+  $('#ilpRevealNext').disabled=true;
+  card.onclick=()=>{
+    ISFX.resume(); card.classList.add('shown');
+    const isImposter=p.pid===ILP.imposterPid;
+    if(isImposter){
+      card.classList.add('imposter');
+      $('#ilpRevealLbl').textContent='YOU ARE THE';
+      $('#ilpRevealWord').textContent='🕵️ IMPOSTER'+(ILP.settings.showCategory ? (ILP.settings.mode==='word'?` (category: ${ILP.secret.category})`:` (range: ${ILP.settings.numberMin}-${ILP.settings.numberMax})`) : '');
+    } else if(ILP.settings.mode==='word'){
+      $('#ilpRevealLbl').textContent=ILP.secret.category;
+      $('#ilpRevealWord').textContent=ILP.secret.word;
+    } else {
+      $('#ilpRevealLbl').textContent='YOUR NUMBER';
+      $('#ilpRevealWord').textContent=ILP.secret.number;
+    }
+    $('#ilpRevealNext').disabled=false;
+  };
+}
+$('#ilpRevealNext').addEventListener('click',()=>{
+  if(ILP.revealIdx<ILP.players.length-1){ ILP.revealIdx++; ilpRenderReveal(); }
+  else { $('#ilpReveal').classList.add('hidden'); $('#ilpDiscuss').classList.remove('hidden'); ilpRenderDiscuss(); }
+});
+function ilpRenderDiscuss(){
+  const byId={}; ILP.players.forEach(p=>byId[p.pid]=p);
+  $('#ilpGoesFirst').textContent=byId[ILP.goesFirstPid]?.name||'—';
+  $('#ilpDirector').textContent=byId[ILP.directorPid]?.name||'—';
+}
+$('#ilpStartVoting').addEventListener('click',()=>{ $('#ilpDiscuss').classList.add('hidden'); $('#ilpVote').classList.remove('hidden'); ilpRenderVote(); });
+function ilpRenderVote(){
+  $('#ilpVoteGrid').innerHTML=ILP.players.map(p=>`<button class="voteopt" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div></button>`).join('');
+  [...$('#ilpVoteGrid').children].forEach(b=>b.addEventListener('click',()=>{
+    ISFX.resume(); ISFX.vote();
+    ILP.accusedPid=b.dataset.pid;
+    ILP.imposterCaught = ILP.accusedPid===ILP.imposterPid;
+    $('#ilpVote').classList.add('hidden');
+    if(ILP.imposterCaught){ $('#ilpGuessing').classList.remove('hidden'); ilpRenderGuessing(); }
+    else ilpFinishResults(null,null);
+  }));
+}
+function ilpRenderGuessing(){
+  const byId={}; ILP.players.forEach(p=>byId[p.pid]=p);
+  $('#ilpCaughtName').textContent=byId[ILP.imposterPid]?.name||'—';
+  const body=$('#ilpGuessBody');
+  if(ILP.settings.mode==='word'){
+    const options=WORD_BANK[ILP.secret.category];
+    body.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">What's the real word? (category: ${escapeHtml(ILP.secret.category)})</h3>
+      <div class="guessgrid" id="ilpGuessGrid">${options.map(w=>`<button class="guessopt" data-w="${escapeHtml(w)}">${escapeHtml(w)}</button>`).join('')}</div>
+      <div class="actionbar"><button class="secbtn" id="ilpSkipGuess">Skip Guess</button></div>`;
+    [...$('#ilpGuessGrid').children].forEach(b=>b.addEventListener('click',()=>{ ISFX.resume(); ilpFinishResults(b.dataset.w, b.dataset.w===ILP.secret.word); }));
+  } else {
+    body.innerHTML=`<h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">What's the real number? (range ${ILP.settings.numberMin}-${ILP.settings.numberMax})</h3>
+      <div class="prow mt16"><input class="inp" id="ilpGuessNum" type="number"></div>
+      <button class="bigbtn" id="ilpGuessNumGo">Submit Guess</button>
+      <div class="actionbar"><button class="secbtn" id="ilpSkipGuess">Skip Guess</button></div>`;
+    $('#ilpGuessNumGo').addEventListener('click',()=>{ const v=+$('#ilpGuessNum').value; if(Number.isFinite(v)) ilpFinishResults(v, v===ILP.secret.number); });
+  }
+  $('#ilpSkipGuess').addEventListener('click',()=>ilpFinishResults(null,false));
+}
+function ilpFinishResults(guess, guessCorrect){
+  ILP.guess=guess; ILP.guessCorrect=guessCorrect;
+  ILP.imposterWon = !ILP.imposterCaught || guessCorrect===true;
+  $('#ilpGuessing').classList.add('hidden');
+  // The "votes" the shared results renderer displays are for flavor only in
+  // local play (there's one group vote, not one per player) — show it as
+  // everyone having "voted" for the accused, which reads naturally.
+  const votes={}; ILP.players.forEach(p=>{ if(p.pid!==ILP.accusedPid) votes[p.pid]=ILP.accusedPid; });
+  const s={ settings:ILP.settings, players:ILP.players, imposterPid:ILP.imposterPid, secret:ILP.secret,
+    accusedPid:ILP.accusedPid, imposterCaught:ILP.imposterCaught, votes, guess:ILP.guess, guessCorrect:ILP.guessCorrect, imposterWon:ILP.imposterWon };
+  $('#ilpResults').classList.remove('hidden'); $('#ilpResults').innerHTML=renderResultsHtml(s, null);
+  $('#ilpResultActions').classList.remove('hidden');
+  if(ILP.imposterWon) ISFX.lose(); else ISFX.win();
+}
+$('#ilpPlayAgain').addEventListener('click',()=>{
+  $('#ilpResults').classList.add('hidden'); $('#ilpResultActions').classList.add('hidden');
+  $('#ilpStart').click();
+});
+$('#ilpEndGame').addEventListener('click',()=>{
+  $('#ilpResults').classList.add('hidden'); $('#ilpResultActions').classList.add('hidden');
+  $('#ilpGuessing').classList.add('hidden'); $('#ilpVote').classList.add('hidden'); $('#ilpDiscuss').classList.add('hidden'); $('#ilpReveal').classList.add('hidden');
+  $('#ilpSetup').classList.remove('hidden');
+  ilpRenderSetup();
+});
+$('#localBtn').addEventListener('click',startLocalParty);
+
+/* ---------- init / deep-link ---------- */
+function resumeFromSession(sess){
+  NET.role=sess.role; NET.code=sess.code; NET.pid=sess.pid; NET.token=sess.token;
+  showOnly(sess.role==='host'?'hostView':'playerView');
+  if(sess.role==='host'){ $('#hSettingsPanel').innerHTML=settingsPanelHtml(); wireSettingsPanel(()=>NET.state.settings, patch=>NET.send({type:'configure',...patch})); }
+  if(sess.role==='player'){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
+  NET.connect(()=>NET.send({type:'resume',code:sess.code,pid:sess.pid,token:sess.token}));
+}
+const roomParam=new URLSearchParams(location.search).get('room');
+const savedSession=loadSession();
+if(savedSession && savedSession.code && savedSession.role){ resumeFromSession(savedSession); }
+else if(roomParam){ startJoin(roomParam.toUpperCase()); }
+</script>
+</body>
+</html>
