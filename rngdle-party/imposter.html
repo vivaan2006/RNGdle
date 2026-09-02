@@ -344,7 +344,11 @@ function directionLabel(d){ return d==='ccw' ? 'counter-clockwise ↺' : 'clockw
 // play, since sending them to the client would leak them to a snooping
 // imposter's dev tools; local play duplicates the full bank below since
 // there's no untrusted client there — the shared screen IS the "server").
-const CATEGORY_NAMES = ["Animals","Food & Drink","Movies & TV","Locations","Objects","Jobs","People","Games","Clash Royale Cards"];
+const CATEGORY_NAMES = ["Animals","Food & Drink","Movies & TV","Locations","Objects","Jobs","People","Games","Sports","Superheroes","Countries","Emotions","Clash Royale Cards","Anime & Manga","Video Game Characters"];
+// Niche/fandom-specific categories default OFF in a fresh setup's settings —
+// everything else (broad, works-for-any-group categories) defaults ON.
+const NICHE_CATEGORIES = ["Clash Royale Cards","Anime & Manga","Video Game Characters"];
+const DEFAULT_CATEGORIES = CATEGORY_NAMES.filter(c=>!NICHE_CATEGORIES.includes(c));
 const WORD_BANK = {
   Animals: ["Elephant","Giraffe","Penguin","Octopus","Kangaroo","Dolphin","Cheetah","Owl","Koala","Flamingo","Hedgehog","Peacock","Otter","Raccoon","Chameleon"],
   "Food & Drink": ["Pizza","Sushi","Tacos","Pancakes","Ramen","Burrito","Croissant","Margarita","Espresso","Popcorn","Nachos","Waffles","Dumplings","Milkshake","BBQ Ribs"],
@@ -354,7 +358,13 @@ const WORD_BANK = {
   Jobs: ["Firefighter","Surgeon","DJ","Pilot","Detective","Bartender","Lifeguard","Magician","Astronaut","Chef","Referee","Bodyguard","Tattoo Artist","Zookeeper","Wedding Planner"],
   People: ["Albert Einstein","William Shakespeare","Cleopatra","Sherlock Holmes","Batman","Abraham Lincoln","Leonardo da Vinci","Beethoven","Julius Caesar","Wonder Woman","Isaac Newton","Robin Hood","Napoleon","Mozart","Dracula"],
   Games: ["Minecraft","Fortnite","Chess","Among Us","Monopoly","Mario Kart","Roblox","Call of Duty","Uno","Tetris","Pokémon","Candy Crush","Animal Crossing","Grand Theft Auto","Clash Royale"],
+  Sports: ["Basketball","Soccer","Tennis","Boxing","Swimming","Golf","Baseball","Hockey","Volleyball","Surfing","Skateboarding","Bowling","Rock Climbing","Wrestling","Table Tennis"],
+  Superheroes: ["Spider-Man","Iron Man","Superman","The Flash","Thor","Black Panther","Wolverine","Captain America","Hulk","Aquaman","Green Lantern","Doctor Strange","Deadpool","Black Widow","Captain Marvel"],
+  Countries: ["Japan","Brazil","Egypt","Australia","Canada","France","India","Mexico","Italy","Germany","Thailand","Greece","Iceland","Kenya","Argentina"],
+  Emotions: ["Happiness","Jealousy","Nostalgia","Anxiety","Excitement","Boredom","Confusion","Pride","Embarrassment","Curiosity","Relief","Awe","Frustration","Contentment","Suspicion"],
   "Clash Royale Cards": ["Knight","Giant","Wizard","Hog Rider","P.E.K.K.A","Balloon","Golem","Mega Knight","Electro Wizard","Musketeer","Goblin Barrel","Prince","Valkyrie","Miner","Sparky"],
+  "Anime & Manga": ["Naruto","One Piece","Dragon Ball Z","Attack on Titan","My Hero Academia","Death Note","Demon Slayer","Sailor Moon","Pokémon","Fullmetal Alchemist","Spirited Away","Jujutsu Kaisen","Cowboy Bebop","Bleach","Hunter x Hunter"],
+  "Video Game Characters": ["Mario","Link","Master Chief","Kratos","Lara Croft","Sonic the Hedgehog","Pikachu","Cloud Strife","Samus Aran","Geralt of Rivia","Ryu","Steve (Minecraft)","Kirby","Chun-Li","Yoshi"],
 };
 function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -631,7 +641,7 @@ function renderPlayerSecret(){
    ================================================================== */
 const ILP={ players:[], settings:null, imposterPid:null, secret:null, goesFirstPid:null, direction:null,
   revealed:new Set(), revealPendingPid:null, votes:{}, accusedPid:null, imposterCaught:null, guessCorrect:null, imposterWon:null };
-function ilpDefaultSettings(){ return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:CATEGORY_NAMES.slice(), numberMin:1, numberMax:100 }; }
+function ilpDefaultSettings(){ return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:DEFAULT_CATEGORIES.slice(), numberMin:1, numberMax:100 }; }
 function ilpGenSecret(){
   const s=ILP.settings;
   if(s.mode==='word'){ const category=pick(s.categories.length?s.categories:CATEGORY_NAMES); return { category, word:pick(WORD_BANK[category]) }; }

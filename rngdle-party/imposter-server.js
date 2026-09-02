@@ -31,15 +31,25 @@ const WORD_BANK = {
   Jobs: ["Firefighter","Surgeon","DJ","Pilot","Detective","Bartender","Lifeguard","Magician","Astronaut","Chef","Referee","Bodyguard","Tattoo Artist","Zookeeper","Wedding Planner"],
   People: ["Albert Einstein","William Shakespeare","Cleopatra","Sherlock Holmes","Batman","Abraham Lincoln","Leonardo da Vinci","Beethoven","Julius Caesar","Wonder Woman","Isaac Newton","Robin Hood","Napoleon","Mozart","Dracula"],
   Games: ["Minecraft","Fortnite","Chess","Among Us","Monopoly","Mario Kart","Roblox","Call of Duty","Uno","Tetris","Pokémon","Candy Crush","Animal Crossing","Grand Theft Auto","Clash Royale"],
+  Sports: ["Basketball","Soccer","Tennis","Boxing","Swimming","Golf","Baseball","Hockey","Volleyball","Surfing","Skateboarding","Bowling","Rock Climbing","Wrestling","Table Tennis"],
+  Superheroes: ["Spider-Man","Iron Man","Superman","The Flash","Thor","Black Panther","Wolverine","Captain America","Hulk","Aquaman","Green Lantern","Doctor Strange","Deadpool","Black Widow","Captain Marvel"],
+  Countries: ["Japan","Brazil","Egypt","Australia","Canada","France","India","Mexico","Italy","Germany","Thailand","Greece","Iceland","Kenya","Argentina"],
+  Emotions: ["Happiness","Jealousy","Nostalgia","Anxiety","Excitement","Boredom","Confusion","Pride","Embarrassment","Curiosity","Relief","Awe","Frustration","Contentment","Suspicion"],
   "Clash Royale Cards": ["Knight","Giant","Wizard","Hog Rider","P.E.K.K.A","Balloon","Golem","Mega Knight","Electro Wizard","Musketeer","Goblin Barrel","Prince","Valkyrie","Miner","Sparky"],
+  "Anime & Manga": ["Naruto","One Piece","Dragon Ball Z","Attack on Titan","My Hero Academia","Death Note","Demon Slayer","Sailor Moon","Pokémon","Fullmetal Alchemist","Spirited Away","Jujutsu Kaisen","Cowboy Bebop","Bleach","Hunter x Hunter"],
+  "Video Game Characters": ["Mario","Link","Master Chief","Kratos","Lara Croft","Sonic the Hedgehog","Pikachu","Cloud Strife","Samus Aran","Geralt of Rivia","Ryu","Steve (Minecraft)","Kirby","Chun-Li","Yoshi"],
 };
 const WORD_CATEGORIES = Object.keys(WORD_BANK);
+// Niche/fandom-specific categories default OFF in a fresh room's settings —
+// everything else (broad, works-for-any-group categories) defaults ON.
+const NICHE_CATEGORIES = ["Clash Royale Cards","Anime & Manga","Video Game Characters"];
+const DEFAULT_CATEGORIES = WORD_CATEGORIES.filter(c=>!NICHE_CATEGORIES.includes(c));
 
 function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 function defaultSettings(){
-  return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:WORD_CATEGORIES.slice(), numberMin:1, numberMax:100 };
+  return { mode:'word', difficulty:'medium', showCategory:true, drinkingMode:true, categories:DEFAULT_CATEGORIES.slice(), numberMin:1, numberMax:100 };
 }
 function sanitizeSettings(room, m){
   const s=room.settings;
