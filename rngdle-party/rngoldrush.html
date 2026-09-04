@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>RNGold Rush — RNGparty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#0a0a0a; --foreground:#fafafa;
+  --surface:oklch(25.7% .014 295); --surface-raised:oklch(31.1% .014 295);
+  --outline:oklch(39.5% .014 295); --prose-2:#c4c4c4; --prose-3:#9a9a9a;
+  --card:#111112; --card-line:oklch(30% .012 295);
+}
+html:not(.dark){
+  --background:#fafafa; --foreground:#0a0a0a;
+  --surface:#f1f1f4; --surface-raised:#e8e8ec; --outline:#d3d3da;
+  --prose-2:#3f3f46; --prose-3:#6b6b74; --card:#ffffff; --card-line:#e5e5ea;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--background);color:var(--foreground);font-family:Inter,-apple-system,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+.mono{font-family:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace}
+button{font-family:inherit;cursor:pointer;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px 120px}
+.hidden{display:none!important}
+.center{text-align:center}.mt8{margin-top:8px}.mt16{margin-top:16px}
+.small{font-size:12px;color:var(--prose-3)}
+
+header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
+.hbar{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.5px;background:none;border:0;padding:0;color:inherit;font-family:inherit;text-decoration:none}
+.logo b{color:#f59e0b}
+.gametitle{font-weight:700;font-size:14px;color:var(--prose-2);padding-left:10px;border-left:1px solid var(--card-line)}
+.hspace{flex:1}
+.iconbtn{border:1px solid var(--card-line);background:var(--surface);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:15px}
+
+.panel{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:18px;margin-top:18px}
+.panel h3{margin:0 0 14px;font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--prose-2)}
+.prow{display:flex;gap:8px;margin-bottom:10px}
+.inp{flex:1;min-width:0;background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:12px 13px;color:var(--foreground);font-size:15px;font-family:inherit}
+.inp:focus{outline:2px solid #f59e0b55;border-color:#f59e0b}
+.bigbtn{width:100%;border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;padding:14px;border-radius:11px;margin-top:14px}
+.bigbtn:disabled{opacity:.5}
+.secbtn{border:1px solid var(--card-line);background:var(--surface);padding:9px 16px;border-radius:9px;font-weight:600;font-size:13px}
+.rollbtn{border:0;background:#f59e0b;color:#1a1205;font-weight:800;font-size:15px;letter-spacing:.3px;padding:13px 30px;border-radius:11px}
+.rollbtn:disabled{opacity:.45}
+.leavebtn{border:0;background:#22c55e;color:#062010;font-weight:800;font-size:15px;letter-spacing:.3px;padding:13px 30px;border-radius:11px}
+.leavebtn:disabled{opacity:.45}
+
+.codebox{text-align:center;background:linear-gradient(135deg,var(--surface),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:20px;margin-top:6px}
+.codebox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
+.codebox .code{font-size:44px;font-weight:800;letter-spacing:8px;margin:6px 0}
+.codebox .url{font-size:13px;color:var(--prose-2);word-break:break-all}
+
+.connbar{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin:14px 0}
+.connbar.warn{background:#f59e0b1a;border:1px solid #f59e0b55;color:#f59e0b}
+.connbar.bad{background:#ef44441a;border:1px solid #ef444455;color:#ef4444}
+.connbar .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:connspin .7s linear infinite;flex:none}
+@keyframes connspin{to{transform:rotate(360deg)}}
+.offlinetag{color:#ef4444;font-weight:700;font-size:10.5px;letter-spacing:.3px;margin-left:6px}
+
+.av{border-radius:50%;display:grid;place-items:center;font-weight:800;color:#1a1205;flex:none;width:30px;height:30px;font-size:13px}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pchip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px}
+.pchip .rm{margin-left:auto;background:transparent;border:0;color:var(--prose-3);font-size:16px;padding:2px 6px;cursor:pointer}
+.statusbit{margin-left:auto;font-size:12px;color:var(--prose-3);font-weight:700;white-space:nowrap}
+.pchip.st-left{border-color:#3b82f655}
+.pchip.st-busted{border-color:#ef444455;opacity:.75}
+.pchip.st-in.locked{border-color:#f59e0b88}
+
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:24px}
+.choice{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:22px 18px;text-align:center;transition:.15s}
+.choice:hover{border-color:#f59e0b;transform:translateY(-2px)}
+.choice .ic{font-size:34px}
+.choice .t{font-weight:800;font-size:17px;margin-top:10px}
+.choice .d{font-size:12px;color:var(--prose-3);margin-top:6px;line-height:1.5}
+.phone{max-width:460px;margin:0 auto}
+@keyframes pop{0%{transform:scale(.96);opacity:.4}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .28s ease}
+
+.potbox{text-align:center;background:linear-gradient(135deg,#f59e0b22,var(--surface-raised));border:1px solid #f59e0b55;border-radius:16px;padding:26px 20px;margin-top:6px}
+.potbox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
+.potbox .amt{font-size:44px;font-weight:800;margin-top:4px;color:#f59e0b}
+.tilebar{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:14px;font-size:12.5px;color:var(--prose-2);font-weight:600}
+
+.roundlog{display:flex;flex-direction:column-reverse;gap:6px;max-height:280px;overflow-y:auto;margin-top:6px}
+.logrow{background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600}
+.logrow.good{border-color:#22c55e55;color:#22c55e}
+.logrow.bad{border-color:#f59e0b55}
+.logrow.bust{border-color:#ef444488;color:#ef4444;font-weight:800}
+.logrow.leave{border-color:#3b82f655}
+
+.stakebar{display:flex;gap:12px;justify-content:center;margin-top:22px}
+.stakebar button{flex:1;max-width:180px}
+.lockmsg{text-align:center;background:var(--surface);border:1px solid var(--card-line);border-radius:14px;padding:22px;margin-top:22px;font-weight:700;color:var(--prose-2)}
+
+.reveal{text-align:center;padding:24px;border-radius:14px;margin-top:18px}
+.reveal.win{background:linear-gradient(135deg,#22c55e22,transparent);border:1px solid #22c55e55}
+.reveal.lose{background:linear-gradient(135deg,#ef444422,transparent);border:1px solid #ef444455}
+.reveal .t{font-size:12px;letter-spacing:2px;font-weight:700}
+.reveal.win .t{color:#22c55e}
+.reveal.lose .t{color:#ef4444}
+.reveal .n{font-size:26px;font-weight:800;margin-top:6px}
+.reveal .d{font-size:14px;color:var(--prose-2);margin-top:10px;line-height:1.5}
+
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbrow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:11px 14px}
+.lbrow .nm{font-weight:700;font-size:14px}
+.lbrow .meta{font-size:11.5px;color:var(--prose-3)}
+
+.givegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:16px}
+.giveopt{background:var(--card);border:2px solid var(--card-line);border-radius:14px;padding:16px 10px;text-align:center;font-weight:700;font-size:15px;transition:.15s}
+.giveopt:hover{border-color:#f59e0b88}
+.giveopt:active{transform:scale(.97)}
+.giveopt .rcv{display:block;font-size:11.5px;color:var(--prose-3);font-weight:600;margin-top:4px}
+
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 20px;background:var(--surface);border-top:1px solid var(--card-line);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+.statusbig{text-align:center;font-size:15px;color:var(--prose-2);flex-basis:100%}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <a class="logo" href="/">RNG<b>party</b></a>
+    <span class="gametitle">⛏️ RNGold Rush</span>
+    <div class="hspace"></div>
+    <button class="iconbtn" id="muteBtn" title="Sound">🔊</button>
+    <button class="iconbtn" id="themeBtn" title="Theme">🌙</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="connbar hidden" id="connBar"></div>
+  <!-- ===== CHOOSE ===== -->
+  <div id="chooseView">
+    <div class="choices">
+      <div class="choice" id="hostBtn"><div class="ic">🖥️</div><div class="t">Host on this screen</div>
+        <div class="d">Show this on a TV/laptop. Friends join from their phones.</div></div>
+      <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a game</div>
+        <div class="d">Enter the room code from the host screen.</div></div>
+    </div>
+  </div>
+
+  <!-- ===== HOST (online) ===== -->
+  <div id="hostView" class="hidden">
+    <div id="hLobby">
+      <div class="codebox">
+        <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
+        <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
+        <button class="secbtn" id="copyLink" style="margin-top:10px">Copy join link</button>
+      </div>
+      <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="plist" id="hLobbyList"></div>
+        <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
+      <button class="bigbtn" id="hStart" disabled>Start Round ⛏️</button>
+    </div>
+
+    <div id="hRound" class="hidden">
+      <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="hPotAmt">0g</div>
+        <div class="tilebar" id="hTileBar"></div></div>
+      <div class="panel"><h3 id="hRoundCount">Players</h3><div class="plist" id="hRoundList"></div></div>
+      <div class="panel"><h3>Live Feed</h3><div class="roundlog" id="hRoundLog"></div></div>
+    </div>
+
+    <div id="hResults" class="hidden"></div>
+    <div class="actionbar hidden" id="hResultActions">
+      <button class="rollbtn" id="hPlayAgain">Next Round ⛏️</button>
+      <button class="secbtn" id="hEndGame">End Game</button>
+    </div>
+  </div>
+
+  <!-- ===== PLAYER (phone) ===== -->
+  <div id="playerView" class="hidden phone">
+    <div id="pJoinForm">
+      <div class="panel"><h3>Join the game</h3>
+        <div class="prow"><input class="inp" id="jCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"></div>
+        <div class="prow"><input class="inp" id="jName" placeholder="Your name" maxlength="18" autocomplete="off"></div>
+        <button class="bigbtn" id="jGo">Join ⛏️</button>
+        <div id="joinErr"></div>
+      </div>
+      <div class="center"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="pGame" class="hidden">
+      <div id="pWaitingLobby" class="center panel">Waiting for the host to start…</div>
+      <div id="pRound" class="hidden">
+        <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="pPotAmt">0g</div>
+          <div class="tilebar" id="pTileBar"></div></div>
+        <div id="pStayLeave" class="hidden">
+          <div class="stakebar">
+            <button class="leavebtn" id="pLeaveBtn">💰 Cash Out</button>
+            <button class="rollbtn" id="pStayBtn">🎲 Push It</button>
+          </div>
+          <div class="small center mt16" id="pLockProgress"></div>
+        </div>
+        <div id="pWaitingChoice" class="lockmsg hidden">🔒 Locked in — waiting on the table…</div>
+        <div id="pDoneCard" class="lockmsg hidden"></div>
+        <div class="panel"><h3>Live Feed</h3><div class="roundlog" id="pRoundLog"></div></div>
+      </div>
+      <div id="pResultsWrap" class="hidden"></div>
+      <div class="actionbar hidden" id="pActions">
+        <div class="statusbig" id="pStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function avatarHtml(p){return `<span class="av" style="background:${p.color}">${escapeHtml(p.name[0].toUpperCase())}</span>`;}
+function offlineTag(p){ return p.connected===false ? '<span class="offlinetag">· OFFLINE</span>' : ''; }
+
+/* ---------- SOUND (Web Audio, fully synthesized, zero deps) ---------- */
+const GSFX = (function(){
+  let ctx, muted = localStorage.getItem('rngoldrush_mute')==='1';
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null} } if(ctx.state==='suspended')ctx.resume(); return ctx; }
+  function blip(freq,dur,type,gain,glideTo){ if(muted)return; const c=ac(); if(!c)return; const o=c.createOscillator(),g=c.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(freq,c.currentTime);
+    if(glideTo) o.frequency.exponentialRampToValueAtTime(glideTo,c.currentTime+dur);
+    g.gain.setValueAtTime(gain,c.currentTime); g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+dur); }
+  return {
+    resume(){ ac(); },
+    tick(){ blip(700,.06,'square',.05); },
+    coin(){ blip(880,.08,'sine',.06,1200); },
+    bust(){ blip(220,.28,'sawtooth',.08,90); },
+    cashout(){ blip(523,.12,'sine',.08,784); setTimeout(()=>blip(784,.18,'sine',.08),110); },
+    isMuted(){ return muted; },
+    toggle(){ muted=!muted; localStorage.setItem('rngoldrush_mute',muted?'1':'0'); return muted; },
+  };
+})();
+$('#muteBtn').textContent=GSFX.isMuted()?'🔇':'🔊';
+$('#muteBtn').addEventListener('click',()=>{const m=GSFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)GSFX.resume();});
+$('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
+
+/* ---------- session persistence (reconnect) ---------- */
+const SESSION_KEY='rngoldrush_session';
+function loadSession(){ try{ const raw=sessionStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify({code:NET.code, role:NET.role, pid:NET.pid, token:NET.token})); }catch(e){} }
+function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+
+/* ---------- network ---------- */
+const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevTick:null,
+  manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
+  connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/rngoldrush-ws`);
+    this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
+    this.ws.onclose=()=>this.handleClose(); this.ws.onerror=()=>{}; },
+  send(o){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(o)); },
+  handleClose(){
+    if(this.manualClose){ this.manualClose=false; return; }
+    if(!this.role) return;
+    this.reconnecting=true; renderConnBar();
+    clearTimeout(this.reconnectTimer);
+    const delay=Math.min(1000*Math.pow(1.6,this.reconnectAttempts),6000);
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectAttempts++;
+      this.connect(()=>this.send({type:'resume',code:this.code,pid:this.pid,token:this.token}));
+    },delay);
+  },
+  onMsg(m){
+    if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); hostLobbyReady(m.code); }
+    else if(m.type==='joined'){ this.pid=m.pid; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(); }
+    else if(m.type==='error'){
+      if(this.reconnecting){ this.reconnecting=false; this.reconnectFailed=true; clearSession(); renderConnBar(); }
+      else onNetError(m.msg);
+    }
+    else if(m.type==='state'){ this.applyState(m); }
+  },
+  applyState(s){ this.state=s;
+    if(this.role==='host') hostRender(s); else playerRender(s);
+    if(this.role==='player') renderConnBar();
+  }
+};
+function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small" style="color:#ef4444">${escapeHtml(msg)}</div>`; }
+function renderConnBar(){
+  const bar=$('#connBar'); if(!bar) return;
+  if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
+  if(NET.reconnectFailed){ bar.className='connbar bad'; bar.textContent="⚠️ Couldn't reconnect — the game may have ended."; return; }
+  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Host disconnected — waiting for them to reconnect…'; return; }
+  bar.className='connbar hidden';
+}
+
+/* ---------- shared rendering helpers (pot/tiles/log — used by both host
+   and player screens, so the shared "slot machine" reads identically
+   wherever you're watching it from) ---------- */
+function fmtGold(n){ return `${n}g`; }
+function tileBarHtml(pr){
+  if(!pr) return '';
+  return `<span>🔢 ${pr.number} left</span><span>✨ ${pr.x2} ×2</span><span>➗ ${pr.half} ×0.5</span><span>💀 ${pr.bust} bust</span>`;
+}
+function logEntryHtml(e){
+  if(e.type==='leave') return `<div class="logrow leave">🏃 <b>${escapeHtml(e.name)}</b> cashed out — ${fmtGold(e.gold)}</div>`;
+  if(e.type==='draw'){
+    if(e.tileType==='number') return `<div class="logrow">🎲 Drew <b>${e.value}</b> → pot: ${fmtGold(e.potAfter)}</div>`;
+    if(e.tileType==='x2') return `<div class="logrow good">✨ x2! → pot: ${fmtGold(e.potAfter)}</div>`;
+    if(e.tileType==='half') return `<div class="logrow bad">➗ x0.5 → pot: ${fmtGold(e.potAfter)}</div>`;
+    if(e.tileType==='bust') return `<div class="logrow bust">💀 BUST! Pot reset to 0.</div>`;
+  }
+  return '';
+}
+function roundLogHtml(log, limit){
+  const entries = limit ? log.slice(-limit) : log;
+  return entries.map(logEntryHtml).join('');
+}
+// .roundlog is column-reverse (newest entry rendered first, at the top) so a
+// live feed reads naturally, but that also means the browser's default
+// scrollTop=0 shows the OLDEST entries once it overflows — the newest event
+// (often the bust that just ended the round) silently scrolls out of view.
+// Force scrollTop to max after every re-render so the newest stays visible.
+function scrollLogToNewest(el){ if(el) el.scrollTop = el.scrollHeight; }
+function statusIcon(p){
+  if(p.status==='in') return p.locked ? '🔒' : '🎲';
+  if(p.status==='left') return '🏃';
+  if(p.status==='busted') return '💀';
+  return '⏳';
+}
+function statusText(p){
+  if(p.status==='in') return `spin ${p.spinCount}`;
+  if(p.status==='left') return `+${fmtGold(p.roundGold)}`;
+  if(p.status==='busted') return `busted`;
+  return `next round`;
+}
+function playerRowHtml(p){
+  return `<div class="pchip st-${p.status}${p.status==='in'&&p.locked?' locked':''}">${avatarHtml(p)}<span>${escapeHtml(p.name)}${offlineTag(p)}</span><span class="statusbit">${statusIcon(p)} ${statusText(p)}</span></div>`;
+}
+function resultsRowHtml(p){
+  const drink = p.checkpointSips + p.bustPenaltySips;
+  const parts=[`spin ${p.spinCount}`];
+  if(p.status==='busted') parts.push('💀 busted');
+  if(drink>0) parts.push(`🥴 drinks ${drink}`);
+  if(p.sipBalance>0) parts.push(`🍻 ${p.sipBalance} to give`);
+  else if(p.sipsGiven>0) parts.push(`gave ${p.sipsGiven}`);
+  if(p.receivedSips>0) parts.push(`received ${p.receivedSips}`);
+  return `<div class="lbrow"><div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${parts.join(' · ')}</div></div></div>`;
+}
+function resultsHtml(s){
+  let html=`<div class="panel"><h3>Round Results</h3><div class="lb">${s.players.map(resultsRowHtml).join('')}</div></div>`;
+  return html;
+}
+
+/* ==================================================================
+   HOST (shared/TV screen)
+   ================================================================== */
+function showOnly(id){ ['chooseView','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host'})); }
+function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pGame').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
+$('#hostBtn').addEventListener('click',startHost);
+$('#joinBtn').addEventListener('click',()=>startJoin());
+function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/rngoldrush?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+
+$('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
+$('#hPlayAgain').addEventListener('click',()=>NET.send({type:'start'}));
+$('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
+
+function hostRender(s){
+  $('#hResultActions').classList.add('hidden');
+  $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
+  $('#hRound').classList.toggle('hidden', s.phase!=='round');
+  $('#hResults').classList.toggle('hidden', s.phase!=='results');
+
+  if(s.phase==='lobby'){
+    $('#hLobbyCount').textContent=`Players (${s.players.length})`;
+    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
+    const connected=s.players.filter(p=>p.connected).length;
+    const enough=connected>=2;
+    $('#hLobbyHint').textContent = s.players.length===0 ? 'Waiting for players to join…' : !enough ? `Need at least 2 players (${connected} connected so far).` : `${connected} players in — start whenever you're ready.`;
+    $('#hStart').disabled=!enough;
+  } else if(s.phase==='round'){
+    if(s.tick!==NET.prevTick){ GSFX.resume(); if(s.roundLog.length) GSFX.tick(); NET.prevTick=s.tick; }
+    $('#hPotAmt').textContent=fmtGold(s.pot);
+    $('#hTileBar').innerHTML=tileBarHtml(s.poolRemaining);
+    $('#hRoundCount').textContent=`Players`;
+    $('#hRoundList').innerHTML=s.players.map(playerRowHtml).join('');
+    $('#hRoundLog').innerHTML=roundLogHtml(s.roundLog);
+    scrollLogToNewest($('#hRoundLog'));
+  } else if(s.phase==='results'){
+    $('#hResults').innerHTML=resultsHtml(s)+`<div class="panel"><h3>Live Feed</h3><div class="roundlog">${roundLogHtml(s.roundLog)}</div></div>`;
+    scrollLogToNewest($('#hResults .roundlog'));
+    $('#hResultActions').classList.remove('hidden');
+  }
+}
+
+/* ---------- player: join flow ---------- */
+$('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.trim(); if(!code||!name){onNetError('Enter a code and your name');return;} GSFX.resume(); if(!NET.ws||NET.ws.readyState>1) NET.connect(()=>NET.send({type:'join',code,name})); else NET.send({type:'join',code,name}); });
+$('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
+function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
+
+$('#pStayBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'stay'}); });
+$('#pLeaveBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'leave'}); });
+
+function playerRender(s){
+  const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
+  $('#pWaitingLobby').classList.toggle('hidden', s.phase!=='lobby');
+  $('#pRound').classList.toggle('hidden', s.phase!=='round');
+  $('#pResultsWrap').classList.toggle('hidden', s.phase!=='results');
+  $('#pActions').classList.add('hidden');
+
+  if(s.phase==='round'){
+    if(s.tick!==NET.prevTick){ NET.prevTick=s.tick; }
+    $('#pPotAmt').textContent=fmtGold(s.pot);
+    $('#pTileBar').innerHTML=tileBarHtml(s.poolRemaining);
+    $('#pRoundLog').innerHTML=roundLogHtml(s.roundLog, 6);
+    scrollLogToNewest($('#pRoundLog'));
+
+    const inPlayers=s.players.filter(p=>p.status==='in');
+    const lockedCount=inPlayers.filter(p=>p.locked).length;
+    $('#pStayLeave').classList.toggle('hidden', !(me.status==='in' && !me.locked));
+    $('#pWaitingChoice').classList.toggle('hidden', !(me.status==='in' && me.locked));
+    $('#pDoneCard').classList.toggle('hidden', me.status==='in');
+    if(me.status==='in'){
+      $('#pLockProgress').textContent = `${lockedCount}/${inPlayers.length} locked in`;
+    } else {
+      const card=$('#pDoneCard');
+      if(me.status==='left') card.innerHTML=`🏃 <b>You cashed out</b> — ${fmtGold(me.roundGold)} (${me.sipBalance} sip${me.sipBalance===1?'':'s'} to give at round end)<br><span class="small">Watching the rest of the table…</span>`;
+      else if(me.status==='busted') card.innerHTML=`💀 <b>BUSTED</b> — drink ${me.bustPenaltySips} sips now.<br><span class="small">Watching the rest of the table…</span>`;
+      else card.innerHTML=`⏳ <b>Sit tight</b> — you're in next round.`;
+    }
+  } else if(s.phase==='results'){
+    let html=resultsHtml(s);
+    if(me.sipBalance>0){
+      const others=s.players.filter(p=>p.pid!==me.pid);
+      html+=`<div class="panel"><h3>Give out ${me.sipBalance} sip${me.sipBalance===1?'':'s'}</h3>
+        <div class="givegrid" id="pGiveGrid">${others.map(p=>`<button class="giveopt" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div><span class="rcv">received ${p.receivedSips}</span></button>`).join('')}</div></div>`;
+    }
+    $('#pResultsWrap').innerHTML=html;
+    if(me.sipBalance>0){
+      [...$('#pGiveGrid').children].forEach(b=>b.addEventListener('click',()=>{ GSFX.resume(); GSFX.coin(); NET.send({type:'giveSip',targetPid:b.dataset.pid}); }));
+    }
+  }
+}
+
+/* ---------- init / deep-link ---------- */
+function resumeFromSession(sess){
+  NET.role=sess.role; NET.code=sess.code; NET.pid=sess.pid; NET.token=sess.token;
+  showOnly(sess.role==='host'?'hostView':'playerView');
+  if(sess.role==='player'){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
+  NET.connect(()=>NET.send({type:'resume',code:sess.code,pid:sess.pid,token:sess.token}));
+}
+const roomParam=new URLSearchParams(location.search).get('room');
+const savedSession=loadSession();
+if(savedSession && savedSession.code && savedSession.role){ resumeFromSession(savedSession); }
+else if(roomParam){ startJoin(roomParam.toUpperCase()); }
+</script>
+</body>
+</html>
