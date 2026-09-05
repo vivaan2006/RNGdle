@@ -4,6 +4,7 @@
 // server-side with the SAME extracted engine so every screen stays in sync.
 
 import "./engine.js";                 // sets globalThis.RNGDLE
+import { claimCode, releaseCode, gameFor, GAME_PATHS, GAME_NAMES } from "./rooms-registry.js";
 import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
 import * as HorsRNG from "./horsrng-server.js";     // separate game, separate rooms, separate ws path
@@ -19,7 +20,7 @@ const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js",
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/qr.js": "qr.js",
   "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
   "/imposter": "imposter.html", "/imposter.html": "imposter.html",
   "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html" };
@@ -33,7 +34,7 @@ const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14
 // short enough that a genuinely abandoned room doesn't linger pointlessly.
 const RECONNECT_GRACE_MS = 45000;
 
-function makeCode(){ const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let c; do{ c=Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join(""); }while(rooms.has(c)); return c; }
+function makeCode(){ return claimCode("rngdle"); }   // globally unique across games
 function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
 // A bearer credential for reclaiming a seat after a disconnect — longer and
 // higher-entropy than pid() since guessing this hands over someone's spot.
@@ -283,7 +284,7 @@ function handleClose(ws){
     room.hostGraceTimer=setTimeout(()=>{
       clearTimeout(room.revealTimer); clearTimeout(room.autoNextTimer);
       broadcast(room,{type:"error",msg:"Host didn't reconnect in time — party ended."});
-      rooms.delete(room.code);
+      releaseCode(room.code); rooms.delete(room.code);
     }, RECONNECT_GRACE_MS);
     return;
   }
@@ -312,6 +313,16 @@ const onOpen    = ws => { meta.set(ws,{}); };
 const onMessage = (ws,msg) => { try{ handle(ws, JSON.parse(msg)); }catch(e){ /* ignore bad frames */ } };
 const onClose   = ws => { handleClose(ws); };
 
+/* One place to ask "who owns this code?", so a single join box can send a
+   player to whichever game the room belongs to. */
+function apiRoutes(url){
+  if(url.pathname!=="/api/room") return null;
+  const code=(url.searchParams.get("code")||"").toUpperCase().trim();
+  const game=gameFor(code);
+  if(!game) return { status:404, json:{ ok:false, code, error:"No party with that code." } };
+  return { json:{ ok:true, code, game, name:GAME_NAMES[game]||game, path:GAME_PATHS[game]||"/" } };
+}
+
 const WS_ROUTES = {
   "/ws":            { open:onOpen, message:onMessage, close:onClose },
   "/horsrng-ws":    { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
@@ -326,6 +337,9 @@ if (globalThis.Bun) {
       const url=new URL(req.url);
       const route = WS_ROUTES[url.pathname];
       if(route){ if(server.upgrade(req,{data:{route}})) return; return new Response("upgrade failed",{status:426}); }
+      const hit = apiRoutes(url);
+      if(hit) return new Response(JSON.stringify(hit.json), {status:hit.status||200,
+        headers:{"content-type":"application/json","cache-control":"no-store"}});
       const file = STATIC[url.pathname];
       if(file) return new Response(Bun.file(file), {headers:{"cache-control":"no-cache"}});  // else edits look stale in the browser
       return new Response("Not found",{status:404});
@@ -340,7 +354,7 @@ if (globalThis.Bun) {
   });
 } else {
   const { serve } = await import("./node-ws.js");
-  serve({ port:PORT, staticFiles:STATIC, wsRoutes:WS_ROUTES });
+  serve({ port:PORT, staticFiles:STATIC, wsRoutes:WS_ROUTES, api:apiRoutes });
 }
 
 // print addresses

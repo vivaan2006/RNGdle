@@ -16,6 +16,8 @@
 // on separate tracks: checkpoint/bust sips are ones you *drink*, cashed-out
 // gold becomes sips you *hand out* to whoever you want at round end.
 
+import { claimCode, releaseCode } from "./rooms-registry.js";
+
 const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
 
 // ---- tunable constants (named, not magic numbers) ----
@@ -50,7 +52,7 @@ const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
 const RECONNECT_GRACE_MS = 45000;
 
-function makeCode(){ const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let c; do{ c=Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join(""); }while(rooms.has(c)); return c; }
+function makeCode(){ return claimCode("rngoldrush"); }   // globally unique across games
 function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
 function token(){ return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36); }
 function send(ws,o){ try{ ws.send(JSON.stringify(o)); }catch(e){} }

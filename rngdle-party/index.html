@@ -163,6 +163,18 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 @keyframes ddin{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 .panel.dropdown{animation:ddin .16s ease both}
 
+/* Hub join box — the one place to enter a code, whatever game it belongs to. */
+.joinbar{max-width:520px;margin:0 auto 26px;text-align:center}
+.joinbar-lbl{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--prose-3);font-weight:700;margin-bottom:9px}
+.joinbar-row{display:flex;gap:9px;align-items:stretch}
+.joincode{flex:1;text-transform:uppercase;letter-spacing:8px;text-align:center;font-weight:800;font-size:20px;
+  font-family:'Space Mono',ui-monospace,monospace}
+.joingo{width:auto;margin:0;padding:0 22px;white-space:nowrap;font-size:15px}
+.joinbar-msg{min-height:20px;margin-top:8px;font-size:13px;color:var(--prose-3)}
+.joinbar-msg.err{color:#ef4444;font-weight:600}
+.joinbar-msg.ok{color:#22c55e;font-weight:600}
+@media(max-width:520px){.joinbar-row{flex-direction:column}.joingo{padding:14px}}
+
 /* Room code chip: lives in the sticky header, so it survives focus mode and
    is readable at a glance for anyone still trying to join. Code only — the
    full join link stays on the lobby screen where there's room for it. */
@@ -247,6 +259,9 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 .codebox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
 .codebox .code{font-size:44px;font-weight:800;letter-spacing:8px;margin:6px 0}
 .codebox .url{font-size:13px;color:var(--prose-2);word-break:break-all}
+.qrbox{width:132px;height:132px;margin:14px auto 0;background:#fff;border-radius:10px;padding:6px;line-height:0}
+.qrbox svg{width:100%;height:100%;display:block}
+.qrbox:empty{display:none}
 .copybtn{margin-top:10px}
 
 /* connection status banner — shown while reconnecting, after giving up, or
@@ -434,6 +449,18 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
       <div class="herowordmark">RNG<b>party</b></div>
       <p class="herosub">Free browser party games. Pick one and play — solo, on one screen, or Jackbox-style with everyone on their own phone.</p>
     </div>
+    <!-- One join box for every game: the code itself says which game it is,
+         so nobody has to know which page to open first. -->
+    <div class="joinbar">
+      <div class="joinbar-lbl">Got a room code?</div>
+      <div class="joinbar-row">
+        <input class="inp joincode" id="hubCode" placeholder="CODE" maxlength="4" autocomplete="off"
+               autocapitalize="characters" spellcheck="false" inputmode="text">
+        <button class="bigbtn joingo" id="hubJoin">Join party</button>
+      </div>
+      <div class="joinbar-msg" id="hubJoinMsg"></div>
+    </div>
+
     <div class="gamegrid">
       <button class="gamebox" id="enterRNGdle">
         <div class="gamebox-media">
@@ -593,6 +620,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
         <div class="codebox" id="hCodeBox">
           <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
           <div class="lbl mt16">ROOM CODE</div><div class="code" id="roomCode">····</div>
+          <div class="qrbox" id="qrBox" aria-label="Scan to join"></div>
           <button class="secbtn copybtn" id="copyLink">Copy join link</button>
         </div>
         <div class="panel" id="hSettings"><h3>Format</h3>
@@ -701,6 +729,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
   </div>
 </div>
 
+<script src="qr.js"></script>
 <script src="engine.js"></script>
 <script src="drinks.js"></script>
 <script>
@@ -1348,7 +1377,14 @@ $('#hDiffSeg').addEventListener('click',e=>{const b=e.target.closest('button');i
   NET.send({type:'configure',difficulty:b.dataset.d});});
 $('#hRevealDigit').addEventListener('click',()=>NET.send({type:'revealStep'}));
 function startHost(){ NET.role='host'; showOnlyOnline('hostView'); $('#hSettings').classList.remove('hidden'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode,drinking:NET.drinking})); }
-function hostLobbyReady(code){ partyNav(); showRoomChip(code); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+/* A QR of the join link, so people can point a phone at the screen instead of
+   typing a code. Encoded locally — a LAN party has no internet to call out to. */
+function renderJoinQR(url){
+  const box=document.querySelector('#qrBox'); if(!box) return;
+  try{ box.innerHTML=window.RNGPARTY_QR.svg(url,{quiet:2,dark:'#0a0a0a',light:'#ffffff'}); }
+  catch(e){ box.innerHTML=''; }   // never let a QR failure break the lobby
+}
+function hostLobbyReady(code){ partyNav(); showRoomChip(code); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); renderJoinQR(url); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 function showRoomChip(code){
   const chip=$('#roomChip'); if(!code){ chip.classList.add('hidden'); return; }
   $('#roomChipCode').textContent=code; chip.classList.remove('hidden');
@@ -1821,6 +1857,27 @@ function goHome(){
 }
 $('#enterRNGdle').addEventListener('click',enterRNGdle);
 $('#homeLogo').addEventListener('click',goHome);
+
+/* Resolve a code to whichever game owns it, then hand off to that game's page —
+   every game already understands ?room=CODE. */
+async function hubJoin(){
+  const code=$('#hubCode').value.trim().toUpperCase();
+  const msg=$('#hubJoinMsg');
+  msg.className='joinbar-msg';
+  if(!/^[A-Z0-9]{4}$/.test(code)){ msg.classList.add('err'); msg.textContent='Room codes are 4 letters or numbers.'; return; }
+  msg.textContent='Looking for that party…';
+  let info;
+  try{
+    const res=await fetch('/api/room?code='+encodeURIComponent(code));
+    info=await res.json();
+  }catch(e){ msg.classList.add('err'); msg.textContent="Couldn't reach the server. Check your connection."; return; }
+  if(!info.ok){ msg.classList.add('err'); msg.textContent=info.error||'No party with that code.'; return; }
+  msg.classList.add('ok'); msg.textContent='Found '+info.name+' — joining…';
+  location.href = info.path + (info.path.includes('?')?'&':'?') + 'room=' + code;
+}
+$('#hubJoin').addEventListener('click',hubJoin);
+$('#hubCode').addEventListener('keydown',e=>{ if(e.key==='Enter') hubJoin(); });
+$('#hubCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
 
 /* ---------- init / deep-link ---------- */
 lpRenderSetup();
