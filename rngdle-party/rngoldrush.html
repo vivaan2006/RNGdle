@@ -83,8 +83,31 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 
 .potbox{text-align:center;background:linear-gradient(135deg,#f59e0b22,var(--surface-raised));border:1px solid #f59e0b55;border-radius:16px;padding:26px 20px;margin-top:6px}
 .potbox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
-.potbox .amt{font-size:44px;font-weight:800;margin-top:4px;color:#f59e0b}
+.potbox .amt{font-size:44px;font-weight:800;margin-top:4px;color:#f59e0b;transition:color .15s}
+@keyframes potpop{0%{transform:scale(1)}35%{transform:scale(1.22)}100%{transform:scale(1)}}
+.potbox .amt.pop{animation:potpop .38s cubic-bezier(.3,1.6,.4,1)}
+.potbox .amt.flash-good{color:#22c55e}
+.potbox .amt.flash-bad{color:#ef4444}
 .tilebar{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:14px;font-size:12.5px;color:var(--prose-2);font-weight:600}
+
+/* ---------- slot-machine reel (the "spin" moment for each tile draw) ----------
+   A strip of tile faces slides under a fixed window and decelerates onto the
+   real drawn tile — the reel itself doesn't know the outcome in advance, it's
+   just filler tiles + the one real tile appended last, positioned so the
+   deceleration always lands it dead center. Sized via CSS custom properties
+   (--tile/--gap/--visible) so the same markup/JS works at both the host's
+   bigger size and the player's compact one. */
+.reelbox{--tile:68px;--gap:8px;--visible:5;margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.reelbox.sm{--tile:50px;--gap:6px;--visible:3}
+.reelwindow{position:relative;overflow:hidden;height:var(--tile);width:calc(var(--tile) * var(--visible) + var(--gap) * (var(--visible) - 1));border:1px solid var(--outline);border-radius:12px;background:var(--surface)}
+.reelwindow::before{content:'';position:absolute;top:0;bottom:0;left:calc(50% - var(--tile)/2 - 3px);width:calc(var(--tile) + 6px);border:2px solid #f59e0b;border-radius:14px;z-index:2;pointer-events:none;box-shadow:0 0 0 3px #f59e0b22}
+.reelwindow::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--surface) 0%,transparent 14%,transparent 86%,var(--surface) 100%);z-index:1;pointer-events:none}
+.reelstrip{display:flex;gap:var(--gap);align-items:center;will-change:transform}
+.reeltile{flex:none;width:var(--tile);height:var(--tile);border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:calc(var(--tile) * 0.32);background:var(--card);border:1px solid var(--card-line)}
+.reeltile.x2{color:#22c55e;border-color:#22c55e55}
+.reeltile.half{color:var(--prose-2);border-color:#f59e0b55}
+.reeltile.bust{color:#ef4444;border-color:#ef444488}
+.reelresult{font-size:13px;font-weight:700;color:var(--prose-2);min-height:18px}
 
 .roundlog{display:flex;flex-direction:column-reverse;gap:6px;max-height:280px;overflow-y:auto;margin-top:6px}
 .logrow{background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600}
@@ -161,6 +184,8 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
     <div id="hRound" class="hidden">
       <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="hPotAmt">0g</div>
         <div class="tilebar" id="hTileBar"></div></div>
+      <div class="reelbox"><div class="reelwindow"><div class="reelstrip" id="hReelStrip"></div></div>
+        <div class="reelresult" id="hReelResult"></div></div>
       <div class="panel"><h3 id="hRoundCount">Players</h3><div class="plist" id="hRoundList"></div></div>
       <div class="panel"><h3>Live Feed</h3><div class="roundlog" id="hRoundLog"></div></div>
     </div>
@@ -189,6 +214,8 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
       <div id="pRound" class="hidden">
         <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="pPotAmt">0g</div>
           <div class="tilebar" id="pTileBar"></div></div>
+        <div class="reelbox sm"><div class="reelwindow"><div class="reelstrip" id="pReelStrip"></div></div>
+          <div class="reelresult" id="pReelResult"></div></div>
         <div id="pStayLeave" class="hidden">
           <div class="stakebar">
             <button class="leavebtn" id="pLeaveBtn">💰 Cash Out</button>
@@ -226,8 +253,11 @@ const GSFX = (function(){
   return {
     resume(){ ac(); },
     tick(){ blip(700,.06,'square',.05); },
+    reelTick(vol){ blip(1400,.03,'square',.03*(vol==null?1:vol)); },
     coin(){ blip(880,.08,'sine',.06,1200); },
     bust(){ blip(220,.28,'sawtooth',.08,90); },
+    x2land(){ blip(660,.1,'sine',.08,990); setTimeout(()=>blip(990,.14,'sine',.08,1320),90); },
+    halfland(){ blip(500,.16,'sine',.07,260); },
     cashout(){ blip(523,.12,'sine',.08,784); setTimeout(()=>blip(784,.18,'sine',.08),110); },
     isMuted(){ return muted; },
     toggle(){ muted=!muted; localStorage.setItem('rngoldrush_mute',muted?'1':'0'); return muted; },
@@ -244,7 +274,7 @@ function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(
 function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
 
 /* ---------- network ---------- */
-const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevTick:null,
+const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, prevTick:null, hLogLen:null, pLogLen:null,
   manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
   connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/rngoldrush-ws`);
     this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
@@ -312,6 +342,85 @@ function roundLogHtml(log, limit){
 // (often the bust that just ended the round) silently scrolls out of view.
 // Force scrollTop to max after every re-render so the newest stays visible.
 function scrollLogToNewest(el){ if(el) el.scrollTop = el.scrollHeight; }
+
+/* ---------- slot-machine reel ----------
+   Renders the moment a tile gets drawn as an actual spinning reel rather
+   than an instant number change — everyone's watching the same "shared
+   slot machine", so the draw itself should feel like one. The reel has no
+   idea what's coming: it's filler tiles + the one real (already-decided)
+   tile appended last, positioned so the deceleration always lands that
+   real tile dead center under the window's highlight. */
+function tileFaceHtml(tile){
+  if(tile.type==='number') return `<div class="reeltile num">${tile.value}</div>`;
+  if(tile.type==='x2') return `<div class="reeltile x2">×2</div>`;
+  if(tile.type==='half') return `<div class="reeltile half">½</div>`;
+  return `<div class="reeltile bust">💀</div>`;
+}
+function randomFillerTile(){
+  const r=Math.random();
+  if(r<0.62) return {type:'number', value:1+Math.floor(Math.random()*15)};
+  if(r<0.79) return {type:'x2'};
+  if(r<0.96) return {type:'half'};
+  return {type:'bust'};
+}
+function reelResultText(tile){
+  if(tile.type==='number') return `🎲 Drew ${tile.value}`;
+  if(tile.type==='x2') return `✨ Pot doubled!`;
+  if(tile.type==='half') return `➗ Pot halved`;
+  return `💀 BUST`;
+}
+function landSound(tile){
+  if(tile.type==='number') GSFX.coin();
+  else if(tile.type==='x2') GSFX.x2land();
+  else if(tile.type==='half') GSFX.halfland();
+  else GSFX.bust();
+}
+function flashPot(el, pot, tileType){
+  el.textContent=fmtGold(pot);
+  el.classList.remove('pop','flash-good','flash-bad');
+  void el.offsetWidth; // restart the pop animation even if it's still mid-run
+  el.classList.add('pop');
+  if(tileType==='bust') el.classList.add('flash-bad');
+  else if(tileType==='x2') el.classList.add('flash-good');
+  setTimeout(()=>el.classList.remove('flash-good','flash-bad'), 550);
+}
+const REEL_SPIN_MS=1150;
+function spinReel(stripEl, resultEl, landingTile, onDone){
+  if(!stripEl){ onDone && onDone(); return; }
+  const box=stripEl.closest('.reelbox');
+  const cs=getComputedStyle(box);
+  const tileW=parseFloat(cs.getPropertyValue('--tile'))||68;
+  const gap=parseFloat(cs.getPropertyValue('--gap'))||8;
+  const visible=parseInt(cs.getPropertyValue('--visible'),10)||5;
+  const centerIndex=Math.floor(visible/2);
+  const FILLER=26;
+  const tiles=[]; for(let i=0;i<FILLER;i++) tiles.push(randomFillerTile());
+  tiles.push(landingTile);
+  const step=tileW+gap;
+  stripEl.style.transition='none';
+  stripEl.style.transform='translateX(0px)';
+  stripEl.innerHTML=tiles.map(tileFaceHtml).join('');
+  if(resultEl) resultEl.textContent='';
+  void stripEl.offsetWidth; // force reflow so the transition below actually animates
+  const targetX = -(tiles.length-1-centerIndex)*step;
+  const totalTicks=18;
+  for(let i=0;i<totalTicks;i++){
+    const t=i/(totalTicks-1);
+    const delay=(1-Math.pow(1-t,2))*REEL_SPIN_MS; // ease-out timing: ticks slow down near the end, matching the visual deceleration
+    setTimeout(()=>GSFX.reelTick(1-t*0.6), delay);
+  }
+  requestAnimationFrame(()=>{
+    stripEl.style.transition=`transform ${REEL_SPIN_MS}ms cubic-bezier(.12,.8,.2,1)`;
+    stripEl.style.transform=`translateX(${targetX}px)`;
+  });
+  setTimeout(()=>{
+    landSound(landingTile);
+    if(resultEl) resultEl.textContent=reelResultText(landingTile);
+    onDone && onDone();
+  }, REEL_SPIN_MS+30);
+}
+// A draw log entry -> the tile shape spinReel()/tileFaceHtml() expect.
+function tileFromDrawEntry(e){ return e.tileType==='number' ? {type:'number',value:e.value} : {type:e.tileType}; }
 function statusIcon(p){
   if(p.status==='in') return p.locked ? '🔒' : '🎲';
   if(p.status==='left') return '🏃';
@@ -356,6 +465,35 @@ $('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hPlayAgain').addEventListener('click',()=>NET.send({type:'start'}));
 $('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
 
+// The whole round view (pot, tile bar, player statuses, log) freezes at
+// whatever it last showed while the reel is mid-spin, then updates all at
+// once the instant the tile lands — so the reveal reads as one moment
+// instead of the pot number jumping ahead of the animation that explains it.
+function applyHostRoundState(s){
+  $('#hRoundCount').textContent=`Players`;
+  $('#hRoundList').innerHTML=s.players.map(playerRowHtml).join('');
+  $('#hTileBar').innerHTML=tileBarHtml(s.poolRemaining);
+  $('#hRoundLog').innerHTML=roundLogHtml(s.roundLog);
+  scrollLogToNewest($('#hRoundLog'));
+}
+function resetReel(stripEl, resultEl){ stripEl.style.transition='none'; stripEl.style.transform='translateX(0px)'; stripEl.innerHTML=''; if(resultEl) resultEl.textContent=''; }
+function renderHostRound(s){
+  if(s.roundLog.length===0 && NET.hLogLen!==0) resetReel($('#hReelStrip'), $('#hReelResult'));
+  if(s.roundLog.length===0) NET.hLogLen=0;
+  const isNewDraw = NET.hLogLen!=null && s.roundLog.length===NET.hLogLen+1 && s.roundLog[s.roundLog.length-1].type==='draw';
+  NET.hLogLen=s.roundLog.length;
+  if(isNewDraw){
+    const tile=tileFromDrawEntry(s.roundLog[s.roundLog.length-1]);
+    spinReel($('#hReelStrip'), $('#hReelResult'), tile, ()=>{
+      flashPot($('#hPotAmt'), s.pot, tile.type);
+      applyHostRoundState(s);
+    });
+  } else {
+    $('#hPotAmt').textContent=fmtGold(s.pot);
+    applyHostRoundState(s);
+  }
+}
+
 function hostRender(s){
   $('#hResultActions').classList.add('hidden');
   $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
@@ -370,13 +508,8 @@ function hostRender(s){
     $('#hLobbyHint').textContent = s.players.length===0 ? 'Waiting for players to join…' : !enough ? `Need at least 2 players (${connected} connected so far).` : `${connected} players in — start whenever you're ready.`;
     $('#hStart').disabled=!enough;
   } else if(s.phase==='round'){
-    if(s.tick!==NET.prevTick){ GSFX.resume(); if(s.roundLog.length) GSFX.tick(); NET.prevTick=s.tick; }
-    $('#hPotAmt').textContent=fmtGold(s.pot);
-    $('#hTileBar').innerHTML=tileBarHtml(s.poolRemaining);
-    $('#hRoundCount').textContent=`Players`;
-    $('#hRoundList').innerHTML=s.players.map(playerRowHtml).join('');
-    $('#hRoundLog').innerHTML=roundLogHtml(s.roundLog);
-    scrollLogToNewest($('#hRoundLog'));
+    GSFX.resume();
+    renderHostRound(s);
   } else if(s.phase==='results'){
     $('#hResults').innerHTML=resultsHtml(s)+`<div class="panel"><h3>Live Feed</h3><div class="roundlog">${roundLogHtml(s.roundLog)}</div></div>`;
     scrollLogToNewest($('#hResults .roundlog'));
@@ -392,6 +525,41 @@ function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').cl
 $('#pStayBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'stay'}); });
 $('#pLeaveBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'leave'}); });
 
+function applyPlayerRoundState(s, me){
+  $('#pTileBar').innerHTML=tileBarHtml(s.poolRemaining);
+  $('#pRoundLog').innerHTML=roundLogHtml(s.roundLog, 6);
+  scrollLogToNewest($('#pRoundLog'));
+
+  const inPlayers=s.players.filter(p=>p.status==='in');
+  const lockedCount=inPlayers.filter(p=>p.locked).length;
+  $('#pStayLeave').classList.toggle('hidden', !(me.status==='in' && !me.locked));
+  $('#pWaitingChoice').classList.toggle('hidden', !(me.status==='in' && me.locked));
+  $('#pDoneCard').classList.toggle('hidden', me.status==='in');
+  if(me.status==='in'){
+    $('#pLockProgress').textContent = `${lockedCount}/${inPlayers.length} locked in`;
+  } else {
+    const card=$('#pDoneCard');
+    if(me.status==='left') card.innerHTML=`🏃 <b>You cashed out</b> — ${fmtGold(me.roundGold)} (${me.sipBalance} sip${me.sipBalance===1?'':'s'} to give at round end)<br><span class="small">Watching the rest of the table…</span>`;
+    else if(me.status==='busted') card.innerHTML=`💀 <b>BUSTED</b> — drink ${me.bustPenaltySips} sips now.<br><span class="small">Watching the rest of the table…</span>`;
+    else card.innerHTML=`⏳ <b>Sit tight</b> — you're in next round.`;
+  }
+}
+function renderPlayerRound(s, me){
+  if(s.roundLog.length===0 && NET.pLogLen!==0) resetReel($('#pReelStrip'), $('#pReelResult'));
+  if(s.roundLog.length===0) NET.pLogLen=0;
+  const isNewDraw = NET.pLogLen!=null && s.roundLog.length===NET.pLogLen+1 && s.roundLog[s.roundLog.length-1].type==='draw';
+  NET.pLogLen=s.roundLog.length;
+  if(isNewDraw){
+    const tile=tileFromDrawEntry(s.roundLog[s.roundLog.length-1]);
+    spinReel($('#pReelStrip'), $('#pReelResult'), tile, ()=>{
+      flashPot($('#pPotAmt'), s.pot, tile.type);
+      applyPlayerRoundState(s, me);
+    });
+  } else {
+    $('#pPotAmt').textContent=fmtGold(s.pot);
+    applyPlayerRoundState(s, me);
+  }
+}
 function playerRender(s){
   const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
   $('#pWaitingLobby').classList.toggle('hidden', s.phase!=='lobby');
@@ -401,24 +569,7 @@ function playerRender(s){
 
   if(s.phase==='round'){
     if(s.tick!==NET.prevTick){ NET.prevTick=s.tick; }
-    $('#pPotAmt').textContent=fmtGold(s.pot);
-    $('#pTileBar').innerHTML=tileBarHtml(s.poolRemaining);
-    $('#pRoundLog').innerHTML=roundLogHtml(s.roundLog, 6);
-    scrollLogToNewest($('#pRoundLog'));
-
-    const inPlayers=s.players.filter(p=>p.status==='in');
-    const lockedCount=inPlayers.filter(p=>p.locked).length;
-    $('#pStayLeave').classList.toggle('hidden', !(me.status==='in' && !me.locked));
-    $('#pWaitingChoice').classList.toggle('hidden', !(me.status==='in' && me.locked));
-    $('#pDoneCard').classList.toggle('hidden', me.status==='in');
-    if(me.status==='in'){
-      $('#pLockProgress').textContent = `${lockedCount}/${inPlayers.length} locked in`;
-    } else {
-      const card=$('#pDoneCard');
-      if(me.status==='left') card.innerHTML=`🏃 <b>You cashed out</b> — ${fmtGold(me.roundGold)} (${me.sipBalance} sip${me.sipBalance===1?'':'s'} to give at round end)<br><span class="small">Watching the rest of the table…</span>`;
-      else if(me.status==='busted') card.innerHTML=`💀 <b>BUSTED</b> — drink ${me.bustPenaltySips} sips now.<br><span class="small">Watching the rest of the table…</span>`;
-      else card.innerHTML=`⏳ <b>Sit tight</b> — you're in next round.`;
-    }
+    renderPlayerRound(s, me);
   } else if(s.phase==='results'){
     let html=resultsHtml(s);
     if(me.sipBalance>0){
