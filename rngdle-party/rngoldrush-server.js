@@ -28,6 +28,7 @@ const BUST_PENALTY_SIPS = 2;    // flat sips drunk immediately on a bust
 const CHECKPOINT_INTERVAL = 5;  // every 5th tick is a checkpoint
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
+const AUTO_STAY_TIMEOUT_MS = 15000; // a connected player who hasn't chosen by this deadline auto-stays
 
 function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
@@ -62,8 +63,9 @@ function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room
 // per-player message type at all (unlike ImpostRNG's secret/hostSecret).
 function stateMsg(room){
   return {
-    type:"state", phase:room.phase, hostConnected:room.hostConnected,
+    type:"state", phase:room.phase, hostConnected:room.hostConnected, leaderPid:room.leaderPid,
     pot:room.pot, tick:room.tick,
+    tickDeadline: room.phase==="round" ? room.tickDeadline : null,
     poolRemaining: room.phase==="round" ? poolRemaining(room.pool) : null,
     roundLog: room.roundLog,
     players:[...room.players.values()].map(p=>({
@@ -75,6 +77,32 @@ function stateMsg(room){
   };
 }
 function pushState(room){ broadcast(room, stateMsg(room)); }
+
+// The room "leader" is whoever's been connected longest — normally the
+// first player to join, so they never have to think about it. Only
+// reassigned when the current leader actually drops; reconnecting later
+// does NOT reclaim leadership (avoids it flip-flopping mid-game).
+function reassignLeaderIfNeeded(room){
+  const cur = room.leaderPid!=null ? room.players.get(room.leaderPid) : null;
+  if(cur && cur.connected) return;
+  const next=[...room.players.values()].find(p=>p.connected);
+  room.leaderPid = next ? next.pid : null;
+}
+
+function startTickTimer(room){
+  clearTimeout(room.tickTimer);
+  room.tickDeadline = Date.now()+AUTO_STAY_TIMEOUT_MS;
+  room.tickTimer = setTimeout(()=>{
+    if(rooms.get(room.code)!==room || room.phase!=='round') return;
+    let changed=false;
+    for(const p of room.players.values()){
+      if(p.status==='in' && p.connected && p.choice==null){ p.choice='stay'; changed=true; }
+    }
+    room.tickDeadline=null;
+    if(changed) pushState(room);
+    if(allDecided(room)) resolveTick(room);
+  }, AUTO_STAY_TIMEOUT_MS);
+}
 
 function beginRound(room){
   if(room.phase!=="lobby" && room.phase!=="results") return;
@@ -92,6 +120,7 @@ function beginRound(room){
     else p.status='waiting'; // disconnected players sit this round out, rejoin fresh next round
   }
   pushState(room);
+  startTickTimer(room);
 }
 
 // A disconnected player never blocks a tick — they're treated as an
@@ -121,6 +150,7 @@ function submitChoice(room, playerPid, choice){
 
 function resolveTick(room){
   if(room.phase!=='round') return;
+  clearTimeout(room.tickTimer); room.tickDeadline=null;
   const inPlayers=[...room.players.values()].filter(p=>p.status==='in');
   inPlayers.forEach(p=>{ p.spinCount++; });
   room.tick++;
@@ -153,7 +183,7 @@ function resolveTick(room){
   if(tile.type!=='bust') stayers.forEach(p=>{ p.choice=null; });
 
   const stillIn=[...room.players.values()].some(p=>p.status==='in');
-  if(stillIn) pushState(room); else finishRound(room);
+  if(stillIn){ pushState(room); startTickTimer(room); } else finishRound(room);
 }
 
 // Checkpoints only go up to the highest spin count anyone actually reached
@@ -178,8 +208,8 @@ function handle(ws, m){
   if(m.type==="host"){
     const code=makeCode();
     const hostToken=token();
-    const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(),
-      phase:"lobby", pot:0, pool:[], roundLog:[], tick:0 };
+    const room={ code, hostWs:ws, hostToken, hostConnected:true, players:new Map(),
+      phase:"lobby", pot:0, pool:[], roundLog:[], tick:0, leaderPid:null, tickTimer:null, tickDeadline:null };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
   }
@@ -198,6 +228,7 @@ function handle(ws, m){
       status: room.phase==="lobby" ? 'in' : 'waiting', choice:null, spinCount:0, roundGold:0,
       sipBalance:0, sipsGiven:0, receivedSips:0, checkpointSips:0, bustPenaltySips:0 });
     meta.set(ws,{ roomCode:code, pid:id });
+    reassignLeaderIfNeeded(room);
     send(ws,{type:"joined",pid:id,code,token:seatToken}); pushState(room);
     return;
   }
@@ -207,7 +238,6 @@ function handle(ws, m){
     if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
     if(!m.pid){
       if(!m.token || m.token!==room.hostToken){ send(ws,{type:"error",msg:"Could not resume as host — start a new game."}); return; }
-      clearTimeout(room.hostGraceTimer); room.hostGraceTimer=null;
       room.hostWs=ws; room.hostConnected=true;
       meta.set(ws,{ roomCode:code, isHost:true });
       send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
@@ -221,7 +251,7 @@ function handle(ws, m){
     return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
-  if(m.type==="start" && info.isHost && (room.phase==="lobby"||room.phase==="results")){
+  if(m.type==="start" && info.pid===room.leaderPid && (room.phase==="lobby"||room.phase==="results")){
     beginRound(room); return;
   }
   if(m.type==="choice" && info.pid && room.phase==="round"){
@@ -233,7 +263,7 @@ function handle(ws, m){
     p.sipBalance--; p.sipsGiven++; target.receivedSips++;
     pushState(room); return;
   }
-  if(m.type==="endGame" && info.isHost){
+  if(m.type==="endGame" && info.pid===room.leaderPid){
     room.phase="lobby"; room.pot=0; room.pool=[]; room.roundLog=[]; room.tick=0;
     for(const p of room.players.values()){
       p.status='in'; p.choice=null; p.spinCount=0; p.roundGold=0;
@@ -248,24 +278,24 @@ function handleClose(ws){
   const room=rooms.get(info.roomCode); if(!room) return;
   if(info.isHost){
     if(room.hostWs!==ws) return;
+    // The shared/TV screen is a pure spectator now — nothing depends on it,
+    // so losing it (laptop closed, wifi drop) must never end the game for
+    // the players still playing on their phones. No grace timer, no delete.
     room.hostConnected=false; room.hostWs=null;
     pushState(room);
-    clearTimeout(room.hostGraceTimer);
-    room.hostGraceTimer=setTimeout(()=>{
-      broadcast(room,{type:"error",msg:"Host didn't reconnect in time — game ended."});
-      rooms.delete(room.code);
-    }, RECONNECT_GRACE_MS);
     return;
   }
   if(info.pid){
     const p=room.players.get(info.pid); if(!p || p.ws!==ws) return;
     p.connected=false; p.ws=null;
+    reassignLeaderIfNeeded(room);
     pushState(room);
     if(room.phase==="round" && p.status==="in" && allDecided(room)) resolveTick(room);
     clearTimeout(p.disconnectTimer);
     p.disconnectTimer=setTimeout(()=>{
       if(room.players.get(info.pid)===p && !p.connected){
         room.players.delete(info.pid);
+        reassignLeaderIfNeeded(room);
         pushState(room);
       }
     }, RECONNECT_GRACE_MS);

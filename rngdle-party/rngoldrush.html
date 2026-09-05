@@ -178,7 +178,6 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
       </div>
       <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="plist" id="hLobbyList"></div>
         <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
-      <button class="bigbtn" id="hStart" disabled>Start Round ⛏️</button>
     </div>
 
     <div id="hRound" class="hidden">
@@ -186,15 +185,12 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
         <div class="tilebar" id="hTileBar"></div></div>
       <div class="reelbox"><div class="reelwindow"><div class="reelstrip" id="hReelStrip"></div></div>
         <div class="reelresult" id="hReelResult"></div></div>
+      <div class="small center" id="hTickCountdown"></div>
       <div class="panel"><h3 id="hRoundCount">Players</h3><div class="plist" id="hRoundList"></div></div>
       <div class="panel"><h3>Live Feed</h3><div class="roundlog" id="hRoundLog"></div></div>
     </div>
 
     <div id="hResults" class="hidden"></div>
-    <div class="actionbar hidden" id="hResultActions">
-      <button class="rollbtn" id="hPlayAgain">Next Round ⛏️</button>
-      <button class="secbtn" id="hEndGame">End Game</button>
-    </div>
   </div>
 
   <!-- ===== PLAYER (phone) ===== -->
@@ -210,7 +206,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
     </div>
 
     <div id="pGame" class="hidden">
-      <div id="pWaitingLobby" class="center panel">Waiting for the host to start…</div>
+      <div id="pWaitingLobby" class="hidden"></div>
       <div id="pRound" class="hidden">
         <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="pPotAmt">0g</div>
           <div class="tilebar" id="pTileBar"></div></div>
@@ -222,6 +218,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
             <button class="rollbtn" id="pStayBtn">🎲 Push It</button>
           </div>
           <div class="small center mt16" id="pLockProgress"></div>
+          <div class="small center" id="pTickCountdown"></div>
         </div>
         <div id="pWaitingChoice" class="lockmsg hidden">🔒 Locked in — waiting on the table…</div>
         <div id="pDoneCard" class="lockmsg hidden"></div>
@@ -310,7 +307,9 @@ function renderConnBar(){
   const bar=$('#connBar'); if(!bar) return;
   if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
   if(NET.reconnectFailed){ bar.className='connbar bad'; bar.textContent="⚠️ Couldn't reconnect — the game may have ended."; return; }
-  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Host disconnected — waiting for them to reconnect…'; return; }
+  // The shared/TV screen is a pure spectator, so losing it never blocks
+  // anything — this is just a heads-up, not a "waiting on" state.
+  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.textContent='📺 Shared screen disconnected — keep playing, nothing to watch on the TV right now.'; return; }
   bar.className='connbar hidden';
 }
 
@@ -447,7 +446,10 @@ function resultsRowHtml(p){
   return `<div class="lbrow"><div><div class="nm">${escapeHtml(p.name)}</div><div class="meta">${parts.join(' · ')}</div></div></div>`;
 }
 function resultsHtml(s){
-  let html=`<div class="panel"><h3>Round Results</h3><div class="lb">${s.players.map(resultsRowHtml).join('')}</div></div>`;
+  // Exclude 'waiting' players — anyone who joined mid-round never played
+  // this one, so they'd otherwise show up with a misleading "spin 0" line.
+  const participants=s.players.filter(p=>p.status!=='waiting');
+  let html=`<div class="panel"><h3>Round Results</h3><div class="lb">${participants.map(resultsRowHtml).join('')}</div></div>`;
   return html;
 }
 
@@ -460,10 +462,6 @@ function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pGam
 $('#hostBtn').addEventListener('click',startHost);
 $('#joinBtn').addEventListener('click',()=>startJoin());
 function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/rngoldrush?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
-
-$('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
-$('#hPlayAgain').addEventListener('click',()=>NET.send({type:'start'}));
-$('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
 
 // The whole round view (pot, tile bar, player statuses, log) freezes at
 // whatever it last showed while the reel is mid-spin, then updates all at
@@ -494,26 +492,32 @@ function renderHostRound(s){
   }
 }
 
+// The host screen never has a button anywhere — it's a pure spectator
+// display from the moment you press "Host" onward. Every action (starting
+// the round, next round, end game) happens on a player's phone instead;
+// this just names whoever currently holds that role so the TV screen still
+// tells the table who to look at.
+function leaderName(s){ const l=s.players.find(p=>p.pid===s.leaderPid); return l?l.name:null; }
 function hostRender(s){
-  $('#hResultActions').classList.add('hidden');
   $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
   $('#hRound').classList.toggle('hidden', s.phase!=='round');
   $('#hResults').classList.toggle('hidden', s.phase!=='results');
 
   if(s.phase==='lobby'){
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
-    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
+    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${p.pid===s.leaderPid?' 👑':''}${offlineTag(p)}</div>`).join('');
     const connected=s.players.filter(p=>p.connected).length;
     const enough=connected>=2;
-    $('#hLobbyHint').textContent = s.players.length===0 ? 'Waiting for players to join…' : !enough ? `Need at least 2 players (${connected} connected so far).` : `${connected} players in — start whenever you're ready.`;
-    $('#hStart').disabled=!enough;
+    const leader=leaderName(s);
+    $('#hLobbyHint').textContent = s.players.length===0 ? 'Waiting for players to join…' : !enough ? `Need at least 2 players (${connected} connected so far).` : `Ready — ${leader} can start it from their phone.`;
   } else if(s.phase==='round'){
     GSFX.resume();
     renderHostRound(s);
   } else if(s.phase==='results'){
-    $('#hResults').innerHTML=resultsHtml(s)+`<div class="panel"><h3>Live Feed</h3><div class="roundlog">${roundLogHtml(s.roundLog)}</div></div>`;
+    const leader=leaderName(s);
+    $('#hResults').innerHTML=resultsHtml(s)+`<div class="panel"><h3>Live Feed</h3><div class="roundlog">${roundLogHtml(s.roundLog)}</div></div>`+
+      `<div class="small center mt16">${leader?`Waiting on ${leader} for the next round…`:''}</div>`;
     scrollLogToNewest($('#hResults .roundlog'));
-    $('#hResultActions').classList.remove('hidden');
   }
 }
 
@@ -524,6 +528,19 @@ function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').cl
 
 $('#pStayBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'stay'}); });
 $('#pLeaveBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'choice',value:'leave'}); });
+
+// A connected player who never taps anything shouldn't be able to stall the
+// whole table forever — the server auto-stays them past a deadline. This
+// just renders that countdown locally so it isn't a silent surprise; the
+// server's own timer is authoritative regardless of what this shows.
+setInterval(()=>{
+  const s=NET.state;
+  const active = !!(s && s.phase==='round' && s.tickDeadline);
+  const secs = active ? Math.max(0, Math.ceil((s.tickDeadline-Date.now())/1000)) : 0;
+  const hEl=$('#hTickCountdown'), pEl=$('#pTickCountdown');
+  if(hEl) hEl.textContent = active && secs>0 ? `⏱ Auto-staying anyone who hasn't chosen in ${secs}s` : '';
+  if(pEl) pEl.textContent = active && secs>0 ? `⏱ Auto-stay in ${secs}s if you haven't chosen` : '';
+}, 250);
 
 function applyPlayerRoundState(s, me){
   $('#pTileBar').innerHTML=tileBarHtml(s.poolRemaining);
@@ -560,6 +577,48 @@ function renderPlayerRound(s, me){
     applyPlayerRoundState(s, me);
   }
 }
+// Only the room leader (whoever's been connected longest, normally the
+// first to join) ever sees start/next-round/end-game controls — everyone
+// else just sees who to wait on. The host laptop never shows these at all.
+function renderPlayerLobby(s, me){
+  const isLeader = me.pid===s.leaderPid;
+  const connected = s.players.filter(p=>p.connected).length;
+  const enough = connected>=2;
+  let html;
+  if(isLeader){
+    html = `<div class="panel center"><h3>You're up 👑</h3>
+      <div class="small mt8">${connected} player${connected===1?'':'s'} connected${enough?' — start whenever you\'re ready.':' — need at least 2 to start.'}</div>
+      <button class="bigbtn" id="pStartBtn" ${enough?'':'disabled'}>Start Round ⛏️</button></div>`;
+  } else {
+    const leader=leaderName(s);
+    html = `<div class="panel center">⏳ Waiting for ${leader?escapeHtml(leader):'the room'} to start…</div>`;
+  }
+  $('#pWaitingLobby').innerHTML=html;
+  if(isLeader) $('#pStartBtn').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'start'}); });
+}
+function renderPlayerResults(s, me){
+  const isLeader = me.pid===s.leaderPid;
+  let html=resultsHtml(s);
+  if(me.sipBalance>0){
+    const others=s.players.filter(p=>p.pid!==me.pid && p.status!=='waiting');
+    html+=`<div class="panel"><h3>Give out ${me.sipBalance} sip${me.sipBalance===1?'':'s'}</h3>
+      <div class="givegrid" id="pGiveGrid">${others.map(p=>`<button class="giveopt" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div><span class="rcv">received ${p.receivedSips}</span></button>`).join('')}</div></div>`;
+  }
+  if(isLeader){
+    html+=`<div class="actionbar"><button class="rollbtn" id="pNextRound">Next Round ⛏️</button><button class="secbtn" id="pEndGame">End Game</button></div>`;
+  } else {
+    const leader=leaderName(s);
+    html+=`<div class="small center mt16">${leader?`Waiting on ${escapeHtml(leader)} for the next round…`:''}</div>`;
+  }
+  $('#pResultsWrap').innerHTML=html;
+  if(me.sipBalance>0){
+    [...$('#pGiveGrid').children].forEach(b=>b.addEventListener('click',()=>{ GSFX.resume(); GSFX.coin(); NET.send({type:'giveSip',targetPid:b.dataset.pid}); }));
+  }
+  if(isLeader){
+    $('#pNextRound').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'start'}); });
+    $('#pEndGame').addEventListener('click',()=>{ GSFX.resume(); NET.send({type:'endGame'}); });
+  }
+}
 function playerRender(s){
   const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
   $('#pWaitingLobby').classList.toggle('hidden', s.phase!=='lobby');
@@ -567,20 +626,13 @@ function playerRender(s){
   $('#pResultsWrap').classList.toggle('hidden', s.phase!=='results');
   $('#pActions').classList.add('hidden');
 
-  if(s.phase==='round'){
+  if(s.phase==='lobby'){
+    renderPlayerLobby(s, me);
+  } else if(s.phase==='round'){
     if(s.tick!==NET.prevTick){ NET.prevTick=s.tick; }
     renderPlayerRound(s, me);
   } else if(s.phase==='results'){
-    let html=resultsHtml(s);
-    if(me.sipBalance>0){
-      const others=s.players.filter(p=>p.pid!==me.pid);
-      html+=`<div class="panel"><h3>Give out ${me.sipBalance} sip${me.sipBalance===1?'':'s'}</h3>
-        <div class="givegrid" id="pGiveGrid">${others.map(p=>`<button class="giveopt" data-pid="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div><span class="rcv">received ${p.receivedSips}</span></button>`).join('')}</div></div>`;
-    }
-    $('#pResultsWrap').innerHTML=html;
-    if(me.sipBalance>0){
-      [...$('#pGiveGrid').children].forEach(b=>b.addEventListener('click',()=>{ GSFX.resume(); GSFX.coin(); NET.send({type:'giveSip',targetPid:b.dataset.pid}); }));
-    }
+    renderPlayerResults(s, me);
   }
 }
 
