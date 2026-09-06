@@ -4,12 +4,16 @@
 // server-side with the SAME extracted engine so every screen stays in sync.
 
 import "./engine.js";                 // sets globalThis.RNGDLE
+import { claimCode, releaseCode, gameFor, GAME_PATHS, GAME_NAMES } from "./rooms-registry.js";
 import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
 import { randomBytes } from 'node:crypto';
 import { createMafia, mafiaAction, mafiaState, advanceMafia } from './mafia-engine.js';
 import { setTestPlayers, testView, testingAction } from './mafia-testing.js';
 import { TIMER_FIELDS } from './mafia-rules.js';
+import * as HorsRNG from "./horsrng-server.js";     // separate game, separate rooms, separate ws path
+import * as Imposter from "./imposter-server.js";   // separate game, separate rooms, separate ws path
+import * as GoldRush from "./rngoldrush-server.js"; // separate game, separate rooms, separate ws path
 const R = globalThis.RNGDLE;
 const D = globalThis.RNGPARTY_DRINKS;
 
@@ -20,7 +24,11 @@ const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/mafia.html": "mafia.html", "/mafia-client.js": "mafia-client.js", "/mafia-rules.js": "mafia-rules.js", "/mafia.css": "mafia.css" };
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/qr.js": "qr.js",
+  "/mafia.html": "mafia.html", "/mafia-client.js": "mafia-client.js", "/mafia-rules.js": "mafia-rules.js", "/mafia.css": "mafia.css",
+  "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
+  "/imposter": "imposter.html", "/imposter.html": "imposter.html",
+  "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -31,7 +39,7 @@ const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14
 // short enough that a genuinely abandoned room doesn't linger pointlessly.
 const RECONNECT_GRACE_MS = 45000;
 
-function makeCode(){ const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let c; do{ c=Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join(""); }while(rooms.has(c)); return c; }
+function makeCode(game){ return claimCode(game); }   // globally unique across games
 function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
 // A bearer credential for reclaiming a seat after a disconnect — longer and
 // higher-entropy than pid() since guessing this hands over someone's spot.
@@ -189,7 +197,7 @@ function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
     if(info.roomCode) return;
-    const code=makeCode();
+    const code=makeCode(m.game==='mafia'?'mafia':'rngdle');
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
       autoNext:(m.autoNext!==false), autoNextTimer:null, drinking:!!m.drinking, difficulty:(D.DIFFICULTY[m.difficulty]?m.difficulty:"medium"),
@@ -325,7 +333,7 @@ function handleClose(ws){
       clearTimeout(room.mafia?.timer);
       for(const p of room.players.values()) clearTimeout(p.disconnectTimer);
       broadcast(room,{type:"error",msg:"Host didn't reconnect in time — party ended.",fatal:true});
-      rooms.delete(room.code);
+      releaseCode(room.code); rooms.delete(room.code);
     }, RECONNECT_GRACE_MS);
     return;
   }
@@ -357,21 +365,48 @@ const onOpen    = ws => { meta.set(ws,{}); };
 const onMessage = (ws,msg) => { try{ handle(ws, JSON.parse(msg)); }catch(e){ /* ignore bad frames */ } };
 const onClose   = ws => { handleClose(ws); };
 
+/* One place to ask "who owns this code?", so a single join box can send a
+   player to whichever game the room belongs to. */
+function apiRoutes(url){
+  if(url.pathname!=="/api/room") return null;
+  const code=(url.searchParams.get("code")||"").toUpperCase().trim();
+  const game=gameFor(code);
+  if(!game) return { status:404, json:{ ok:false, code, error:"No party with that code." } };
+  return { json:{ ok:true, code, game, name:GAME_NAMES[game]||game, path:GAME_PATHS[game]||"/" } };
+}
+
+const WS_ROUTES = {
+  "/ws":            { open:onOpen, message:onMessage, close:onClose },
+  "/horsrng-ws":    { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
+  "/imposter-ws":   { open:Imposter.open, message:Imposter.message, close:Imposter.close },
+  "/rngoldrush-ws": { open:GoldRush.open, message:GoldRush.message, close:GoldRush.close },
+};
+
 if (globalThis.Bun) {
   var server = Bun.serve({
     port: PORT,
     fetch(req){
       const url=new URL(req.url);
-      if(url.pathname==="/ws"){ if(server.upgrade(req)) return; return new Response("upgrade failed",{status:426}); }
+      const route = WS_ROUTES[url.pathname];
+      if(route){ if(server.upgrade(req,{data:{route}})) return; return new Response("upgrade failed",{status:426}); }
+      const hit = apiRoutes(url);
+      if(hit) return new Response(JSON.stringify(hit.json), {status:hit.status||200,
+        headers:{"content-type":"application/json","cache-control":"no-store"}});
       const file = STATIC[url.pathname];
       if(file) return new Response(Bun.file(file), {headers:{"cache-control":"no-cache"}});  // else edits look stale in the browser
       return new Response("Not found",{status:404});
     },
-    websocket:{ open:onOpen, message:onMessage, close:onClose }
+    // One shared handler set, dispatching to the right game's room logic by
+    // whichever route each socket upgraded through — Bun keeps ws handlers global.
+    websocket:{
+      open:ws=>ws.data.route.open(ws),
+      message:(ws,msg)=>ws.data.route.message(ws,msg),
+      close:ws=>ws.data.route.close(ws),
+    }
   });
 } else {
   const { serve } = await import("./node-ws.js");
-  serve({ port:PORT, staticFiles:STATIC, open:onOpen, message:onMessage, close:onClose });
+  serve({ port:PORT, staticFiles:STATIC, wsRoutes:WS_ROUTES, api:apiRoutes });
 }
 
 // print addresses

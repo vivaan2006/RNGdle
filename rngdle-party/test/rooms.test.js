@@ -11,10 +11,10 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   const server = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), env: { ...process.env, PORT: String(port) }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
   t.after(() => server.kill());
   await new Promise((resolve,reject) => { server.stdout.on('data', data => { if (String(data).includes('server running')) resolve(); }); server.once('error',reject); server.once('exit',code=>reject(new Error(`Server exited ${code}`))); });
-  for (const path of ['/', '/mafia.html', '/mafia-client.js', '/mafia.css', '/mafia-rules.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
+  for (const path of ['/', '/mafia.html', '/mafia-client.js', '/mafia.css', '/mafia-rules.js', '/horsrng', '/imposter', '/rngoldrush', '/qr.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/mafia-engine.js`)).status,404);
-  async function client() {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`), queue = [], waiters = [];
+  async function client(path = '/ws') {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`), queue = [], waiters = [];
     ws.addEventListener('message', event => {
       const value=JSON.parse(event.data), i=waiters.findIndex(w=>w.predicate(value));
       if(i>=0){const [w]=waiters.splice(i,1);clearTimeout(w.timer);w.resolve(value);}else queue.push(value);
@@ -29,6 +29,20 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   const type = type => m=>m.type===type;
   const phase = phase => m=>m.type==='state'&&m.phase===phase;
   const host=await client();host.send({type:'host',game:'mafia'});const hosted=await host.next(type('hosted'));
+  const lookup = async code => (await fetch(`http://127.0.0.1:${port}/api/room?code=${code}`)).json();
+  assert.deepEqual(await lookup(hosted.code.toLowerCase()), {ok:true,code:hosted.code,game:'mafia',name:'Mafia',path:'/mafia.html'});
+  const codes = new Set([hosted.code]);
+  for (const game of ['horsrng', 'imposter', 'rngoldrush']) {
+    const otherHost = await client(`/${game}-ws`);
+    otherHost.send({type:'host'});
+    const other = await otherHost.next(type('hosted'));
+    assert(!codes.has(other.code)); codes.add(other.code);
+    const info = await lookup(other.code);
+    assert.equal(info.game, game); assert.equal(info.path, `/${game}`);
+    const guest = await client(`/${game}-ws`);
+    guest.send({type:'join',code:other.code,name:'Compatibility guest'});
+    assert.equal((await guest.next(type('joined'))).code, other.code);
+  }
   host.send({type:'mafiaConfigure',rules:{mafia:1,mixologist:0,detective:1,nurse:1,nightSeconds:1,voteSeconds:1}});
   const players=[];
   for(let i=0;i<4;i++){
@@ -77,6 +91,7 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   tester.send({type:'mafiaTimers',rules:{nightSeconds:1}});await tester.next(m=>m.type==='state'&&m.phase==='discussion'&&m.round===2);
   // Existing RNGdle traffic still uses its original room state and roll engine.
   const rngHost=await client();rngHost.send({type:'host',revealMode:'manual'});const rng=await rngHost.next(type('hosted'));
+  assert.equal((await lookup(rng.code)).game,'rngdle');
   const rngPlayer=await client();rngPlayer.send({type:'join',code:rng.code,name:'Roller'});await rngPlayer.next(type('joined'));
   rngHost.send({type:'start'});await rngPlayer.next(phase('collecting'));rngPlayer.send({type:'rollReady'});
   const roll=await rngHost.next(phase('revealing'));assert.equal(typeof roll.players[0].lastNumber,'number');assert.equal(roll.revealMode,'manual');assert.equal(roll.private,undefined);
