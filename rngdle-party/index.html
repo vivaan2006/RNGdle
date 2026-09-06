@@ -457,14 +457,17 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
           <span class="gamebox-tag">233 badges · unlimited rolls · up to 12 players</span>
         </div>
       </button>
-      <div class="gamebox disabled" title="Coming soon">
-        <div class="gamebox-media placeholder">🔒</div>
-        <div class="gamebox-body">
-          <h3>Coming Soon</h3>
-          <p>Another party game is in the works.</p>
-          <span class="gamebox-tag beta">BETA · IN DEVELOPMENT</span>
+      <a class="gamebox" href="/mafia.html">
+        <div class="gamebox-media">
+          <div style="font-size:42px">🕶️ 🍸 🔎</div>
+          <div class="mini-badges"><span class="mini-badge">Secret roles</span><span class="mini-badge">Your house rules</span></div>
         </div>
-      </div>
+        <div class="gamebox-body">
+          <h3>🕶️ Mafia</h3>
+          <p>Find the Instigators before everyone else takes three night hits. Secret roles, suspicious friends, and a Party Animal with a plan of their own.</p>
+          <span class="gamebox-tag">4–24 players · private roles · customizable rules</span>
+        </div>
+      </a>
     </div>
   </section>
 
@@ -1288,6 +1291,10 @@ const NET={ ws:null, role:null, code:null, pid:null, token:null, state:null, pre
     },delay);
   },
   onMsg(m){
+    if(m.type==='joined' && m.game==='mafia'){
+      sessionStorage.setItem('rngparty_mafia_session', JSON.stringify({code:m.code,pid:m.pid,token:m.token,role:'player'}));
+      this.manualClose=true; clearSession(); location.href='/mafia.html'; return;
+    }
     if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); hostLobbyReady(m.code); }
     else if(m.type==='joined'){ this.pid=m.pid; this.code=m.code; this.token=m.token; showRoomChip(m.code); this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); playerJoined(m); }
     else if(m.type==='error'){
