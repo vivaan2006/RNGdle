@@ -7,6 +7,10 @@ import "./engine.js";                 // sets globalThis.RNGDLE
 import { claimCode, releaseCode, gameFor, GAME_PATHS, GAME_NAMES } from "./rooms-registry.js";
 import "./drinks.js";                 // sets globalThis.RNGPARTY_DRINKS
 import { networkInterfaces } from "os";
+import { randomBytes } from 'node:crypto';
+import { createMafia, mafiaAction, mafiaState, advanceMafia } from './mafia-engine.js';
+import { setTestPlayers, testView, testingAction } from './mafia-testing.js';
+import { TIMER_FIELDS } from './mafia-rules.js';
 import * as HorsRNG from "./horsrng-server.js";     // separate game, separate rooms, separate ws path
 import * as Imposter from "./imposter-server.js";   // separate game, separate rooms, separate ws path
 import * as GoldRush from "./rngoldrush-server.js"; // separate game, separate rooms, separate ws path
@@ -21,6 +25,7 @@ const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
 const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/qr.js": "qr.js",
+  "/mafia.html": "mafia.html", "/mafia-client.js": "mafia-client.js", "/mafia-rules.js": "mafia-rules.js", "/mafia.css": "mafia.css",
   "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
   "/imposter": "imposter.html", "/imposter.html": "imposter.html",
   "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html" };
@@ -34,11 +39,11 @@ const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14
 // short enough that a genuinely abandoned room doesn't linger pointlessly.
 const RECONNECT_GRACE_MS = 45000;
 
-function makeCode(){ return claimCode("rngdle"); }   // globally unique across games
+function makeCode(game){ return claimCode(game); }   // globally unique across games
 function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
 // A bearer credential for reclaiming a seat after a disconnect — longer and
 // higher-entropy than pid() since guessing this hands over someone's spot.
-function token(){ return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function token(){ return randomBytes(24).toString('hex'); }
 function send(ws,o){ try{ ws.send(JSON.stringify(o)); }catch(e){} }
 function broadcast(room,o){ const s=JSON.stringify(o); if(room.hostWs){ try{room.hostWs.send(s)}catch(e){} } for(const p of room.players.values()){ if(p.ws){ try{p.ws.send(s)}catch(e){} } } }
 
@@ -54,7 +59,24 @@ function stateMsg(room){
       bestScore:p.bestScore, bestScoreTier:p.bestScoreTier, bestBadge:p.bestBadge, bestNumber:p.bestNumber
     })) };
 }
-function pushState(room){ broadcast(room, stateMsg(room)); }
+function pushState(room){
+  if(room.mafia){
+    if(room.hostWs) send(room.hostWs, { ...mafiaState(room), ...(room.testMode ? { testing: testView(room) } : {}) });
+    for(const p of room.players.values()) if(p.ws) send(p.ws, mafiaState(room, p.pid));
+  } else broadcast(room, stateMsg(room));
+}
+function syncMafiaTimer(room, previousPhase, restart=false){
+  if(previousPhase===room.phase && !restart) return;
+  clearTimeout(room.mafia.timer); room.mafia.deadline=null;
+  const key=TIMER_FIELDS.find(([, , , phase])=>phase===room.phase)?.[0];
+  const seconds=key?room.mafia.rules[key]:0;
+  if(seconds){
+    room.mafia.deadline=Date.now()+seconds*1000;
+    room.mafia.timer=setTimeout(()=>{
+      const previous=room.phase; advanceMafia(room); syncMafiaTimer(room,previous); pushState(room);
+    },seconds*1000);
+  }
+}
 function genRoll(){ const r=R.roll();
   // tiers stay server-side: they only size the reveal window. Clients rebuild the
   // badges themselves from the number, so nothing extra goes over the wire.
@@ -174,18 +196,29 @@ function advanceRound(room){
 function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
-    const code=makeCode();
+    if(info.roomCode) return;
+    const code=makeCode(m.game==='mafia'?'mafia':'rngdle');
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
       autoNext:(m.autoNext!==false), autoNextTimer:null, drinking:!!m.drinking, difficulty:(D.DIFFICULTY[m.difficulty]?m.difficulty:"medium"),
       drinkRolls:null, drinkChoices:null, drinkTally:null, drinkConfirmed:null, revealMode:(m.revealMode==="manual"?"manual":"auto"), revealStep:0, revealMaxLen:0 };
+    if(m.game==='mafia') room.mafia=createMafia();
+    if(room.mafia && m.testMode===true){
+      room.testMode=true;
+      setTestPlayers(room,5);
+    }
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
-    send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
+    send(ws,{type:"hosted",code,token:hostToken,game:room.mafia?'mafia':'rngdle'}); pushState(room); return;
   }
   if(m.type==="join"){
+    if(info.roomCode) return;
     const code=String(m.code||"").toUpperCase().trim();
     const room=rooms.get(code);
     if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
+    if(room.testMode){ send(ws,{type:'error',msg:'This is a test room controlled from one screen. Create a regular room to play with friends.'}); return; }
+    if(m.game==='mafia' && !room.mafia){ send(ws,{type:'error',msg:'That is an RNGdle room. Join it from RNGdle → Party → Online.'}); return; }
+    if(room.mafia && room.phase!=='lobby'){ send(ws,{type:'error',msg:'This Mafia game has started. Join when the host opens the next lobby.'}); return; }
+    if(room.mafia && room.players.size>=24){ send(ws,{type:'error',msg:'This room is full (24 players).'}); return; }
     const name=String(m.name||"Player").slice(0,18).trim()||"Player";
     if([...room.players.values()].some(p=>p.name.toLowerCase()===name.toLowerCase())){
       send(ws,{type:"error",msg:`"${name}" is already in this room — pick a different name.`}); return;
@@ -194,27 +227,41 @@ function handle(ws, m){
     const color=COLORS[room.players.size % COLORS.length];
     room.players.set(id,{ pid:id, resumeToken:seatToken, connected:true, disconnectTimer:null, name, color, score:0, rolls:0, ws, ready:false, pending:null, last:null, bestScore:0, bestScoreTier:null, bestBadge:null, bestNumber:null });
     meta.set(ws,{ roomCode:code, pid:id });
-    send(ws,{type:"joined",pid:id,code,token:seatToken}); pushState(room); return;
+    send(ws,{type:"joined",pid:id,code,token:seatToken,game:room.mafia?'mafia':'rngdle'}); pushState(room); return;
   }
   if(m.type==="resume"){
+    if(info.roomCode) return;
     const code=String(m.code||"").toUpperCase().trim();
     const room=rooms.get(code);
     if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
     if(!m.pid){   // host resuming
       if(!m.token || m.token!==room.hostToken){ send(ws,{type:"error",msg:"Could not resume as host — start a new party."}); return; }
       clearTimeout(room.hostGraceTimer); room.hostGraceTimer=null;
+      if(room.hostWs && room.hostWs!==ws){ meta.delete(room.hostWs); room.hostWs.close(); }
       room.hostWs=ws; room.hostConnected=true;
       meta.set(ws,{ roomCode:code, isHost:true });
-      send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
+      send(ws,{type:"hosted",code,token:room.hostToken,game:room.mafia?'mafia':'rngdle'}); pushState(room); return;
     }
     const p=room.players.get(m.pid);
     if(!p || !m.token || m.token!==p.resumeToken){ send(ws,{type:"error",msg:"Could not resume — join as a new player instead."}); return; }
     clearTimeout(p.disconnectTimer); p.disconnectTimer=null;
+    if(p.ws && p.ws!==ws){ meta.delete(p.ws); p.ws.close(); }
     p.ws=ws; p.connected=true;
     meta.set(ws,{ roomCode:code, pid:m.pid });
-    send(ws,{type:"joined",pid:m.pid,code,token:p.resumeToken}); pushState(room); return;
+    send(ws,{type:"joined",pid:m.pid,code,token:p.resumeToken,game:room.mafia?'mafia':'rngdle'}); pushState(room); return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
+  if(room.mafia){
+    const previousPhase=room.phase;
+    try {
+      const removed=m.type==='mafiaRemove' && info.isHost && room.phase==='lobby'?room.players.get(m.pid):null;
+      if(m.type.startsWith('mafiaTest')) testingAction(room,info,m);
+      else mafiaAction(room,info,m);
+      if(removed?.ws){ meta.delete(removed.ws); send(removed.ws,{type:'error',msg:'The host removed your seat.',fatal:true}); removed.ws.close(); }
+      syncMafiaTimer(room,previousPhase,m.type==='mafiaTimers'); pushState(room);
+    } catch(error){ send(ws,{type:'error',msg:error.message}); }
+    return;
+  }
   if(m.type==="configure" && info.isHost){
     // Every setting is changeable mid-party. Shortening the round target below
     // the current round just means the next round end is the last one.
@@ -283,7 +330,9 @@ function handleClose(ws){
     clearTimeout(room.hostGraceTimer);
     room.hostGraceTimer=setTimeout(()=>{
       clearTimeout(room.revealTimer); clearTimeout(room.autoNextTimer);
-      broadcast(room,{type:"error",msg:"Host didn't reconnect in time — party ended."});
+      clearTimeout(room.mafia?.timer);
+      for(const p of room.players.values()) clearTimeout(p.disconnectTimer);
+      broadcast(room,{type:"error",msg:"Host didn't reconnect in time — party ended.",fatal:true});
       releaseCode(room.code); rooms.delete(room.code);
     }, RECONNECT_GRACE_MS);
     return;
@@ -299,6 +348,9 @@ function handleClose(ws){
     pushState(room);
     if(room.phase==="collecting") maybeAutoReveal(room);
     clearTimeout(p.disconnectTimer);
+    // Keep dealt roles and their progress intact for the whole Mafia game.
+    // Timers and host advancement let the table continue with absent players.
+    if(room.mafia && room.phase!=='lobby') return;
     p.disconnectTimer=setTimeout(()=>{
       if(room.players.get(info.pid)===p && !p.connected){
         room.players.delete(info.pid);

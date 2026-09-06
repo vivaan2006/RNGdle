@@ -35,6 +35,7 @@ export function gameFor(code) {
 /** Where a player with this code should be sent. */
 export const GAME_PATHS = {
   rngdle: "/",
+  mafia: "/mafia.html",
   horsrng: "/horsrng",
   imposter: "/imposter",
   rngoldrush: "/rngoldrush"
@@ -42,6 +43,7 @@ export const GAME_PATHS = {
 
 export const GAME_NAMES = {
   rngdle: "RNGdle",
+  mafia: "Mafia",
   horsrng: "HorsRNG",
   imposter: "ImpostRNG",
   rngoldrush: "RNGold Rush"

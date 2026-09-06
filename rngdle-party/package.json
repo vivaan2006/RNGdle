@@ -5,6 +5,7 @@
   "type": "module",
   "description": "RNGparty — solo, local party, and Jackbox-style online party built on the original rngdle.com scoring engine.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   }
 }
