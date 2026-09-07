@@ -110,10 +110,21 @@ function makeFrameReader(ws, onMessage) {
  * @param {Record<string,{open,message,close}>} opts.wsRoutes  ws url path -> handler set,
  *   each mirroring Bun's {open(ws), message(ws,msg), close(ws)} shape. Each game gets its
  *   own path and its own fully independent room state — nothing shared between them.
+ * @param {(url:URL)=>({status?:number,json:any}|null)} [opts.api]  answers a request
+ *   before the static lookup; return null to fall through.
  */
-export function serve({ port, staticFiles, wsRoutes }) {
+export function serve({ port, staticFiles, wsRoutes, api }) {
   const server = createServer(async (req, res) => {
-    const path = new URL(req.url, "http://localhost").pathname;
+    const url = new URL(req.url, "http://localhost");
+    if (api) {
+      const hit = api(url);
+      if (hit) {
+        const body = JSON.stringify(hit.json);
+        res.writeHead(hit.status || 200, { "content-type": "application/json", "cache-control": "no-store" }).end(body);
+        return;
+      }
+    }
+    const path = url.pathname;
     const file = staticFiles[path];
     if (!file) { res.writeHead(404).end("Not found"); return; }
     try {

@@ -62,6 +62,95 @@ Friends on same Wi-Fi join:  http://192.168.x.x:3000
 Both party modes support **Rounds** (best of 3/5/10, highest total EP wins) or **Endless** (running leaderboard).
 Mute sound anytime with the 🔊 button.
 
+## Mafia
+
+Open **Mafia** from the hub, or `/mafia.html` on the running server. The host
+screen is shared; each player joins on their own device. The host can also play
+by joining on a phone or in another tab. Rooms support 4–24 players.
+
+### Cast and teams
+
+Role cards provide an icon, description, and +/− count. Set optional roles to
+0 to omit them; remaining seats become Townspeople. The default House Mix has
+one Instigator, Mixologist, Vibe Checker, and Designated Driver (5+ players).
+Classic omits the Mixologist (4+); Wild Card adds a Party Animal (6+).
+
+- **Instigator** (formerly Mafia): delivers night hits. The Instigator team
+  also includes Mixologists. All their allies must be caught for town to win.
+- **Mixologist:** one matching Instigator target gets double night sips once.
+  This does not double hits, and unmatched picks cause no hits or sips.
+- **Vibe Checker** (formerly Detective): privately learns the target's team
+  at dawn, including an independent Party Animal's team.
+- **Designated Driver** (formerly Nurse): blocks every night hit and sip on
+  their chosen player. With the default shared protection cooldown, nobody
+  protected last night can be protected by any Driver tonight. This prevents
+  multiple Drivers from alternating permanent protection. Targets become
+  available after a one-night gap. Drivers may pass if there are no eligible
+  targets; their bot controls handle this too. Self-protection and cooldown
+  can be changed in the lobby.
+- **Party Animal:** independent, with repeatable voluntary drinks throughout
+  play. Their private drink button assigns the difficulty's sip amount;
+  voluntary sips never count as hits and are private until final totals.
+  Their jester-like objective is to be chosen by a Designated Driver. At dawn,
+  chosen Animals win and the game ends. Multiple simultaneously chosen Animals
+  can win; unchosen Animals lose. A Driver must be enabled if Animals are in play.
+- **Townsperson:** discuss, bluff, and vote; no targeted night ability.
+
+Bouncer and Gossip have been removed. Internal role IDs `mafia`, `detective`,
+and `nurse` remain stable, while their display names use the party theme.
+
+### Hits, drinks, and winning
+
+Each Instigator can select up to **ceil(active players / (3 × active
+Instigators))** distinct players per night, minimum 1 while any Instigator is
+active. The allowance is recalculated as players are caught; Mixologists do
+not increase the Instigator count. Examples: 5 players / 1 Instigator → 2
+picks; 12 / 2 → 2 each; 12 / 1 → 4. Teammates and self-targets are allowed.
+Different Instigators may overlap, producing one hit per unprotected pick.
+
+**Easy / Medium / Hard** assign **1 / 2 / 3 sips per action** (Medium by
+default), covering night hits, wrong accusations, and voluntary Animal drinks.
+Mixologist matches double sips but not hit counts. Raw sip fields are no longer
+accepted. Catch and losing-player shot penalties remain independently editable,
+including 0. Nurses' replacement, the Driver, blocks both hits and sips.
+
+The vote accuses whoever has the most votes. Caught Instigator allies are out
+and take catch shots. Other players take the preset sips and stay active;
+Party Animals do not win from being accused. Ties, all-abstain rounds, and
+missed actions have no penalty; missed votes abstain. Self-voting is disabled.
+
+After every vote, town wins if every Instigator ally is out. Otherwise,
+Instigators win when **every opposing player, including Party Animals, has
+received at least 3 successful night hits**. Hits on teammates are irrelevant
+to this goal. Wrong votes, voluntary drinks, and shots never count as hits.
+Town wins a simultaneous final catch / full-coverage round. Driver-triggered
+Animal wins happen earlier, at dawn. All nonwinning players, including caught
+allies or unchosen Animals, receive the losing-player shots once.
+
+### Timing, testing, and reconnects
+
+Defaults are role reveal 20s, night 45s, discussion 90s, voting 30s, verdict
+12s. Phases advance automatically; roles, night, and voting may finish early
+when everyone responds. Timers are editable during play; saving restarts the
+current countdown. A 0 timer is manually paced. Role counts, difficulty, and
+other house rules lock until the next lobby. Public narration can be enabled
+with the host's sound button; private information is never spoken.
+
+**Start local test** creates five controllable bots. Adjust the count and cast,
+switch between host and player screens, choose exact targets, or auto-fill
+remaining legal actions and votes. **Pause timers for testing** allows manual
+inspection; **Use automatic timers** restores defaults. **Reset to lobby**
+clears progress and retains rules. Test rooms block real player joins and
+expose bot roles only to their controlling host.
+
+Reloading restores the same role and progress. Disconnected dealt seats remain
+in the game; timers and overrides prevent stalls. The host retains the existing
+45-second reconnect window. Rooms are in memory and end on server restart.
+
+Run `npm test` (Node 22+) for role rules, hit counts, solo wins, protection
+cooldowns, privacy, timers, reconnects, testing controls, and live WebSocket
+integration including the existing RNGdle flow.
+
 ## Files
 
 ```
@@ -69,5 +158,11 @@ index.html   – the app (solo, local party, online host + phone views, reveal +
 engine.js    – the extracted rngdle scoring engine (self-contained, ~1 MB incl. the percentile CDF)
 server.js    – WebSocket server for online play (serves the app + runs rooms); Bun or Node
 node-ws.js   – tiny zero-dependency WebSocket + static server, used when running under Node
+mafia.html   – Mafia lobby, shared host screen, and private phone view
+mafia.css    – Mafia styles using the existing site's colors and typography
+mafia-client.js – Mafia UI, narration, and room reconnection
+mafia-rules.js  – shared role descriptions and rule validation
+mafia-engine.js – server-only role assignment, actions, voting, and victory logic
+test/        – game rules and live room integration tests
 _reference/  – provenance: original bundles + the extraction/validation scripts (safe to delete)
 ```
