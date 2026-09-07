@@ -243,17 +243,16 @@ button.horsecard:hover{border-color:#f59e0b88}
         <button class="secbtn" id="copyLink" style="margin-top:10px">Copy join link</button>
       </div>
       <div class="panel"><h3>Format</h3>
-        <div class="toggle-row"><div><div class="t">🍻 Drinking Mode</div><div class="d">Losers drink based on how they finish — last place takes a shot.</div></div>
-          <label class="switch"><input type="checkbox" id="hDrinkToggle"><span class="track"><span class="knob"></span></span></label></div>
+        <div class="small" id="hDrinkStatus">🍻 Drinking mode: off</div>
       </div>
       <div class="panel"><h3 id="hLobbyCount">Players (0)</h3><div class="plist" id="hLobbyList"></div>
         <div class="small mt8" id="hLobbyHint">Waiting for players to join…</div></div>
-      <button class="bigbtn" id="hStart" disabled>Start Picking 🐎</button>
     </div>
 
     <div id="hPicking" class="hidden">
       <h3 class="small" style="text-transform:uppercase;letter-spacing:.5px">Pick your horse — everyone's choosing</h3>
       <div class="horsegrid" id="hHorseGrid"></div>
+      <div class="small center" id="hPickCountdown"></div>
     </div>
 
     <div id="hRace" class="hidden">
@@ -279,11 +278,6 @@ button.horsecard:hover{border-color:#f59e0b88}
 
     <div class="actionbar hidden" id="hPickActions">
       <span class="small" id="hPickWait"></span>
-      <button class="rollbtn" id="hForceRace">Start Race Now ▶</button>
-    </div>
-    <div class="actionbar hidden" id="hResultActions">
-      <button class="rollbtn" id="hRematch">Race Again 🐎</button>
-      <button class="secbtn" id="hEndGame">End Game</button>
     </div>
     <!-- Local party's race/results reuse the #hRace/#hResultsWrap markup
          above (same animation, same layout) — only the action bar differs,
@@ -339,6 +333,8 @@ button.horsecard:hover{border-color:#f59e0b88}
       <div id="pPicking" class="hidden">
         <h3 class="small center" style="text-transform:uppercase;letter-spacing:.5px">Pick your horse</h3>
         <div class="horsegrid" id="pHorseGrid"></div>
+        <div class="small center" id="pPickCountdown"></div>
+        <div id="pPickLeaderRow"></div>
       </div>
       <div id="pRaceWait" class="hidden center panel">
         <div style="font-size:44px" id="pRaceEmoji">🐎</div>
@@ -470,7 +466,7 @@ function renderConnBar(){
   const bar=$('#connBar'); if(!bar) return;
   if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
   if(NET.reconnectFailed){ bar.className='connbar bad'; bar.textContent="⚠️ Couldn't reconnect — the race may have ended."; return; }
-  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Host disconnected — waiting for them to reconnect…'; return; }
+  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.innerHTML='📺 Shared screen disconnected — keep playing, nothing to watch on the TV right now.'; return; }
   bar.className='connbar hidden';
 }
 
@@ -605,7 +601,7 @@ function hlpBeginRace(){
   HLP.raceStartAt=Date.now();
   showOnly('hostView');
   $('#hLobby').classList.add('hidden'); $('#hPicking').classList.add('hidden');
-  $('#hPickActions').classList.add('hidden'); $('#hResultActions').classList.add('hidden'); $('#hlpResultActions').classList.add('hidden');
+  $('#hPickActions').classList.add('hidden'); $('#hlpResultActions').classList.add('hidden');
   $('#hResultsWrap').classList.add('hidden'); $('#hRace').classList.remove('hidden');
   clearTimeout(HLP.resultsTimer);
   startRaceAnimation(hlpState('racing'));
@@ -631,24 +627,21 @@ $('#hlpEndGame').addEventListener('click',()=>{
   hlpRenderSetup();
 });
 
-/* ---------- host ---------- */
-function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host',drinkingMode:$('#hDrinkToggle').checked})); }
+/* ---------- host (pure spectator once pressed — every control lives on
+   whichever player's phone is currently the room "leader") ---------- */
+function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host'})); }
 function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/horsrng?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
-$('#hDrinkToggle').addEventListener('change',e=>NET.send({type:'configure',drinkingMode:e.target.checked}));
-$('#hStart').addEventListener('click',()=>NET.send({type:'start'}));
-$('#hForceRace').addEventListener('click',()=>NET.send({type:'forceRace'}));
-$('#hRematch').addEventListener('click',()=>NET.send({type:'rematch'}));
-$('#hEndGame').addEventListener('click',()=>NET.send({type:'endGame'}));
+function leaderName(s){ const l=s.players.find(p=>p.pid===s.leaderPid); return l?l.name:null; }
 
 function hostRender(s){
-  $('#hPickActions').classList.add('hidden'); $('#hResultActions').classList.add('hidden');
+  $('#hPickActions').classList.add('hidden');
   if(s.phase==='lobby'){
     $('#hLobby').classList.remove('hidden'); $('#hPicking').classList.add('hidden'); $('#hRace').classList.add('hidden'); $('#hResultsWrap').classList.add('hidden');
     $('#hLobbyCount').textContent=`Players (${s.players.length})`;
-    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${offlineTag(p)}</div>`).join('');
-    $('#hLobbyHint').textContent=s.players.length<1?'Waiting for players to join…':`${s.players.length} player${s.players.length===1?'':'s'} in — start whenever you're ready.`;
-    $('#hStart').disabled=s.players.length<1; $('#hStart').textContent=s.players.length<1?'Waiting for players…':`Start Picking 🐎 (${s.players.length})`;
-    $('#hDrinkToggle').checked=!!s.drinkingMode;
+    $('#hLobbyList').innerHTML=s.players.map(p=>`<div class="pchip">${avatarHtml(p)}${escapeHtml(p.name)}${p.pid===s.leaderPid?' 👑':''}${offlineTag(p)}</div>`).join('');
+    const leader=leaderName(s);
+    $('#hLobbyHint').textContent=s.players.length<1?'Waiting for players to join…':`Ready — ${leader} can start it from their phone.`;
+    $('#hDrinkStatus').textContent=`🍻 Drinking mode: ${s.drinkingMode?'on':'off'}`;
     return;
   }
   $('#hLobby').classList.add('hidden');
@@ -664,7 +657,8 @@ function hostRender(s){
   } else if(s.phase==='results'){
     $('#hPicking').classList.add('hidden'); $('#hRace').classList.add('hidden');
     $('#hResultsWrap').classList.remove('hidden'); renderResults($('#hResultsWrap'),s);
-    $('#hResultActions').classList.remove('hidden');
+    const leader=leaderName(s);
+    if(leader) $('#hResultsWrap').innerHTML+=`<div class="small center mt16">Waiting on ${escapeHtml(leader)} for the next race…</div>`;
     if(!NET.celebrated){ NET.celebrated=true; RaceSFX.fanfare(); }
   }
   if(s.phase!=='results') NET.celebrated=false;
@@ -941,6 +935,19 @@ $('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toU
 $('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
 function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pGame').classList.remove('hidden'); }
 
+// A connected player who never picks a horse shouldn't be able to stall the
+// whole table forever — the server auto-picks for stragglers past a
+// deadline. This just renders that countdown locally so it isn't a silent
+// surprise; the server's own timer is authoritative regardless of this.
+setInterval(()=>{
+  const s=NET.state;
+  const active = !!(s && s.phase==='picking' && s.pickDeadline);
+  const secs = active ? Math.max(0, Math.ceil((s.pickDeadline-Date.now())/1000)) : 0;
+  const hEl=$('#hPickCountdown'), pEl=$('#pPickCountdown');
+  if(hEl) hEl.textContent = active && secs>0 ? `⏱ Auto-picking for stragglers in ${secs}s` : '';
+  if(pEl) pEl.textContent = active && secs>0 ? `⏱ Auto-pick in ${secs}s if you haven't chosen` : '';
+}, 250);
+
 const RACE_FLAVOR=["The crowd is on its feet!","Neck and neck down the back stretch!","Someone's about to lose a bet.","The dust is really flying now!","Is that a stumble?! Recovering nicely!","This one's going to the wire!"];
 function playerRaceWait(s){
   const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
@@ -950,19 +957,63 @@ function playerRaceWait(s){
   clearInterval(NET.flavorTimer);
   let i=0; NET.flavorTimer=setInterval(()=>{ $('#pRaceStatus').textContent=RACE_FLAVOR[i%RACE_FLAVOR.length]; i++; },4500);
 }
+// Only the room leader (whoever's been connected longest, normally the
+// first to join) ever sees start/next-race/end-game controls — everyone
+// else just sees who to wait on. The host laptop never shows these at all.
+function renderPlayerLobby(s, me){
+  const isLeader = me.pid===s.leaderPid;
+  let html;
+  if(isLeader){
+    html = `<div class="panel center"><h3>You're up 👑</h3>
+      <div class="small mt8">${s.players.length} player${s.players.length===1?'':'s'} in the room.</div>
+      <div class="toggle-row" style="text-align:left"><div><div class="t">🍻 Drinking Mode</div><div class="d">Losers drink based on how they finish — last place takes a shot.</div></div>
+        <label class="switch"><input type="checkbox" id="pDrinkToggle" ${s.drinkingMode?'checked':''}><span class="track"><span class="knob"></span></span></label></div>
+      <button class="bigbtn" id="pStartBtn">Start Picking 🐎</button></div>`;
+  } else {
+    const leader=leaderName(s);
+    html = `<div class="panel center">⏳ Waiting for ${leader?escapeHtml(leader):'the room'} to start…</div>`;
+  }
+  $('#pWaitingLobby').innerHTML=html;
+  if(isLeader){
+    $('#pDrinkToggle').addEventListener('change',e=>{ NET.send({type:'configure',drinkingMode:e.target.checked}); });
+    $('#pStartBtn').addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'start'}); });
+  }
+}
+function renderPlayerPickLeaderRow(s, me){
+  const el=$('#pPickLeaderRow');
+  if(me.pid===s.leaderPid){
+    el.innerHTML=`<div class="center mt16"><button class="secbtn" id="pForceRace">Start Race Now</button></div>`;
+    $('#pForceRace').addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'forceRace'}); });
+  } else {
+    el.innerHTML='';
+  }
+}
+function renderPlayerResults(s, me){
+  const isLeader = me.pid===s.leaderPid;
+  renderResults($('#pResultsWrap'), s);
+  if(isLeader){
+    $('#pResultsWrap').innerHTML+=`<div class="actionbar"><button class="rollbtn" id="pRematch">Race Again 🐎</button><button class="secbtn" id="pEndGame">End Game</button></div>`;
+    $('#pRematch').addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'rematch'}); });
+    $('#pEndGame').addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'endGame'}); });
+  } else {
+    const leader=leaderName(s);
+    $('#pResultsWrap').innerHTML+=`<div class="small center mt16">${leader?`Waiting on ${escapeHtml(leader)} for the next race…`:''}</div>`;
+  }
+}
 function playerRender(s){
   const me=s.players.find(p=>p.pid===NET.pid); if(!me) return;
   ['pWaitingLobby','pPicking','pRaceWait','pResultsWrap'].forEach(id=>$('#'+id).classList.add('hidden'));
-  if(s.phase==='lobby'){ $('#pWaitingLobby').classList.remove('hidden'); $('#pWaitingLobby').textContent='Waiting for the host to start…'; clearInterval(NET.flavorTimer); }
+  if(s.phase==='lobby'){ $('#pWaitingLobby').classList.remove('hidden'); clearInterval(NET.flavorTimer); renderPlayerLobby(s, me); }
   else if(s.phase==='picking'){
     $('#pPicking').classList.remove('hidden'); clearInterval(NET.flavorTimer);
     $('#pHorseGrid').innerHTML=s.horses.map(h=>`<button class="horsecard${me.horseId===h.id?' selected':''}" data-horse="${h.id}">${horseCardInner(h)}</button>`).join('');
     [...$('#pHorseGrid').children].forEach(btn=>btn.addEventListener('click',()=>{ RaceSFX.resume(); NET.send({type:'pickHorse',horseId:btn.dataset.horse}); }));
+    renderPlayerPickLeaderRow(s, me);
   }
   else if(s.phase==='racing'){ playerRaceWait(s); }
   else if(s.phase==='results'){
     clearInterval(NET.flavorTimer);
-    $('#pResultsWrap').classList.remove('hidden'); renderResults($('#pResultsWrap'),s);
+    $('#pResultsWrap').classList.remove('hidden'); renderPlayerResults(s, me);
     if(!NET.celebratedP){ NET.celebratedP=true; RaceSFX.fanfare(); }
   }
   if(s.phase!=='results') NET.celebratedP=false;
