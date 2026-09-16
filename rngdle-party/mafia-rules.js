@@ -1,10 +1,10 @@
 export const ROLES = {
-  mafia: { name: 'Instigator', icon: '🥂', team: 'mafia', description: 'Start the trouble. Give night hits to anyone, including yourself or your teammates. Your target allowance scales with the active players and Instigators.' },
-  mixologist: { name: 'Mixologist', icon: '🍸', team: 'mafia', description: 'An Instigator ally. Choose anyone, including yourself or a teammate. A matching Instigator pick doubles their night sips, but not their hit count. Your pick alone gives no hits.' },
-  detective: { name: 'Vibe Checker', icon: '🔎', team: 'town', description: 'Something is off about that toast. Investigate one other player each night and privately learn their team at dawn.' },
-  nurse: { name: 'Designated Driver', icon: '🚕', team: 'town', description: 'Give one player a water break: block all their night sips and hits. By default, anyone protected last night must wait a night before any Driver can protect them again. Choosing a Party Animal gives them a solo win at dawn.' },
-  partyAnimal: { name: 'Party Animal', icon: '🪩', team: 'solo', description: 'Your own team, your own terrible plan. Drink voluntarily as often as you like and bluff your way into a water break. You win at dawn if a Designated Driver picks you. Voluntary sips do not count as hits.' },
-  town: { name: 'Townsperson', icon: '🏘️', team: 'town', description: 'Watch, bluff, and vote. Receiving sips never takes you out of the game.' }
+  mafia: { name: 'Drink Dealer', icon: '🥂', team: 'mafia', description: 'Start the trouble. Give night hits to anyone, including yourself or your teammates. Your target allowance scales with the active players and Drink Dealers.' },
+  mixologist: { name: 'Double Pourer', icon: '🍸', team: 'mafia', description: 'An Drink Dealer ally. Choose anyone, including yourself or a teammate. A matching Drink Dealer pick doubles their night sips, but not their hit count. Your pick alone gives no hits.' },
+  detective: { name: 'Party Detective', icon: '🔎', team: 'town', description: 'Something is off about that toast. Investigate one other player each night and privately learn their team at dawn.' },
+  nurse: { name: 'Party Medic', icon: '🚕', team: 'town', description: 'Give one player a water break: block all their night sips and hits. By default, anyone protected last night must wait a night before any Medic can protect them again. Choosing a Party Jester gives them a solo win at dawn.' },
+  partyAnimal: { name: 'Party Jester', icon: '🪩', team: 'solo', description: 'Your own team, your own terrible plan. Drink voluntarily as often as you like and bluff your way into a water break. You win at dawn if a Party Medic picks you. Voluntary sips do not count as hits.' },
+  town: { name: 'Partygoer', icon: '🏘️', team: 'town', description: 'Watch, bluff, and vote. Receiving sips never takes you out of the game.' }
 };
 export const ROLE_KEYS = Object.keys(ROLES).filter(role => role !== 'town');
 export const TIMER_FIELDS = [
@@ -15,7 +15,7 @@ export const TIMER_FIELDS = [
   ['verdictSeconds', 'Verdict', 'Time to read results before the next night', 'roundEnd']
 ];
 export const DIFFICULTIES = { easy: { name: 'Easy', icon: '🌱', sips: 1 }, medium: { name: 'Medium', icon: '🍻', sips: 2 }, hard: { name: 'Hard', icon: '🔥', sips: 3 } };
-export const TEAM_NAMES = { mafia: 'Instigator team', town: 'Town team', solo: 'Independent' };
+export const TEAM_NAMES = { mafia: 'Drink Dealer team', town: 'Town team', solo: 'Independent' };
 export const HIT_GOAL = 3;
 export const DEFAULT_RULES = { mafia: 1, mixologist: 0, detective: 1, nurse: 1, partyAnimal: 0, difficulty: 'medium', caughtShots: 1, losingShots: 1, narration: true, nurseSelf: true, protectionCooldown: true, revealSeconds: 20, nightSeconds: 45, discussionSeconds: 90, voteSeconds: 30, verdictSeconds: 12 };
 export const sipsPerAction = rules => DIFFICULTIES[rules.difficulty].sips;
@@ -47,8 +47,8 @@ export function setupError(rules, count) {
   if (count > 24) return 'A room supports up to 24 players.';
   const special = ROLE_KEYS.reduce((sum, role) => sum + (rules[role] || 0), 0);
   if (special > count) return `${special} special roles need ${special} players. Add players or reduce optional roles.`;
-  if (rules.partyAnimal > 0 && rules.nurse < 1) return 'Party Animals need at least one Designated Driver to have a chance to win.';
+  if (rules.partyAnimal > 0 && rules.nurse < 1) return 'Party Jesters need at least one Party Medic to have a chance to win.';
   const allies = rules.mafia + rules.mixologist, town = count - allies - rules.partyAnimal;
-  if (allies >= town) return `${allies} Instigator-team players (including Mixologists) and ${town} town players. The Instigator team must be smaller: reduce Instigators or Mixologists, or add town players. Party Animals are independent.`;
+  if (allies >= town) return `${allies} Drink Dealer-team players (including Double Pourers) and ${town} town players. The Drink Dealer team must be smaller: reduce Drink Dealers or Double Pourers, or add town players. Party Jesters are independent.`;
   return '';
 }

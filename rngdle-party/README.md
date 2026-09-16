@@ -71,66 +71,66 @@ by joining on a phone or in another tab. Rooms support 4–24 players.
 ### Cast and teams
 
 Role cards provide an icon, description, and +/− count. Set optional roles to
-0 to omit them; remaining seats become Townspeople. Classic is the default:
-one Instigator, Vibe Checker, and Designated Driver (4+ players). The Party
-Animal preset has one Instigator, Party Animal, and Designated Driver; with
-five players, the other two are Townspeople. Mixologists are off by default.
+0 to omit them; remaining seats become Partygoers. Classic is the default:
+one Drink Dealer, Party Detective, and Party Medic (4+ players). The Party
+Jester preset has one Drink Dealer, Party Jester, and Party Medic; with
+five players, the other two are Partygoers. Double Pourers are off by default.
 Start game validates and applies the displayed selections in one step;
 there is no separate save button. Invalid casts and disconnected seats show
 the reason beside Start and below the role cards. A large amber room-code
 banner and a persistent header code help everyone join the right room.
 
-- **Instigator** (formerly Mafia): delivers night hits. The Instigator team
-  also includes Mixologists. All their allies must be caught for town to win.
-- **Mixologist:** one matching Instigator target gets double night sips once.
+- **Drink Dealer** (formerly Mafia): delivers night hits. The Drink Dealer team
+  also includes Double Pourers. All their allies must be caught for town to win.
+- **Double Pourer:** one matching Drink Dealer target gets double night sips once.
   This does not double hits, and unmatched picks cause no hits or sips.
-- **Vibe Checker** (formerly Detective): privately learns the target's team
-  at dawn, including an independent Party Animal's team.
-- **Designated Driver** (formerly Nurse): blocks every night hit and sip on
+- **Party Detective** (formerly Detective): privately learns the target's team
+  at dawn, including an independent Party Jester's team.
+- **Party Medic** (formerly Nurse): blocks every night hit and sip on
   their chosen player. With the default shared protection cooldown, nobody
-  protected last night can be protected by any Driver tonight. This prevents
-  multiple Drivers from alternating permanent protection. Targets become
-  available after a one-night gap. Drivers may pass if there are no eligible
+  protected last night can be protected by any Medic tonight. This prevents
+  multiple Medics from alternating permanent protection. Targets become
+  available after a one-night gap. Medics may pass if there are no eligible
   targets; their bot controls handle this too. Self-protection and cooldown
   are enabled by default and no longer have lobby switches.
-- **Party Animal:** independent, with repeatable voluntary drinks throughout
+- **Party Jester:** independent, with repeatable voluntary drinks throughout
   play. Their private drink button assigns the difficulty's sip amount;
   voluntary sips never count as hits and are private until final totals.
-  Their jester-like objective is to be chosen by a Designated Driver. At dawn,
-  chosen Animals win and the game ends. Multiple simultaneously chosen Animals
-  can win; unchosen Animals lose. A Driver must be enabled if Animals are in play.
-- **Townsperson:** discuss, bluff, and vote; no targeted night ability.
+  Their jester-like objective is to be chosen by a Party Medic. At dawn,
+  chosen Jesters win and the game ends. Multiple simultaneously chosen Jesters
+  can win; unchosen Jesters lose. A Medic must be enabled if Jesters are in play.
+- **Partygoer:** discuss, bluff, and vote; no targeted night ability.
 
 Bouncer and Gossip have been removed. Internal role IDs `mafia`, `detective`,
 and `nurse` remain stable, while their display names use the party theme.
 
 ### Hits, drinks, and winning
 
-Each Instigator can select up to **ceil(active players / (3 × active
-Instigators))** distinct players per night, minimum 1 while any Instigator is
-active. The allowance is recalculated as players are caught; Mixologists do
-not increase the Instigator count. Examples: 5 players / 1 Instigator → 2
+Each Drink Dealer can select up to **ceil(active players / (3 × active
+Drink Dealers))** distinct players per night, minimum 1 while any Drink Dealer is
+active. The allowance is recalculated as players are caught; Double Pourers do
+not increase the Drink Dealer count. Examples: 5 players / 1 Drink Dealer → 2
 picks; 12 / 2 → 2 each; 12 / 1 → 4. Teammates and self-targets are allowed.
-Different Instigators may overlap, producing one hit per unprotected pick.
+Different Drink Dealers may overlap, producing one hit per unprotected pick.
 
 **Easy / Medium / Hard** assign **1 / 2 / 3 sips per action** (Medium by
-default), covering night hits, wrong accusations, and voluntary Animal drinks.
-Mixologist matches double sips but not hit counts. Raw sip fields are no longer
+default), covering night hits, wrong accusations, and voluntary Jester drinks.
+Double Pourer matches double sips but not hit counts. Raw sip fields are no longer
 accepted. The simplified lobby omits individual penalty controls; catches and
-losses default to one shot each. The Driver blocks both hits and sips.
+losses default to one shot each. The Medic blocks both hits and sips.
 
-The vote accuses whoever has the most votes. Caught Instigator allies are out
+The vote accuses whoever has the most votes. Caught Drink Dealer allies are out
 and take catch shots. Other players take the preset sips and stay active;
-Party Animals do not win from being accused. Ties, all-abstain rounds, and
+Party Jesters do not win from being accused. Ties, all-abstain rounds, and
 missed actions have no penalty; missed votes abstain. Self-voting is disabled.
 
-After every vote, town wins if every Instigator ally is out. Otherwise,
-Instigators win when **every opposing player, including Party Animals, has
+After every vote, town wins if every Drink Dealer ally is out. Otherwise,
+Drink Dealers win when **every opposing player, including Party Jesters, has
 received at least 3 successful night hits**. Hits on teammates are irrelevant
 to this goal. Wrong votes, voluntary drinks, and shots never count as hits.
-Town wins a simultaneous final catch / full-coverage round. Driver-triggered
-Animal wins happen earlier, at dawn. All nonwinning players, including caught
-allies or unchosen Animals, receive the losing-player shots once.
+Town wins a simultaneous final catch / full-coverage round. Medic-triggered
+Jester wins happen earlier, at dawn. All nonwinning players, including caught
+allies or unchosen Jesters, receive the losing-player shots once.
 
 ### Timing, testing, and reconnects
 

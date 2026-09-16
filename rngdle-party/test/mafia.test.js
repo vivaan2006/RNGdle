@@ -17,7 +17,7 @@ function votes(room,target=null) {
 }
 
 test('cast contains renamed roles and no retired roles', () => {
-  assert.equal(ROLES.mafia.name,'Instigator');assert.equal(ROLES.detective.name,'Vibe Checker');assert.equal(ROLES.nurse.name,'Designated Driver');
+  assert.equal(ROLES.mafia.name,'Drink Dealer');assert.equal(ROLES.detective.name,'Party Detective');assert.equal(ROLES.nurse.name,'Party Medic');
   assert.equal(ROLES.bouncer,undefined);assert.equal(ROLES.gossip,undefined);assert.equal(ROLES.partyAnimal.team,'solo');
   assert.equal(normalizeRules({bouncer:2,gossip:2}).bouncer,undefined);
 });
@@ -26,8 +26,8 @@ test('presets replace raw sip amounts and reject invalid settings', () => {
   assert.equal(normalizeRules({nightSips:99}).nightSips,undefined);
   for(const input of [{difficulty:'extreme'},{difficulty:'toString'},{mafia:0},{partyAnimal:13},{nurse:-1},{losingShots:11},{mafia:1.2}])assert.throws(()=>normalizeRules(input));
 });
-test('Party Animals require a Driver and do not count toward the town majority', () => {
-  assert.match(setupError({...DEFAULT_RULES,partyAnimal:1,nurse:0},6),/Designated Driver/);
+test('Party Jesters require a Medic and do not count toward the town majority', () => {
+  assert.match(setupError({...DEFAULT_RULES,partyAnimal:1,nurse:0},6),/Party Medic/);
   assert.match(setupError({...DEFAULT_RULES,mixologist:1,partyAnimal:1},5),/smaller/);
   assert.equal(setupError({...DEFAULT_RULES,mixologist:1,partyAnimal:1},6),'');
   assert.equal(setupError(DEFAULT_RULES,5),'');
@@ -47,7 +47,7 @@ test('start applies the displayed five-player cast without a separate save', () 
 test('default cast starts with four players; failed starts do not save invalid changes', () => {
   const room = {players:new Map(Array.from({length:4},(_,i)=>['p'+i,{connected:true}])), mafia:createMafia(), phase:'lobby'};
   const saved = {...room.mafia.rules};
-  assert.throws(()=>mafiaAction(room,{isHost:true},{type:'start',rules:{nurse:0,partyAnimal:1}}),/Driver/);
+  assert.throws(()=>mafiaAction(room,{isHost:true},{type:'start',rules:{nurse:0,partyAnimal:1}}),/Medic/);
   assert.deepEqual(room.mafia.rules,saved);assert.equal(room.phase,'lobby');
   room.players.get('p0').connected=false;
   assert.throws(()=>mafiaAction(room,{isHost:true},{type:'start',rules:{difficulty:'hard'}}),/disconnected/);
@@ -61,7 +61,7 @@ test('configured roles deal correctly; remainder are town', () => {
   const room=game(['mafia','detective','nurse','partyAnimal','town','town']);room.phase='lobby';startMafia(room);
   assert.deepEqual(Object.values(room.mafia.roles).sort(),['detective','mafia','nurse','partyAnimal','town','town']);
 });
-test('target allowance scales with living players and active Instigators', () => {
+test('target allowance scales with living players and active Drink Dealers', () => {
   assert.equal(nightAllowance(5,1),2);assert.equal(nightAllowance(12,2),2);assert.equal(nightAllowance(12,1),4);assert.equal(nightAllowance(24,1),8);assert.equal(nightAllowance(5,0),0);
   const room=game(['mafia','mafia','town','town','town','town','town','town','town','town','town','town']);
   assert.equal(nightPlan(room).targetsPerAttacker,2);room.mafia.active.p0=false;assert.equal(nightPlan(room).targetsPerAttacker,4);
@@ -79,21 +79,21 @@ test('Easy Medium Hard apply 1 2 3 sips while every hit counts once', () => {
     votes(room,'p2');assert.equal(room.mafia.sips.p2,n);assert.equal(room.mafia.hitCounts.p2,0);
   }
 });
-test('overlapping attackers add hits; multiple Mixologists double only once', () => {
+test('overlapping attackers add hits; multiple Double Pourers double only once', () => {
   const room=game(['mafia','mafia','mixologist','mixologist','town','town','town','town','town']);
   act(room,'p0','p4');act(room,'p1','p4');act(room,'p2','p4');act(room,'p3','p4');advanceMafia(room);
   assert.equal(room.mafia.hitCounts.p4,2);assert.equal(room.mafia.sips.p4,4);assert.equal(room.mafia.active.p4,true);
 });
-test('Drivers block all hits and sips, including doubles', () => {
+test('Medics block all hits and sips, including doubles', () => {
   const room=game();act(room,'p0','p4');act(room,'p1','p4');act(room,'p3','p4');advanceMafia(room);
   assert.equal(room.mafia.hitCounts.p4,0);assert.equal(room.mafia.sips.p4,0);
 });
-test('Vibe Checker distinguishes independent, town, and Instigator teams privately', () => {
+test('Party Detective distinguishes independent, town, and Drink Dealer teams privately', () => {
   const room=game(['mafia','mixologist','detective','nurse','partyAnimal','town']);
   act(room,'p2','p4');advanceMafia(room);assert.equal(mafiaState(room,'p2').private.investigations[0].team,'solo');
   assert.deepEqual(mafiaState(room,'p5').private.investigations,[]);assert.equal(mafiaState(room).private,null);assert(mafiaState(room).players.every(p=>p.role===null));
 });
-test('Party Animal drinks repeatedly without hit progress or public role leakage', () => {
+test('Party Jester drinks repeatedly without hit progress or public role leakage', () => {
   const room=game(['mafia','nurse','partyAnimal','town','town'],{difficulty:'medium'});
   for(let i=0;i<5;i++)sip(room,'p2');act(room,'p2',null);sip(room,'p2');
   assert.equal(mafiaState(room,'p2').private.voluntarySips,12);assert.equal(room.mafia.hitCounts.p2,0);
@@ -101,24 +101,24 @@ test('Party Animal drinks repeatedly without hit progress or public role leakage
   assert.throws(()=>sip(room,'p0'));assert.throws(()=>act(room,'p2','p0'));
   advanceMafia(room);sip(room,'p2');votes(room,'p2');assert.equal(room.mafia.winner,null);assert.equal(room.mafia.active.p2,true);assert.equal(room.mafia.hitCounts.p2,0);
 });
-test('Driver selecting Animal ends the game at dawn with that Animal as sole winner', () => {
+test('Medic selecting Jester ends the game at dawn with that Jester as sole winner', () => {
   const room=game(['mafia','nurse','partyAnimal','town','town']);
   act(room,'p0','p2');act(room,'p1','p2');advanceMafia(room);
   assert.equal(room.phase,'gameOver');assert.equal(room.mafia.winner,'solo');assert.deepEqual(room.mafia.winnerIds,['p2']);
   assert.equal(room.mafia.hitCounts.p2,0);assert.equal(room.mafia.shots.p2,0);assert.equal(room.mafia.shots.p1,1);
   assert.throws(()=>sip(room,'p2'));assert(mafiaState(room).players.every(p=>p.role));
 });
-test('unselected Animals do not share a solo win; multiple selected Animals can win', () => {
+test('unselected Jesters do not share a solo win; multiple selected Jesters can win', () => {
   const room=game(['mafia','nurse','partyAnimal','partyAnimal','town','town']);
   act(room,'p1','p2');advanceMafia(room);assert.deepEqual(room.mafia.winnerIds,['p2']);assert.equal(room.mafia.shots.p3,1);
   const two=game(['mafia','nurse','nurse','partyAnimal','partyAnimal','town','town']);
   act(two,'p1','p3');act(two,'p2','p4');advanceMafia(two);assert.deepEqual(two.mafia.winnerIds,['p3','p4']);
 });
-test('Party Animal has no old damage multiplier and still needs the Driver to win', () => {
+test('Party Jester has no old damage multiplier and still needs the Medic to win', () => {
   const room=game(['mafia','nurse','partyAnimal','town','town']);act(room,'p0','p2');advanceMafia(room);
   assert.equal(room.mafia.sips.p2,1);assert.equal(room.mafia.hitCounts.p2,1);assert.equal(room.mafia.winner,null);
 });
-test('three hits on every opposing player, including Animal, are required', () => {
+test('three hits on every opposing player, including Jester, are required', () => {
   const room=game(['mafia','nurse','partyAnimal','town','town']);
   for(const id of ['p1','p3','p4'])room.mafia.hitCounts[id]=3;
   room.mafia.hitCounts.p2=2;advanceMafia(room);votes(room);assert.equal(room.mafia.winner,null);
@@ -129,11 +129,11 @@ test('self-sips, wrong votes, and any sip amount cannot substitute for three hit
   const room=game();for(const id of ['p2','p3','p4']){room.mafia.sips[id]=100;room.mafia.hitCounts[id]=2;}
   advanceMafia(room);votes(room,'p4');assert.equal(room.mafia.hitCounts.p4,2);assert.equal(room.mafia.winner,null);
 });
-test('town final catch beats simultaneous Instigator coverage; solos lose with either team', () => {
+test('town final catch beats simultaneous Drink Dealer coverage; solos lose with either team', () => {
   const room=game(['mafia','nurse','partyAnimal','town','town']);for(const id of ['p1','p2','p3','p4'])room.mafia.hitCounts[id]=3;
   advanceMafia(room);votes(room,'p0');assert.equal(room.mafia.winner,'town');assert.equal(room.mafia.shots.p0,2);assert.equal(room.mafia.shots.p2,1);assert(!room.mafia.winnerIds.includes('p2'));
 });
-test('all Instigator allies must be caught, including remaining Mixologists', () => {
+test('all Drink Dealer allies must be caught, including remaining Double Pourers', () => {
   const room=game();advanceMafia(room);votes(room,'p0');assert.equal(room.phase,'roundEnd');assert.equal(nightPlan(room).targetsPerAttacker,0);
   advanceMafia(room);assert.throws(()=>act(room,'p0','p4'));advanceMafia(room);votes(room,'p1');assert.equal(room.mafia.winner,'town');
 });
@@ -157,7 +157,7 @@ test('rematch clears hits, private drinks and winners but preserves settings', (
   mafiaAction(room,{isHost:true},{type:'mafiaRematch'});assert.equal(room.phase,'lobby');assert.deepEqual(room.mafia.winnerIds,[]);assert.deepEqual(room.mafia.hitCounts,{});assert.deepEqual(room.mafia.voluntarySips,{});assert.equal(room.mafia.rules.difficulty,'hard');
 });
 
-test('protection cooldown prevents all Drivers from repeating last night’s target', () => {
+test('protection cooldown prevents all Medics from repeating last night’s target', () => {
   const room=game(['mafia','nurse','nurse','town','town']);
   act(room,'p0','p4');act(room,'p1','p4');advanceMafia(room);assert.equal(room.mafia.hitCounts.p4,0);
   assert.deepEqual(mafiaState(room,'p2').private.cooldownTargets,['p4']);assert.deepEqual(mafiaState(room,'p0').private.cooldownTargets,[]);

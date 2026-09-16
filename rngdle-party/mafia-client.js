@@ -117,7 +117,7 @@ function phaseCopy() {
     discussion: ['Talk it out', 'Who do you suspect? Discuss together.'],
     voting: ['Time to vote', 'Choose a suspect on your phone.'],
     roundEnd: ['The verdict is in', 'Results are in. Next night follows.'],
-    gameOver: state.winner === 'solo' ? ['The Party Animal fooled the Driver', 'A Designated Driver chose a Party Animal. The chosen Party Animal wins independently.'] : state.winner === 'town' ? ['The town cracked the case', 'Every Instigator-team member has been caught. The town wins.'] : ['The Instigators own the night', 'Every opposing player has taken at least three successful night hits. The Instigator team wins.']
+    gameOver: state.winner === 'solo' ? ['The Party Jester fooled the Medic', 'A Party Medic chose a Party Jester. The chosen Party Jester wins independently.'] : state.winner === 'town' ? ['The town cracked the case', 'Every Drink Dealer-team member has been caught. The town wins.'] : ['The Drink Dealers own the night', 'Every opposing player has taken at least three successful night hits. The Drink Dealer team wins.']
   }[state.phase];
 }
 function render() {
@@ -185,7 +185,7 @@ function lobbyError() {
   } catch (e) { return e.message; }
 }
 function difficultyInputs(r) {
-  return `<fieldset class="difficulty-picker"><legend>Sips per action</legend><p class="small">Applies to night hits, wrong accusations, and voluntary Party Animal drinks. Mixologist matches double the sips, not the hit count.</p><div class="difficulty-grid">${Object.entries(DIFFICULTIES).map(([key,d]) => `<label class="difficulty-option"><input type="radio" name="difficulty" value="${key}" ${r.difficulty === key ? 'checked' : ''}><span class="difficulty-body"><span class="role-icon">${d.icon}</span><strong>${d.name}</strong><span>${amount(d.sips,'sip')} per action</span></span></label>`).join('')}</div></fieldset>`;
+  return `<fieldset class="difficulty-picker"><legend>Sips per action</legend><p class="small">Applies to night hits, wrong accusations, and voluntary Party Jester drinks. Double Pourer matches double the sips, not the hit count.</p><div class="difficulty-grid">${Object.entries(DIFFICULTIES).map(([key,d]) => `<label class="difficulty-option"><input type="radio" name="difficulty" value="${key}" ${r.difficulty === key ? 'checked' : ''}><span class="difficulty-body"><span class="role-icon">${d.icon}</span><strong>${d.name}</strong><span>${amount(d.sips,'sip')} per action</span></span></label>`).join('')}</div></fieldset>`;
 }
 function timerInputs(r) {
   return `<div class="timer-grid">${EDITABLE_TIMERS.map(([key,label,hint]) => `<label class="timer-card" for="cfg-${key}"><span>${label}</span><span class="timer-value"><input class="inp mono" id="cfg-${key}" type="number" name="${key}" min="0" max="300" step="1" value="${r[key]}" required><span>sec</span></span><span class="small">${hint}</span></label>`).join('')}</div>`;
@@ -194,7 +194,7 @@ function roleCards(r, editable) {
   return `<div class="role-grid">${ROLE_KEYS.map(key => {
     const role = ROLES[key];
     return `<div class="role-choice ${r[key] ? 'included' : ''}" data-role-card="${key}"><label for="role-${key}"><span class="role-icon">${role.icon}</span><span class="role-name">${role.name}</span><span class="role-team">${TEAM_NAMES[role.team]}</span></label>${editable ? `<div class="role-counter"><button type="button" data-role-step="${key}" data-step="-1" aria-label="Remove one ${role.name}">−</button><input class="mono" id="role-${key}" name="${key}" type="number" min="${key === 'mafia' ? 1 : 0}" max="12" step="1" value="${r[key]}" aria-label="${role.name} count" required><button type="button" data-role-step="${key}" data-step="1" aria-label="Add one ${role.name}">+</button></div>` : `<div class="role-number mono">${r[key]}</div>`}<details class="role-help"><summary>What they do</summary><p class="small">${role.description}</p></details></div>`;
-  }).join('')}<div class="role-choice town-fill"><span class="role-icon">🏘️</span><span class="role-name">Townspeople</span><span class="role-team">TOWN</span><output id="townCount" class="role-number mono">0</output><p class="small">Automatically fills the remaining seats.</p></div></div><p class="small" id="roleBudget" aria-live="polite"></p>`;
+  }).join('')}<div class="role-choice town-fill"><span class="role-icon">🏘️</span><span class="role-name">Partygoers</span><span class="role-team">TOWN</span><output id="townCount" class="role-number mono">0</output><p class="small">Automatically fills the remaining seats.</p></div></div><p class="small" id="roleBudget" aria-live="polite"></p>`;
 }
 function updateRoleBudget() {
   let assigned = 0;
@@ -203,7 +203,7 @@ function updateRoleBudget() {
     assigned += count; $(`[data-role-card="${role}"]`)?.classList.toggle('included', count > 0);
   }
   if ($('#townCount')) $('#townCount').textContent = Math.max(0, state.players.length - assigned);
-  if ($('#roleBudget')) $('#roleBudget').textContent = assigned > state.players.length ? `${assigned} special roles selected for ${state.players.length} players. Add players or reduce role counts.` : `${assigned} special roles + ${state.players.length - assigned} Townspeople = ${state.players.length} players. Set an optional role to 0 to leave it out.`;
+  if ($('#roleBudget')) $('#roleBudget').textContent = assigned > state.players.length ? `${assigned} special roles selected for ${state.players.length} players. Add players or reduce role counts.` : `${assigned} special roles + ${state.players.length - assigned} Partygoers = ${state.players.length} players. Set an optional role to 0 to leave it out.`;
   if ($('#config') && $('#roleBudget')) {
     const problem = lobbyError();
     $('#roleBudget').classList.toggle('notice', !!problem);
@@ -214,7 +214,7 @@ function renderSettings() {
   const host = isHostView(), r = state.rules, key = JSON.stringify([host, state.phase === 'lobby', r]);
   if (settingsKey === key) { updateRoleBudget(); return; } settingsKey = key;
   if (host && state.phase === 'lobby') {
-    $('#settings').innerHTML = `<section class="panel"><h2>Choose your cast</h2><p class="small">Start with Classic, or add a Party Animal. Extra seats become Townspeople.</p><div class="presets"><button class="secbtn" data-preset="classic">Classic</button><button class="secbtn" data-preset="animal">Party Animal</button></div><form id="config">${roleCards(r, true)}${difficultyInputs(r)}<details class="extra-settings"><summary>Round timers</summary><p class="small">The game runs automatically. Adjust night, discussion, and voting here. Role reveal and verdict use automatic defaults.</p>${timerInputs(r)}</details><p class="small">Your selections apply when you press Start game. Narration can be toggled with the sound button.</p></form></section>`;
+    $('#settings').innerHTML = `<section class="panel"><h2>Choose your cast</h2><p class="small">Start with Classic, or add a Party Jester. Extra seats become Partygoers.</p><div class="presets"><button class="secbtn" data-preset="classic">Classic</button><button class="secbtn" data-preset="animal">Party Jester</button></div><form id="config">${roleCards(r, true)}${difficultyInputs(r)}<details class="extra-settings"><summary>Round timers</summary><p class="small">The game runs automatically. Adjust night, discussion, and voting here. Role reveal and verdict use automatic defaults.</p>${timerInputs(r)}</details><p class="small">Your selections apply when you press Start game. Narration can be toggled with the sound button.</p></form></section>`;
     $('#config').oninput = () => { updateRoleBudget(); renderAction(); };
     $('#config').onsubmit = event => { event.preventDefault(); $('#start')?.click(); };
     $('#settings').querySelectorAll('[data-role-step]').forEach(button => button.onclick = () => {
@@ -248,11 +248,11 @@ function renderPrivate() {
 function resultText(result) {
   if (result.kind === 'night') return result.drinks.length ? result.drinks.map(d => `${nameOf(d.pid)} takes ${amount(d.sips,'sip')} (${amount(d.hits,'hit')})`).join(' · ') : 'No hits tonight. Somebody got lucky.';
   if (!result.target) return result.tie ? 'A tied vote. Nobody takes a penalty.' : 'No accusation. Everyone abstained or missed the vote.';
-  return `${nameOf(result.target)} ${result.caught ? 'was on the Instigator team and is out.' : 'is not an Instigator ally and stays in the game.'}`;
+  return `${nameOf(result.target)} ${result.caught ? 'was on the Drink Dealer team and is out.' : 'is not an Drink Dealer ally and stays in the game.'}`;
 }
 function renderResult() {
   const g = state;
-  $('#result').innerHTML = (g.result ? `<section class="panel"><span class="eyebrow">${g.result.kind === 'night' ? 'THE MORNING REPORT' : 'THE TABLE HAS SPOKEN'}</span><p>${resultText(g.result)}</p>${g.result.drinks.map(d => `<div class="result-row"><span>${nameOf(d.pid)}</span><strong>${d.shots ? amount(d.shots,'shot') : d.sips ? amount(d.sips,'sip') : 'No drinks'}</strong></div>`).join('')}${g.result.counts ? `<p class="small">${Object.entries(g.result.counts).map(([id,count]) => `${nameOf(id)}: ${amount(count,'vote')}`).join(' · ') || 'No votes cast'}</p>` : ''}</section>` : '') + (g.phase === 'gameOver' ? `<section class="panel host-control"><h2>${g.winner === 'solo' ? '🪩 Party Animal victory' : g.winner === 'town' ? '🏘️ Town wins' : '🥂 Instigator team wins'}</h2><p>Winners: ${g.winnerIds.map(nameOf).join(', ')}.</p><p>Losing players: ${g.players.filter(p => !g.winnerIds.includes(p.pid)).map(p => escape(p.name)).join(', ')}.</p><p><b>${amount(g.rules.losingShots,'shot')} each.</b> This is in addition to any catch penalty.</p><p class="small">All roles and total drinks, including voluntary sips, are revealed below.</p></section>` : '');
+  $('#result').innerHTML = (g.result ? `<section class="panel"><span class="eyebrow">${g.result.kind === 'night' ? 'THE MORNING REPORT' : 'THE TABLE HAS SPOKEN'}</span><p>${resultText(g.result)}</p>${g.result.drinks.map(d => `<div class="result-row"><span>${nameOf(d.pid)}</span><strong>${d.shots ? amount(d.shots,'shot') : d.sips ? amount(d.sips,'sip') : 'No drinks'}</strong></div>`).join('')}${g.result.counts ? `<p class="small">${Object.entries(g.result.counts).map(([id,count]) => `${nameOf(id)}: ${amount(count,'vote')}`).join(' · ') || 'No votes cast'}</p>` : ''}</section>` : '') + (g.phase === 'gameOver' ? `<section class="panel host-control"><h2>${g.winner === 'solo' ? '🪩 Party Jester victory' : g.winner === 'town' ? '🏘️ Town wins' : '🥂 Drink Dealer team wins'}</h2><p>Winners: ${g.winnerIds.map(nameOf).join(', ')}.</p><p>Losing players: ${g.players.filter(p => !g.winnerIds.includes(p.pid)).map(p => escape(p.name)).join(', ')}.</p><p><b>${amount(g.rules.losingShots,'shot')} each.</b> This is in addition to any catch penalty.</p><p class="small">All roles and total drinks, including voluntary sips, are revealed below.</p></section>` : '');
 }
 function renderAction() {
   const host = isHostView(), p = state.private, phase = state.phase;
