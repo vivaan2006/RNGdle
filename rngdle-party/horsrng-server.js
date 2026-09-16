@@ -6,6 +6,7 @@
 import { claimCode, releaseCode } from "./rooms-registry.js";
 
 const RACE_MS = 25000;                 // 20-30s race, per spec
+const AUTO_PICK_TIMEOUT_MS = 20000;    // stragglers get auto-assigned a horse after this long
 const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
 
 const NAMES = [
@@ -47,13 +48,25 @@ function stateMsg(room){
   return { type:"state", phase:room.phase, drinkingMode:room.drinkingMode, horses:room.horses,
     ranking:room.phase==='racing'||room.phase==='results'?room.ranking:null,
     raceStartAt:room.raceStartAt, raceDurationMs:RACE_MS,
-    hostConnected:room.hostConnected,
+    hostConnected:room.hostConnected, leaderPid:room.leaderPid,
+    pickDeadline:room.phase==='picking'?room.pickDeadline:null,
     players:[...room.players.values()].map(p=>({ pid:p.pid, name:p.name, color:p.color, horseId:p.horseId, ready:p.ready, connected:p.connected })) };
 }
 function pushState(room){ broadcast(room, stateMsg(room)); }
 
+// The room "leader" is whoever's been connected longest — normally the
+// first player to join. Only reassigned when the current leader actually
+// drops; reconnecting later does NOT reclaim it (avoids flip-flopping).
+function reassignLeaderIfNeeded(room){
+  const cur = room.leaderPid!=null ? room.players.get(room.leaderPid) : null;
+  if(cur && cur.connected) return;
+  const next=[...room.players.values()].find(p=>p.connected);
+  room.leaderPid = next ? next.pid : null;
+}
+
 function beginRace(room){
   if(room.phase!=="picking") return;
+  clearTimeout(room.pickTimer); room.pickDeadline=null;
   room.phase="racing";
   room.ranking=shuffle(room.horses.map(h=>h.id));
   room.raceStartAt=Date.now();
@@ -65,14 +78,29 @@ function maybeAutoRace(room){
   const ps=[...room.players.values()];
   if(ps.length>0 && ps.every(p=>p.ready)) beginRace(room);
 }
+// Nobody should have to sit around waiting on a straggler to pick a horse —
+// past this deadline, anyone still undecided gets a random horse so the
+// race always eventually starts on its own.
+function startPickTimer(room){
+  clearTimeout(room.pickTimer);
+  room.pickDeadline=Date.now()+AUTO_PICK_TIMEOUT_MS;
+  room.pickTimer=setTimeout(()=>{
+    if(rooms.get(room.code)!==room || room.phase!=='picking') return;
+    for(const p of room.players.values()){
+      if(p.connected && !p.ready){ p.horseId=room.horses[Math.floor(Math.random()*room.horses.length)].id; p.ready=true; }
+    }
+    room.pickDeadline=null;
+    beginRace(room);
+  }, AUTO_PICK_TIMEOUT_MS);
+}
 
 function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
     const code=makeCode();
     const hostToken=token();
-    const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), phase:"lobby", drinkingMode:!!m.drinkingMode,
-      horses:null, ranking:null, raceStartAt:null, raceTimer:null };
+    const room={ code, hostWs:ws, hostToken, hostConnected:true, players:new Map(), phase:"lobby", drinkingMode:!!m.drinkingMode,
+      horses:null, ranking:null, raceStartAt:null, raceTimer:null, leaderPid:null, pickTimer:null, pickDeadline:null };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
   }
@@ -88,6 +116,7 @@ function handle(ws, m){
     const color=COLORS[room.players.size % COLORS.length];
     room.players.set(id,{ pid:id, resumeToken:seatToken, connected:true, disconnectTimer:null, name, color, ws, horseId:null, ready:false });
     meta.set(ws,{ roomCode:code, pid:id });
+    reassignLeaderIfNeeded(room);
     send(ws,{type:"joined",pid:id,code,token:seatToken}); pushState(room); return;
   }
   if(m.type==="resume"){
@@ -96,7 +125,6 @@ function handle(ws, m){
     if(!room){ send(ws,{type:"error",msg:"Room not found — check the code."}); return; }
     if(!m.pid){   // host resuming
       if(!m.token || m.token!==room.hostToken){ send(ws,{type:"error",msg:"Could not resume as host — start a new race."}); return; }
-      clearTimeout(room.hostGraceTimer); room.hostGraceTimer=null;
       room.hostWs=ws; room.hostConnected=true;
       meta.set(ws,{ roomCode:code, isHost:true });
       send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
@@ -109,30 +137,30 @@ function handle(ws, m){
     send(ws,{type:"joined",pid:m.pid,code,token:p.resumeToken}); pushState(room); return;
   }
   const room = rooms.get(info.roomCode); if(!room) return;
-  if(m.type==="configure" && info.isHost && room.phase==="lobby"){
+  if(m.type==="configure" && info.pid===room.leaderPid && room.phase==="lobby"){
     if(typeof m.drinkingMode==="boolean") room.drinkingMode=m.drinkingMode;
     pushState(room); return;
   }
-  if(m.type==="start" && info.isHost && room.phase==="lobby"){
+  if(m.type==="start" && info.pid===room.leaderPid && room.phase==="lobby"){
     if(room.players.size<1) return;
     for(const p of room.players.values()){ p.horseId=null; p.ready=false; }
-    room.horses=genHorses(); room.phase="picking"; pushState(room); return;
+    room.horses=genHorses(); room.phase="picking"; startPickTimer(room); pushState(room); return;
   }
   if(m.type==="pickHorse" && info.pid && room.phase==="picking"){
     const p=room.players.get(info.pid); if(!p) return;
     if(!room.horses.some(h=>h.id===m.horseId)) return;
     p.horseId=m.horseId; p.ready=true; pushState(room); maybeAutoRace(room); return;
   }
-  if(m.type==="forceRace" && info.isHost && room.phase==="picking"){
+  if(m.type==="forceRace" && info.pid===room.leaderPid && room.phase==="picking"){
     for(const p of room.players.values()){ if(!p.ready){ p.horseId=room.horses[Math.floor(Math.random()*room.horses.length)].id; p.ready=true; } }
     beginRace(room); return;
   }
-  if(m.type==="rematch" && info.isHost && room.phase==="results"){
+  if(m.type==="rematch" && info.pid===room.leaderPid && room.phase==="results"){
     for(const p of room.players.values()){ p.horseId=null; p.ready=false; }
-    room.horses=genHorses(); room.ranking=null; room.raceStartAt=null; room.phase="picking"; pushState(room); return;
+    room.horses=genHorses(); room.ranking=null; room.raceStartAt=null; room.phase="picking"; startPickTimer(room); pushState(room); return;
   }
-  if(m.type==="endGame" && info.isHost){
-    clearTimeout(room.raceTimer);
+  if(m.type==="endGame" && info.pid===room.leaderPid){
+    clearTimeout(room.raceTimer); clearTimeout(room.pickTimer); room.pickDeadline=null;
     for(const p of room.players.values()){ p.horseId=null; p.ready=false; }
     room.horses=null; room.ranking=null; room.raceStartAt=null; room.phase="lobby"; pushState(room); return;
   }
@@ -143,25 +171,23 @@ function handleClose(ws){
   const room=rooms.get(info.roomCode); if(!room) return;
   if(info.isHost){
     if(room.hostWs!==ws) return;   // stale close after the host already reconnected elsewhere
+    // The shared/TV screen is a pure spectator now — nothing depends on it,
+    // so losing it must never end the race for players still on their phones.
     room.hostConnected=false; room.hostWs=null;
     pushState(room);
-    clearTimeout(room.hostGraceTimer);
-    room.hostGraceTimer=setTimeout(()=>{
-      clearTimeout(room.raceTimer);
-      broadcast(room,{type:"error",msg:"Host didn't reconnect in time — race ended."});
-      releaseCode(room.code); rooms.delete(room.code);
-    }, RECONNECT_GRACE_MS);
     return;
   }
   if(info.pid){
     const p=room.players.get(info.pid); if(!p || p.ws!==ws) return;   // stale close after a resume elsewhere
     p.connected=false; p.ws=null;
+    reassignLeaderIfNeeded(room);
     pushState(room);
     if(room.phase==="picking") maybeAutoRace(room);
     clearTimeout(p.disconnectTimer);
     p.disconnectTimer=setTimeout(()=>{
       if(room.players.get(info.pid)===p && !p.connected){
         room.players.delete(info.pid);
+        reassignLeaderIfNeeded(room);
         if(room.phase==="picking") maybeAutoRace(room);
         pushState(room);
       }
