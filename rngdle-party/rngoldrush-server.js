@@ -6,47 +6,42 @@
 // exactly the kind of thing an app is good for and a table isn't (no way to
 // "reveal on three" fairly with money on the line).
 //
-// Round shape: a 24-tile pool is shuffled once per round (15 number tiles
-// 1-15, 2 double, 3 half, 4 bust — drawn without replacement, so bust odds
-// climb as the pool drains). Every tick, all players still "in" choose
-// STAY or LEAVE at the same time; leavers split the current pot and are
-// safe, then if anyone's left "in" a tile is drawn and resolved. A bust
-// zeroes the pot and knocks out everyone still in with a flat drink penalty.
+// Round shape: every tick, all players still "in" choose STAY or LEAVE at the
+// same time; each leaver takes an equal share of the pot across everyone who
+// was in for that spin and is safe, the rest of the pot rides on, then if
+// anyone's left
+// "in" a tile is drawn from the wheel and resolved. The wheel is weights
+// rebuilt per spin (rngoldrush-rules.js, shared with the browser): gold tiles
+// by rarity, pot multipliers that sit out an empty pot, and a skull whose odds
+// start near zero and climb every spin. Skulls are strikes — it takes
+// settings.skullsToEnd of them to end the round, and only the last one zeroes
+// the pot and knocks out everyone still in with a flat drink penalty.
 // Checkpoints (every 5 ticks) and cash-out gold both convert to drinks, but
 // on separate tracks: checkpoint/bust sips are ones you *drink*, cashed-out
 // gold becomes sips you *hand out* to whoever you want at round end.
 
 import { claimCode, releaseCode } from "./rooms-registry.js";
+import "./rngoldrush-rules.js";              // sets globalThis.RNGPARTY_GOLDRUSH
+const G = globalThis.RNGPARTY_GOLDRUSH;      // wheel, rarities and settings — shared with the browser
 
 const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6','#06b6d4','#d946ef'];
 
 // ---- tunable constants (named, not magic numbers) ----
-const NUMBER_TILE_MAX   = 15;   // number tiles 1..NUMBER_TILE_MAX, one of each
-const X2_TILE_COUNT     = 2;
-const HALF_TILE_COUNT   = 3;
-const BUST_TILE_COUNT   = 4;
 const GOLD_TO_SIP_RATIO = 5;    // 5 gold cashed out = 1 sip to give
 const BUST_PENALTY_SIPS = 2;    // flat sips drunk immediately on a bust
 const CHECKPOINT_INTERVAL = 5;  // every 5th tick is a checkpoint
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
 const AUTO_STAY_TIMEOUT_MS = 15000; // a connected player who hasn't chosen by this deadline auto-stays
-
-function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-
-function newPool(){
-  const tiles=[];
-  for(let n=1;n<=NUMBER_TILE_MAX;n++) tiles.push({type:'number',value:n});
-  for(let i=0;i<X2_TILE_COUNT;i++) tiles.push({type:'x2'});
-  for(let i=0;i<HALF_TILE_COUNT;i++) tiles.push({type:'half'});
-  for(let i=0;i<BUST_TILE_COUNT;i++) tiles.push({type:'bust'});
-  return shuffle(tiles);
-}
-function poolRemaining(pool){
-  const r={number:0,x2:0,half:0,bust:0};
-  for(const t of pool) r[t.type]++;
-  return r;
-}
+// Clients play a slot-reel animation on every draw and keep the choice buttons
+// hidden until the whole reveal has played out: the spin itself (matched to the
+// length of an RNGdle number reveal), the losing boxes clearing, a beat with the
+// winner shut, its rarity lighting up, the number opening, and a last beat
+// before the round UI comes back.
+// REEL_TOTAL_MS in rngoldrush.html is the same number. The auto-stay clock has
+// to wait all of it out or players lose most of their window to an animation
+// they can't skip. Change both.
+const REEL_REVEAL_MS = 7500 + 300 + 1000 + 900 + 1000;
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -68,7 +63,10 @@ function stateMsg(room){
     type:"state", phase:room.phase, hostConnected:room.hostConnected, leaderPid:room.leaderPid,
     pot:room.pot, tick:room.tick,
     tickDeadline: room.phase==="round" ? room.tickDeadline : null,
-    poolRemaining: room.phase==="round" ? poolRemaining(room.pool) : null,
+    // Clients rebuild the wheel from these with the same shared rules file, so
+    // the odds they display can't drift from the odds actually drawn from.
+    settings: room.settings, skulls: room.skulls,
+    skullPct: room.phase==="round" ? G.skullChance(room.tick, room.settings)*100 : null,
     roundLog: room.roundLog,
     players:[...room.players.values()].map(p=>({
       pid:p.pid, name:p.name, color:p.color, connected:p.connected,
@@ -91,9 +89,12 @@ function reassignLeaderIfNeeded(room){
   room.leaderPid = next ? next.pid : null;
 }
 
-function startTickTimer(room){
+// leadMs is dead time before the decision window opens — the reel animation
+// after a draw. The deadline pushed to clients includes it.
+function startTickTimer(room, leadMs=0){
   clearTimeout(room.tickTimer);
-  room.tickDeadline = Date.now()+AUTO_STAY_TIMEOUT_MS;
+  const total = leadMs + AUTO_STAY_TIMEOUT_MS;
+  room.tickDeadline = Date.now()+total;
   room.tickTimer = setTimeout(()=>{
     if(rooms.get(room.code)!==room || room.phase!=='round') return;
     let changed=false;
@@ -103,7 +104,7 @@ function startTickTimer(room){
     room.tickDeadline=null;
     if(changed) pushState(room);
     if(allDecided(room)) resolveTick(room);
-  }, AUTO_STAY_TIMEOUT_MS);
+  }, total);
 }
 
 function beginRound(room){
@@ -111,10 +112,11 @@ function beginRound(room){
   const connected=[...room.players.values()].filter(p=>p.connected);
   if(connected.length<MIN_PLAYERS) return;
   room.phase="round";
-  room.pot=0;
-  room.pool=newPool();
+  room.pot=G.startingPot(connected.length, room.settings);
   room.roundLog=[];
+  if(room.pot>0) room.roundLog.push({type:'seed', gold:room.pot, players:connected.length});
   room.tick=0;
+  room.skulls=0;
   for(const p of room.players.values()){
     p.choice=null; p.roundGold=0; p.sipBalance=0; p.sipsGiven=0; p.receivedSips=0;
     p.checkpointSips=0; p.bustPenaltySips=0;
@@ -161,7 +163,7 @@ function resolveTick(room){
   const stayers=inPlayers.filter(p=>effectiveChoice(p)==='stay');
 
   if(leavers.length){
-    const share=Math.floor(room.pot/leavers.length);
+    const share=G.cashOutShare(room.pot, inPlayers.length);
     leavers.forEach(p=>{
       p.roundGold=share;
       p.sipBalance=Math.floor(share/GOLD_TO_SIP_RATIO);
@@ -173,19 +175,31 @@ function resolveTick(room){
 
   if(stayers.length===0){ finishRound(room); return; }
 
-  const tile=room.pool.shift();
-  if(tile.type==='number'){ room.pot+=tile.value; room.roundLog.push({type:'draw',tileType:'number',value:tile.value,potAfter:room.pot}); }
+  // The wheel is rebuilt per spin from the tick and the pot, so skulls creep
+  // in as the round runs long and the pot multipliers sit it out while the pot
+  // is empty. room.tick was already incremented above, so this is the wheel the
+  // clients have been showing odds for since the last draw landed.
+  const tile=G.drawTile(G.buildWheel({tick:room.tick-1, pot:room.pot, settings:room.settings}));
+  if(tile.type==='number'){ room.pot+=tile.value; room.roundLog.push({type:'draw',tileType:'number',value:tile.value,tier:tile.tier,potAfter:room.pot}); }
   else if(tile.type==='x2'){ room.pot*=2; room.roundLog.push({type:'draw',tileType:'x2',potAfter:room.pot}); }
   else if(tile.type==='half'){ room.pot=Math.floor(room.pot/2); room.roundLog.push({type:'draw',tileType:'half',potAfter:room.pot}); }
   else if(tile.type==='bust'){
-    room.pot=0;
-    room.roundLog.push({type:'draw',tileType:'bust',potAfter:0});
-    stayers.forEach(p=>{ p.bustPenaltySips=BUST_PENALTY_SIPS; p.status='busted'; p.choice=null; });
+    // Skulls are strikes until the last one. An early skull costs nothing but
+    // nerve — the pot rides through it — which is what makes pushing on after
+    // one a real decision rather than a formality.
+    room.skulls++;
+    const fatal = room.skulls>=room.settings.skullsToEnd;
+    room.roundLog.push({type:'draw',tileType:'bust',strike:room.skulls,of:room.settings.skullsToEnd,
+                        fatal, potAfter: fatal?0:room.pot});
+    if(fatal){
+      room.pot=0;
+      stayers.forEach(p=>{ p.bustPenaltySips=BUST_PENALTY_SIPS; p.status='busted'; p.choice=null; });
+    }
   }
-  if(tile.type!=='bust') stayers.forEach(p=>{ p.choice=null; });
+  if(!(tile.type==='bust' && room.skulls>=room.settings.skullsToEnd)) stayers.forEach(p=>{ p.choice=null; });
 
   const stillIn=[...room.players.values()].some(p=>p.status==='in');
-  if(stillIn){ pushState(room); startTickTimer(room); } else finishRound(room);
+  if(stillIn){ pushState(room); startTickTimer(room, REEL_REVEAL_MS); } else finishRound(room);
 }
 
 // Checkpoints only go up to the highest spin count anyone actually reached
@@ -211,7 +225,8 @@ function handle(ws, m){
     const code=makeCode();
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, players:new Map(),
-      phase:"lobby", pot:0, pool:[], roundLog:[], tick:0, leaderPid:null, tickTimer:null, tickDeadline:null };
+      phase:"lobby", pot:0, roundLog:[], tick:0, skulls:0, settings:G.defaults(),
+      leaderPid:null, tickTimer:null, tickDeadline:null };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:hostToken}); pushState(room); return;
   }
@@ -256,6 +271,14 @@ function handle(ws, m){
   if(m.type==="start" && info.pid===room.leaderPid && (room.phase==="lobby"||room.phase==="results")){
     beginRound(room); return;
   }
+  // The leader retunes the game at any point, mid-round included. The wheel is
+  // rebuilt for every draw, so a change lands on the next spin and never
+  // rewrites a draw already resolved — but it does move the odds on a pot
+  // people are already in for, which is the leader's call to make.
+  if(m.type==="settings" && info.pid===room.leaderPid){
+    room.settings=G.clampSettings(m.settings);
+    pushState(room); return;
+  }
   if(m.type==="choice" && info.pid && room.phase==="round"){
     submitChoice(room, info.pid, m.value); return;
   }
@@ -266,7 +289,7 @@ function handle(ws, m){
     pushState(room); return;
   }
   if(m.type==="endGame" && info.pid===room.leaderPid){
-    room.phase="lobby"; room.pot=0; room.pool=[]; room.roundLog=[]; room.tick=0;
+    room.phase="lobby"; room.pot=0; room.roundLog=[]; room.tick=0; room.skulls=0;
     for(const p of room.players.values()){
       p.status='in'; p.choice=null; p.spinCount=0; p.roundGold=0;
       p.sipBalance=0; p.sipsGiven=0; p.receivedSips=0; p.checkpointSips=0; p.bustPenaltySips=0;

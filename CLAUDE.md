@@ -38,6 +38,7 @@ horsrng-server.js    \
 imposter-server.js    > one room map each, own ws path
 rngoldrush-server.js  |
 irishpoker-server.js /
+rngoldrush-rules.js  SHARED: RNGold Rush wheel, rarities, settings (browser+server)
 rooms-registry.js    SHARED: mints globally unique room codes, maps code -> game
 qr.js                SHARED: QR encoder (byte mode, EC M, versions 1-10)
 join-qr.js           SHARED: renders a join QR, resolving a LAN-reachable origin
@@ -45,8 +46,11 @@ drinks.js            SHARED: drinking rules, loaded by browser AND server
 engine.js            vendored rngdle scoring engine — do not read or edit
 ```
 
-`drinks.js`, `qr.js`, `join-qr.js` and `rooms-registry.js` are loaded by both
-the browser and the server on purpose, so rules exist in exactly one place.
+`drinks.js`, `qr.js`, `join-qr.js`, `rngoldrush-rules.js` and
+`rooms-registry.js` are loaded by both the browser and the server on purpose,
+so rules exist in exactly one place. RNGold Rush needs this twice over: the
+server draws from the wheel, and the local party mode plays a whole game in the
+browser off the same file.
 
 ## Things that cost time when forgotten
 
@@ -61,6 +65,9 @@ the browser and the server on purpose, so rules exist in exactly one place.
   server holds the round open for as long as clients animate. Change both or
   rounds end mid-animation.
 - **Rooms are in memory.** Any restart or deploy drops every live room.
+- **New shared files need a static route.** A file loaded by the browser must
+  be added to `STATIC` in `server.js` or it 404s — and a server already running
+  won't pick up the new route until it's restarted.
 
 ## Running and verifying
 

@@ -31,7 +31,8 @@ const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "
   "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
   "/imposter": "imposter.html", "/imposter.html": "imposter.html",
   "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html",
-  "/irishpoker": "irishpoker.html", "/irishpoker.html": "irishpoker.html" };
+  "/irishpoker": "irishpoker.html", "/irishpoker.html": "irishpoker.html",
+  "/rngoldrush-rules.js": "rngoldrush-rules.js" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
