@@ -168,6 +168,8 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
         <div class="d">Show this on a TV/laptop. Friends join from their phones.</div></div>
       <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a game</div>
         <div class="d">Enter the room code from the host screen.</div></div>
+      <div class="choice" id="localBtn"><div class="ic">🎉</div><div class="t">Local party</div>
+        <div class="d">One screen, no phones. Pass it around for each secret call.</div></div>
     </div>
   </div>
 
@@ -195,6 +197,52 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
     </div>
 
     <div id="hResults" class="hidden"></div>
+  </div>
+
+  <!-- ===== LOCAL PARTY (one shared screen, no room/WS at all) =====
+       The tick is a simultaneous SECRET call, which a shared screen can't do
+       honestly — so instead of asking everyone at once we hand the screen
+       round, gating each player behind a "pass to X" card so nobody sees the
+       previous answer. Same tile pool, same maths, same payouts as online. -->
+  <div id="localPartyView" class="hidden">
+    <div id="lSetup">
+      <div class="panel"><h3>Who's playing?</h3>
+        <div class="prow"><input class="inp" id="lName" placeholder="Add a player…" maxlength="18" autocomplete="off">
+          <button class="secbtn" id="lAdd">Add</button></div>
+        <div class="plist" id="lList"></div>
+        <div class="small mt8" id="lHint">Add at least 2 players.</div>
+      </div>
+      <button class="bigbtn" id="lStart" disabled>Start Round ⛏️</button>
+      <div class="center mt16"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+    </div>
+
+    <div id="lRound" class="hidden">
+      <div class="potbox"><div class="lbl">SHARED POT</div><div class="amt" id="lPotAmt">0g</div>
+        <div class="tilebar" id="lTileBar"></div></div>
+      <div class="reelbox"><div class="reelwindow"><div class="reelstrip" id="lReelStrip"></div></div>
+        <div class="reelresult" id="lReelResult"></div></div>
+
+      <!-- gate: hides the last player's answer before the next one looks -->
+      <div id="lPass" class="hidden">
+        <div class="panel center"><h3 id="lPassName">Pass the screen</h3>
+          <div class="small mt8" id="lPassSub">Hand it over, then tap when you're the only one looking.</div>
+          <button class="bigbtn" id="lPassReady">I'm ready 👀</button></div>
+      </div>
+      <!-- that player's secret call -->
+      <div id="lChoose" class="hidden">
+        <div class="panel center"><h3 id="lChooseName">Your call</h3>
+          <div class="stakebar">
+            <button class="leavebtn" id="lLeaveBtn">💰 Cash Out</button>
+            <button class="rollbtn" id="lStayBtn">🎲 Push It</button>
+          </div>
+          <div class="small center mt16" id="lChooseProgress"></div></div>
+      </div>
+
+      <div class="panel"><h3>Players</h3><div class="plist" id="lRoundList"></div></div>
+      <div class="panel"><h3>Live Feed</h3><div class="roundlog" id="lRoundLog"></div></div>
+    </div>
+
+    <div id="lResults" class="hidden"></div>
   </div>
 
   <!-- ===== PLAYER (phone) ===== -->
@@ -462,7 +510,7 @@ function resultsHtml(s){
 /* ==================================================================
    HOST (shared/TV screen)
    ================================================================== */
-function showOnly(id){ ['chooseView','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
+function showOnly(id){ ['chooseView','hostView','playerView','localPartyView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
 function startHost(){ NET.role='host'; showOnly('hostView'); NET.connect(()=>NET.send({type:'host'})); }
 function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pGame').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
 $('#hostBtn').addEventListener('click',startHost);
@@ -530,6 +578,188 @@ function hostRender(s){
       `<div class="small center mt16">${leader?`Waiting on ${leader} for the next round…`:''}</div>`;
     scrollLogToNewest($('#hResults .roundlog'));
   }
+}
+
+/* ==================================================================
+   LOCAL PARTY — one screen, pass-and-tap
+   ------------------------------------------------------------------
+   The round maths is a port of rngoldrush-server.js: same pool, same
+   GOLD_TO_SIP_RATIO, same checkpoint rule, so a local round scores
+   identically to an online one. GLP.state is shaped like the server's
+   stateMsg() so the shared renderers (playerRowHtml, resultsHtml,
+   roundLogHtml, tileBarHtml, spinReel) work unchanged.
+   ================================================================== */
+const L_NUMBER_TILE_MAX=15, L_X2=2, L_HALF=3, L_BUST=4;
+const L_GOLD_TO_SIP=5, L_BUST_PENALTY=2, L_CHECKPOINT=5, L_MIN=2, L_MAX=10;
+const L_COLORS=['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14b8a6','#eab308','#f97316','#8b5cf6'];
+
+const GLP={ players:[], phase:'setup', pot:0, pool:[], roundLog:[], tick:0, queue:[], qi:0, logLen:null };
+
+function lShuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function lNewPool(){ const t=[];
+  for(let n=1;n<=L_NUMBER_TILE_MAX;n++) t.push({type:'number',value:n});
+  for(let i=0;i<L_X2;i++) t.push({type:'x2'});
+  for(let i=0;i<L_HALF;i++) t.push({type:'half'});
+  for(let i=0;i<L_BUST;i++) t.push({type:'bust'});
+  return lShuffle(t); }
+function lPoolRemaining(pool){ const r={number:0,x2:0,half:0,bust:0}; for(const t of pool) r[t.type]++; return r; }
+
+/* Shaped exactly like the server's stateMsg() so shared renderers just work. */
+function lState(){
+  return { phase:GLP.phase, pot:GLP.pot, tick:GLP.tick,
+    poolRemaining: GLP.phase==='round' ? lPoolRemaining(GLP.pool) : null,
+    roundLog:GLP.roundLog, leaderPid:null, hostConnected:true,
+    players:GLP.players.map(p=>({ ...p, connected:true, locked:p.status==='in'&&p.choice!=null })) };
+}
+
+function lRenderSetup(){
+  const list=$('#lList'); list.innerHTML='';
+  GLP.players.forEach((p,i)=>{
+    const c=document.createElement('div'); c.className='pchip';
+    c.innerHTML=`${avatarHtml(p)}<span>${escapeHtml(p.name)}</span>`;
+    const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
+    rm.onclick=()=>{ GLP.players.splice(i,1); lRenderSetup(); };
+    c.appendChild(rm); list.appendChild(c);
+  });
+  const n=GLP.players.length;
+  $('#lHint').textContent = n<L_MIN ? `Add at least ${L_MIN} players.` : n>=L_MAX ? `Table full (${L_MAX} max).` : `${n} players ready.`;
+  $('#lStart').disabled = n<L_MIN;
+}
+function lAddPlayer(){
+  const inp=$('#lName'), name=inp.value.trim();
+  if(!name || GLP.players.length>=L_MAX) return;
+  if(GLP.players.some(p=>p.name.toLowerCase()===name.toLowerCase())){ inp.select(); return; }
+  GLP.players.push({ pid:'l'+GLP.players.length+Date.now().toString(36), name,
+    color:L_COLORS[GLP.players.length%L_COLORS.length], status:'in', choice:null, spinCount:0,
+    roundGold:0, sipBalance:0, sipsGiven:0, receivedSips:0, checkpointSips:0, bustPenaltySips:0 });
+  inp.value=''; inp.focus(); lRenderSetup();
+}
+$('#lAdd').addEventListener('click',lAddPlayer);
+$('#lName').addEventListener('keydown',e=>{ if(e.key==='Enter') lAddPlayer(); });
+
+function startLocalParty(){ showOnly('localPartyView');
+  $('#lRound').classList.add('hidden'); $('#lResults').classList.add('hidden'); $('#lSetup').classList.remove('hidden');
+  GLP.phase='setup'; lRenderSetup(); }
+$('#localBtn').addEventListener('click',startLocalParty);
+
+function lBeginRound(){
+  if(GLP.players.length<L_MIN) return;
+  GSFX.resume();
+  GLP.phase='round'; GLP.pot=0; GLP.pool=lNewPool(); GLP.roundLog=[]; GLP.tick=0; GLP.logLen=null;
+  GLP.players.forEach(p=>{ p.status='in'; p.choice=null; p.spinCount=0; p.roundGold=0;
+    p.sipBalance=0; p.sipsGiven=0; p.receivedSips=0; p.checkpointSips=0; p.bustPenaltySips=0; });
+  $('#lSetup').classList.add('hidden'); $('#lResults').classList.add('hidden'); $('#lRound').classList.remove('hidden');
+  resetReel($('#lReelStrip'), $('#lReelResult'));
+  lRenderRound(); lStartAsking();
+}
+$('#lStart').addEventListener('click',lBeginRound);
+
+/* Hand the screen round one player at a time, gated so nobody sees the
+   answer before them. */
+function lStartAsking(){
+  GLP.queue=GLP.players.filter(p=>p.status==='in').map(p=>p.pid);
+  GLP.qi=0;
+  lAskNext();
+}
+function lAskNext(){
+  if(GLP.qi>=GLP.queue.length){ $('#lPass').classList.add('hidden'); $('#lChoose').classList.add('hidden'); lResolveTick(); return; }
+  const p=GLP.players.find(x=>x.pid===GLP.queue[GLP.qi]);
+  $('#lChoose').classList.add('hidden');
+  $('#lPass').classList.remove('hidden');
+  $('#lPassName').textContent=`Pass to ${p.name}`;
+  $('#lPassSub').textContent=`${GLP.qi+1} of ${GLP.queue.length} this spin — everyone else look away.`;
+}
+$('#lPassReady').addEventListener('click',()=>{
+  const p=GLP.players.find(x=>x.pid===GLP.queue[GLP.qi]); if(!p) return;
+  GSFX.resume();
+  $('#lPass').classList.add('hidden'); $('#lChoose').classList.remove('hidden');
+  $('#lChooseName').textContent=`${p.name} — your call`;
+  $('#lChooseProgress').textContent=`Pot is ${fmtGold(GLP.pot)} · spin ${p.spinCount+1}`;
+});
+function lChoose(value){
+  const p=GLP.players.find(x=>x.pid===GLP.queue[GLP.qi]); if(!p) return;
+  p.choice=value; GLP.qi++; lAskNext();
+}
+$('#lStayBtn').addEventListener('click',()=>lChoose('stay'));
+$('#lLeaveBtn').addEventListener('click',()=>lChoose('leave'));
+
+/* Port of the server's resolveTick(). */
+function lResolveTick(){
+  const inPlayers=GLP.players.filter(p=>p.status==='in');
+  inPlayers.forEach(p=>p.spinCount++);
+  GLP.tick++;
+  const leavers=inPlayers.filter(p=>p.choice==='leave');
+  const stayers=inPlayers.filter(p=>p.choice!=='leave');
+  if(leavers.length){
+    const share=Math.floor(GLP.pot/leavers.length);
+    leavers.forEach(p=>{ p.roundGold=share; p.sipBalance=Math.floor(share/L_GOLD_TO_SIP);
+      p.status='left'; p.choice=null;
+      GLP.roundLog.push({type:'leave',pid:p.pid,name:p.name,gold:share}); });
+    GLP.pot-=share*leavers.length;
+  }
+  if(stayers.length===0){ lFinishRound(); return; }
+  const tile=GLP.pool.shift();
+  if(tile.type==='number'){ GLP.pot+=tile.value; GLP.roundLog.push({type:'draw',tileType:'number',value:tile.value,potAfter:GLP.pot}); }
+  else if(tile.type==='x2'){ GLP.pot*=2; GLP.roundLog.push({type:'draw',tileType:'x2',potAfter:GLP.pot}); }
+  else if(tile.type==='half'){ GLP.pot=Math.floor(GLP.pot/2); GLP.roundLog.push({type:'draw',tileType:'half',potAfter:GLP.pot}); }
+  else { GLP.pot=0; GLP.roundLog.push({type:'draw',tileType:'bust',potAfter:0});
+    stayers.forEach(p=>{ p.bustPenaltySips=L_BUST_PENALTY; p.status='busted'; p.choice=null; }); }
+  if(tile.type!=='bust') stayers.forEach(p=>{ p.choice=null; });
+  const stillIn=GLP.players.some(p=>p.status==='in');
+  lRenderRound(()=>{ if(stillIn) lStartAsking(); else lFinishRound(); });
+}
+/* Port of the server's finishRound() checkpoint rule. */
+function lFinishRound(){
+  const participants=GLP.players.filter(p=>p.status==='left'||p.status==='busted');
+  const maxSpin=participants.reduce((m,p)=>Math.max(m,p.spinCount),0);
+  const n=Math.floor(maxSpin/L_CHECKPOINT);
+  participants.forEach(p=>{ let sips=0; for(let i=1;i<=n;i++){ if(p.spinCount<i*L_CHECKPOINT) sips++; } p.checkpointSips=sips; });
+  GLP.phase='results';
+  $('#lRound').classList.add('hidden'); $('#lResults').classList.remove('hidden');
+  lRenderResults();
+}
+
+/* Same shape as renderHostRound(), but with its own reel bookkeeping so it
+   never fights NET.hLogLen. */
+function lRenderRound(onDone){
+  const s=lState();
+  const isNewDraw = GLP.logLen!=null && s.roundLog.length===GLP.logLen+1 && s.roundLog[s.roundLog.length-1].type==='draw';
+  GLP.logLen=s.roundLog.length;
+  const paint=()=>{ $('#lRoundList').innerHTML=s.players.map(playerRowHtml).join('');
+    $('#lTileBar').innerHTML=tileBarHtml(s.poolRemaining);
+    $('#lRoundLog').innerHTML=roundLogHtml(s.roundLog);
+    scrollLogToNewest($('#lRoundLog')); };
+  if(isNewDraw){
+    const tile=tileFromDrawEntry(s.roundLog[s.roundLog.length-1]);
+    $('#lPass').classList.add('hidden'); $('#lChoose').classList.add('hidden');
+    spinReel($('#lReelStrip'), $('#lReelResult'), tile, ()=>{ flashPot($('#lPotAmt'), s.pot, tile.type); paint(); onDone&&onDone(); });
+  } else { $('#lPotAmt').textContent=fmtGold(s.pot); paint(); onDone&&onDone(); }
+}
+
+function lRenderResults(){
+  const s=lState();
+  let html=resultsHtml(s);
+  const givers=GLP.players.filter(p=>p.sipBalance>0);
+  givers.forEach(g=>{
+    const others=GLP.players.filter(p=>p.pid!==g.pid);
+    html+=`<div class="panel"><h3>${escapeHtml(g.name)} gives out ${g.sipBalance} sip${g.sipBalance===1?'':'s'}</h3>
+      <div class="givegrid" data-from="${g.pid}">${others.map(p=>`<button class="giveopt" data-to="${p.pid}">${avatarHtml(p)}<div class="mt8">${escapeHtml(p.name)}</div><span class="rcv">received ${p.receivedSips}</span></button>`).join('')}</div></div>`;
+  });
+  html+=`<div class="panel"><h3>Live Feed</h3><div class="roundlog">${roundLogHtml(s.roundLog)}</div></div>`;
+  html+=`<div class="actionbar"><button class="rollbtn" id="lNextRound">Next Round ⛏️</button><button class="secbtn" id="lNewParty">New party</button></div>`;
+  $('#lResults').innerHTML=html;
+  scrollLogToNewest($('#lResults .roundlog'));
+  $('#lResults').querySelectorAll('.givegrid').forEach(grid=>{
+    grid.querySelectorAll('.giveopt').forEach(b=>b.addEventListener('click',()=>{
+      const from=GLP.players.find(p=>p.pid===grid.dataset.from), to=GLP.players.find(p=>p.pid===b.dataset.to);
+      if(!from||!to||from.sipBalance<=0) return;
+      GSFX.resume(); GSFX.coin();
+      from.sipBalance--; from.sipsGiven++; to.receivedSips++;
+      lRenderResults();
+    }));
+  });
+  $('#lNextRound').addEventListener('click',lBeginRound);
+  $('#lNewParty').addEventListener('click',startLocalParty);
 }
 
 /* ---------- player: join flow ---------- */
