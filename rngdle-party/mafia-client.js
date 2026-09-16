@@ -112,11 +112,11 @@ const me = () => state.players.find(p => p.pid === viewerId());
 function phaseCopy() {
   return {
     lobby: ['The table is open', 'Gather your suspects. Everyone joins on their own device, then the host deals the roles.'],
-    roleReveal: ['Keep your role close', 'Check your secret role on your own screen. Tap ready when you know which side you are on.'],
-    night: ['The town goes quiet', 'Make your secret move on your phone. Everyone locks in, then the town wakes up.'],
-    discussion: ['Somebody knows something', `Share your suspicions, defend your alibi, and hear everyone out. ${state.deadline ? 'Voting opens automatically when the countdown ends.' : 'The host opens voting when the table is ready.'}`],
-    voting: ['Who is starting the trouble?', 'Choose who you suspect. Votes stay secret until everyone locks in or the timer ends.'],
-    roundEnd: ['The verdict is in', `Take a look at the vote. Anyone who received sips stays in the game. ${state.deadline ? 'The next night starts automatically when the countdown ends.' : 'The host starts the next night.'}`],
+    roleReveal: ['Check your role', 'Check your phone. Tap Ready.'],
+    night: ['Night moves', 'Make your move on your phone.'],
+    discussion: ['Talk it out', 'Who do you suspect? Discuss together.'],
+    voting: ['Time to vote', 'Choose a suspect on your phone.'],
+    roundEnd: ['The verdict is in', 'Results are in. Next night follows.'],
     gameOver: state.winner === 'solo' ? ['The Party Animal fooled the Driver', 'A Designated Driver chose a Party Animal. The chosen Party Animal wins independently.'] : state.winner === 'town' ? ['The town cracked the case', 'Every Instigator-team member has been caught. The town wins.'] : ['The Instigators own the night', 'Every opposing player has taken at least three successful night hits. The Instigator team wins.']
   }[state.phase];
 }
@@ -125,6 +125,7 @@ function render() {
   $('#joinHint').textContent = state.testing ? 'Local test room · bots only' : ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) ? 'Open the server’s Wi-Fi address on your phone, then enter this code.' : `Open ${location.host} on your phone and enter this code.`;
   document.body.classList.toggle('in-room', !!session);
   document.body.classList.toggle('playing', state.phase !== 'lobby');
+  document.body.classList.toggle('host-screen', isHostView());
   $('#joinQR').classList.toggle('hidden', !!state.testing || session?.role !== 'host');
   if (state.phase === 'lobby') $('#phase').after($('#action')); else $('#result').after($('#action'));
   if (!state.testing || !state.players.some(p => p.pid === testPlayer)) testPlayer = null;
@@ -132,10 +133,22 @@ function render() {
   const phaseKey = `${state.phase}:${state.round}`;
   if (lastPhase !== phaseKey) { selected = null; revealed = false; lastPhase = phaseKey; $('#rosterPanel').open = ['lobby', 'gameOver'].includes(state.phase); narrate(); }
   const [title, copy] = phaseCopy(), host = isHostView();
-  $('#phase').innerHTML = `<section class="panel phase-panel"><div class="phase-head"><span class="eyebrow">${state.phase === 'lobby' ? 'MAKE IT YOUR PARTY' : `ROUND ${state.round}`}</span><span class="clock mono" id="clock"></span></div><h1>${title}</h1><p>${copy}</p>${['roleReveal','night','voting'].includes(state.phase) ? `<span class="pill">${state.progress.submitted} / ${state.progress.total} locked in</span>` : ''}${host && state.phase === 'lobby' ? '<p class="small">This is the shared host screen. To play too, open the join link on your phone or in another tab.</p>' : ''}</section>`;
+  $('#phase').innerHTML = `<section class="panel phase-panel"><div class="phase-head"><span class="eyebrow">${state.phase === 'lobby' ? 'MAKE IT YOUR PARTY' : `ROUND ${state.round}`}</span><span class="clock mono" id="clock"></span></div><h1>${title}</h1>${host || state.phase === 'lobby' || state.phase === 'gameOver' ? `<p>${copy}</p>` : ''}${['roleReveal','night','voting'].includes(state.phase) ? `<span class="pill">${state.progress.submitted} of ${state.progress.total} players ready</span>` : ''}${host && state.phase === 'lobby' ? '<p class="small">This is the shared host screen. To play too, open the join link on your phone or in another tab.</p>' : ''}</section>`;
   renderTesting(); renderSettings(); renderPrivate(); renderResult(); renderAction(); renderRoster(); renderHistory(); updateClock();
-  if (state.phase === 'lobby') { $('#testing').after($('#settings')); $('#settings').after($('#private')); }
-  else { $('#phase').after($('#private')); $('#private').after($('#action')); $('#action').after($('#result')); $('#history').after($('#settings')); }
+  const lobby = state.phase === 'lobby';
+  $('#gameExtras').classList.toggle('hidden', lobby);
+  if (lobby) $('#room').prepend($('.room-bar')); else $('#extraContent').append($('.room-bar'));
+  if (lobby) {
+    $('#testing').after($('#settings')); $('#settings').after($('#private'));
+    $('#result').after($('#rosterPanel')); $('#rosterPanel').after($('#history')); $('#room').after($('#rules'));
+  } else {
+    $('#phase').after($('#action')); $('#action').after($('#result')); $('#result').after($('#private'));
+    if (state.phase === 'roleReveal' && !host) $('#phase').after($('#private'));
+    if (['discussion','roundEnd','gameOver'].includes(state.phase)) $('#phase').after($('#result'));
+    for (const id of ['rosterPanel','history','settings','rules']) $('#extraContent').append($( '#' + id));
+    if (host && state.deadline) $('#extraContent').prepend($('#action'));
+    if (state.phase === 'gameOver') $('#result').after($('#rosterPanel'));
+  }
 }
 function testCommand(type, extra = {}) { send({ type, phase: state.phase, round: state.round, ...extra }); }
 function renderTesting() {
@@ -228,7 +241,7 @@ function renderPrivate() {
   const p = state.private;
   if (!p || isHostView()) { $('#private').innerHTML = ''; return; }
   const role = ROLES[p.role];
-  $('#private').innerHTML = `<section class="panel private-card ${revealed && role.team === 'mafia' ? 'mafia-team' : ''}"><div class="section-head"><span class="eyebrow">FOR YOUR EYES ONLY</span><button class="secbtn" id="reveal">${revealed ? 'Hide role' : 'Reveal role'}</button></div>${revealed ? `<div class="role-title"><span class="large-icon">${role.icon}</span><div><h2>${role.name}</h2><span class="pill">${TEAM_NAMES[role.team]}</span></div></div><p>${role.description}</p>${p.teamIds.length ? `<p class="small">Your team: ${p.teamIds.map(nameOf).join(', ')}. You can target anyone, including yourself and these teammates.</p>` : ''}${p.investigations.length ? `<h3>Your vibe checks</h3>${p.investigations.map(i => `<p class="small">Night ${i.round}: <b>${nameOf(i.pid)}</b> — ${TEAM_NAMES[i.team]}</p>`).join('')}` : ''}${p.role === 'partyAnimal' ? `<div class="animal-drinks"><p class="small">${amount(p.voluntarySips,'voluntary sip')} logged. Your voluntary tally stays private until the game ends and never adds hits.</p>${state.phase !== 'gameOver' ? `<button class="bigbtn ghost" id="animalSip">Take ${amount(sipsPerAction(state.rules),'sip')} →</button>` : ''}</div>` : ''}` : '<div class="role-cover"><span class="large-icon">🤫</span><strong>Your secret is safe.</strong><span class="small">Reveal only when your screen is private.</span></div>'}${me()?.active === false ? '<p class="notice">You were caught. Follow the game here; you can no longer act or vote.</p>' : ''}</section>`;
+  $('#private').innerHTML = `<section class="panel private-card ${revealed && role.team === 'mafia' ? 'mafia-team' : ''}"><div class="section-head"><span class="eyebrow">YOUR ROLE</span><button class="secbtn role-reveal-button" id="reveal">${revealed ? 'Hide role' : 'Reveal role'}</button></div>${revealed ? `<div class="role-title"><span class="large-icon">${role.icon}</span><div><h2>${role.name}</h2><span class="pill">${TEAM_NAMES[role.team]}</span></div></div><details class="role-instructions"><summary>How your role works</summary><p>${role.description}</p></details>${p.teamIds.length ? `<p class="small">Your team: ${p.teamIds.map(nameOf).join(', ')}. </p>` : ''}${p.investigations.length ? `<h3>Your vibe checks</h3>${p.investigations.map(i => `<p class="small">Night ${i.round}: <b>${nameOf(i.pid)}</b> — ${TEAM_NAMES[i.team]}</p>`).join('')}` : ''}${p.role === 'partyAnimal' ? `<div class="animal-drinks"><p class="small">${amount(p.voluntarySips,'voluntary sip')} logged. </p>${state.phase !== 'gameOver' ? `<button class="bigbtn ghost" id="animalSip">Take ${amount(sipsPerAction(state.rules),'sip')} →</button>` : ''}</div>` : ''}` : '<div class="role-cover"><span class="large-icon">🤫</span><span class="small">Keep your phone private.</span></div>'}${me()?.active === false ? '<p class="notice">You’re out. Watch the game here.</p>' : ''}</section>`;
   $('#reveal').onclick = () => { revealed = !revealed; renderPrivate(); renderAction(); };
   if ($('#animalSip')) $('#animalSip').onclick = () => send({ type: 'mafiaSip' });
 }
@@ -245,7 +258,7 @@ function renderAction() {
   const host = isHostView(), p = state.private, phase = state.phase;
   if (host && phase === 'lobby') {
     const problem = lobbyError();
-    $('#action').innerHTML = `<section class="panel host-control lobby-start"><div><h2>${state.players.length} players at the table</h2><p id="startStatus" class="${problem ? 'notice' : 'small'}" role="status">${escape(problem || 'Ready to go. Start applies the roles and difficulty selected below.')}</p></div><button class="bigbtn" id="start" aria-describedby="startStatus" ${problem ? 'disabled' : ''}>Start game →</button></section>`;
+    $('#action').innerHTML = `<section class="panel host-control lobby-start"><div><h2>${state.players.length} players at the table</h2><p id="startStatus" class="${problem ? 'notice' : 'small'}" role="status">${escape(problem || 'Ready when you are.')}</p></div><button class="bigbtn" id="start" aria-describedby="startStatus" ${problem ? 'disabled' : ''}>Start game →</button></section>`;
     $('#start').onclick = () => {
       if (!$('#config').reportValidity()) return;
       const problem = lobbyError(); if (problem) { error(problem); renderAction(); return; }
@@ -262,14 +275,19 @@ function renderAction() {
     return;
   }
   if (phase === 'lobby') { $('#action').innerHTML = '<p class="notice">You’re in. The host will deal roles when everyone is here.</p>'; return; }
-  if (!p || !me()?.active || !['roleReveal','night','voting'].includes(phase)) { $('#action').innerHTML = ''; return; }
+  if (!p || phase === 'gameOver') { $('#action').innerHTML = ''; return; }
+  if (!me()?.active) { $('#action').innerHTML = '<section class="panel next-action"><span class="eyebrow">YOU ARE OUT</span><h2>Watch the game unfold</h2><p>No action needed.</p></section>'; return; }
+  if (['discussion', 'roundEnd'].includes(phase)) { $('#action').innerHTML = '<section class="panel next-action"><span class="eyebrow">WHAT TO DO NOW</span><h2>' + (phase === 'discussion' ? 'Share your suspicions' : 'Check the results above') + '</h2><p>' + (phase === 'discussion' ? 'Voting is next.' : 'Next night follows.') + '</p></section>'; return; }
   if (phase === 'roleReveal') {
-    $('#action').innerHTML = `<button class="bigbtn" id="ready" ${p.ready || !revealed ? 'disabled' : ''}>${p.ready ? 'Ready ✓ Waiting for the table' : !revealed ? 'Reveal your role first' : 'I know my role. Ready →'}</button>`;
+    $('#action').innerHTML = `<button class="bigbtn" id="ready" ${p.ready || !revealed ? 'disabled' : ''}>${p.ready ? '✓ Ready' : !revealed ? 'Reveal your role first' : 'Ready →'}</button>`;
     $('#ready').onclick = () => send({ type: 'mafiaReady' }); return;
   }
-  if (phase === 'night' && !revealed) { $('#action').innerHTML = '<p class="notice">Reveal your private role to make your night move.</p>'; return; }
+  if (phase === 'night' && !revealed) {
+    $('#action').innerHTML = '<section class="panel next-action"><span class="eyebrow">YOUR TURN</span><h2>Make your night move</h2><p>Keep your phone private.</p><button class="bigbtn" id="showNight">Show my night move →</button></section>';
+    $('#showNight').onclick = () => { revealed = true; renderPrivate(); renderAction(); }; return;
+  }
   const locked = phase === 'night' ? p.acted : p.voted;
-  if (locked) { $('#action').innerHTML = '<p class="notice">Locked in ✓ You can hide your role while the others finish.</p>'; return; }
+  if (locked) { $('#action').innerHTML = '<section class="panel next-action done"><span class="eyebrow">✓ LOCKED IN</span><h2>You’re done for now</h2><p>Waiting for the table.</p></section>'; return; }
   const cooling = id => phase === 'night' && p.role === 'nurse' && p.cooldownTargets.includes(id);
   const noProtection = phase === 'night' && p.role === 'nurse' && !state.players.some(target => target.active && (target.pid !== viewerId() || state.rules.nurseSelf) && !cooling(target.pid));
   const civilian = phase === 'night' && (!hasNightAbility(p.role) || noProtection);
@@ -278,7 +296,7 @@ function renderAction() {
   const multi = phase === 'night' && p.role === 'mafia', picks = Array.isArray(selected) ? selected : [];
   const isSelected = id => multi ? picks.includes(id) : selected === id;
   const limit = state.nightPlan.targetsPerAttacker;
-  $('#action').innerHTML = `<section class="panel"><h2>${phase === 'voting' ? 'Choose your suspect' : titles[p.role]}</h2><p class="small">${civilian ? noProtection ? 'No eligible protection targets this night. Lock in to wait for the next night.' : 'You have no targeted night ability. Lock in to keep the table moving.' : multi ? `Choose up to ${limit} different players. ${picks.length} / ${limit} selected. Teammates and yourself are allowed.` : 'Choose carefully. Once locked in, your choice cannot change.'}</p>${!civilian ? `<div class="targets">${candidates.map(target => `<button class="target ${isSelected(target.pid) ? 'selected' : ''}" data-target="${target.pid}" aria-pressed="${isSelected(target.pid)}" ${cooling(target.pid) || multi && picks.length >= limit && !isSelected(target.pid) ? 'disabled' : ''}>${escape(target.name)}<span class="small">${cooling(target.pid) ? 'Protected last night' : `${target.hits} / ${state.hitGoal} hits · ${amount(target.sips,'sip')}`}</span></button>`).join('')}${phase === 'voting' ? `<button class="target ${selected === 'abstain' ? 'selected' : ''}" data-target="abstain" aria-pressed="${selected === 'abstain'}">Abstain<span class="small">No accusation</span></button>` : ''}</div>` : ''}<button class="bigbtn" id="lock" ${!civilian && (multi ? !picks.length : !selected) ? 'disabled' : ''}>${civilian ? 'Wait for dawn →' : multi ? 'Lock in targets →' : 'Lock in choice →'}</button></section>`;
+  $('#action').innerHTML = `<section class="panel next-action"><span class="eyebrow">YOUR TURN</span><h2>${phase === 'voting' ? 'Choose your suspect' : titles[p.role]}</h2><p class="small">${civilian ? noProtection ? 'No one can be protected tonight.' : 'No night move. Tap below.' : multi ? `Pick up to ${limit} · ${picks.length} selected` : 'Pick one player.'}</p>${!civilian ? `<div class="targets">${candidates.map(target => `<button class="target ${isSelected(target.pid) ? 'selected' : ''}" data-target="${target.pid}" aria-pressed="${isSelected(target.pid)}" ${cooling(target.pid) || multi && picks.length >= limit && !isSelected(target.pid) ? 'disabled' : ''}>${escape(target.name)}<span class="small">${cooling(target.pid) ? 'Protected last night' : `${target.hits} / ${state.hitGoal} hits`}</span></button>`).join('')}${phase === 'voting' ? `<button class="target ${selected === 'abstain' ? 'selected' : ''}" data-target="abstain" aria-pressed="${selected === 'abstain'}">Abstain<span class="small">No accusation</span></button>` : ''}</div>` : ''}<button class="bigbtn" id="lock" ${!civilian && (multi ? !picks.length : !selected) ? 'disabled' : ''}>${civilian ? 'Done →' : multi ? 'Confirm targets →' : 'Confirm →'}</button></section>`;
   $('#action').querySelectorAll('[data-target]').forEach(button => button.onclick = () => {
     const id = button.dataset.target;
     selected = multi ? picks.includes(id) ? picks.filter(pid => pid !== id) : [...picks, id] : id;
