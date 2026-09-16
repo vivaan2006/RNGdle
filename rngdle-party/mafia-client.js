@@ -91,7 +91,7 @@ function renderJoinQR() {
   const box = $('#joinQR');
   if (local && joinOrigin === location.origin) {
     box.textContent = 'Finding phone join address…';
-    fetch('/api/mafia-join').then(r => r.json()).then(info => {
+    fetch('/api/lan-origin').then(r => r.json()).then(info => {
       if (!info.origin) throw new Error('No network address');
       joinOrigin = info.origin; renderJoinQR();
     }).catch(() => { box.textContent = 'Open this page using your computer’s Wi-Fi address to show a phone QR code.'; });
@@ -327,7 +327,14 @@ $('#roleGuide').innerHTML = Object.values(ROLES).map(role => `<div><h3>${role.ic
 const roomCode = new URLSearchParams(location.search).get('room');
 if (roomCode) $('#code').value = roomCode.toUpperCase().slice(0,4);
 if (session?.token && (!roomCode || session.code === roomCode.toUpperCase())) connect({ type: 'resume', ...session });
-else { session = null; if (roomCode) $('#name').focus(); }
+else {
+  session = null;
+  const nameParam = new URLSearchParams(location.search).get('name');
+  if (roomCode && nameParam) {          // came from the hub: don't ask again
+    $('#name').value = nameParam.slice(0, 18);
+    if ($('#join').requestSubmit) $('#join').requestSubmit(); else $('#join').onsubmit(new Event('submit'));
+  } else if (roomCode) $('#name').focus();
+}
 
 // Keep development controls hidden unless the server explicitly enables them.
 fetch('/api/mafia-config').then(response => response.ok ? response.json() : null).then(config => {
