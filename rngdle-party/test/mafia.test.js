@@ -28,9 +28,34 @@ test('presets replace raw sip amounts and reject invalid settings', () => {
 });
 test('Party Animals require a Driver and do not count toward the town majority', () => {
   assert.match(setupError({...DEFAULT_RULES,partyAnimal:1,nurse:0},6),/Designated Driver/);
-  assert.match(setupError({...DEFAULT_RULES,partyAnimal:1},5),/smaller/);
-  assert.equal(setupError({...DEFAULT_RULES,partyAnimal:1},6),'');
+  assert.match(setupError({...DEFAULT_RULES,mixologist:1,partyAnimal:1},5),/smaller/);
+  assert.equal(setupError({...DEFAULT_RULES,mixologist:1,partyAnimal:1},6),'');
   assert.equal(setupError(DEFAULT_RULES,5),'');
+});
+
+test('start applies the displayed five-player cast without a separate save', () => {
+  const room = {players:new Map(Array.from({length:5},(_,i)=>['p'+i,{connected:true}])), mafia:createMafia(), phase:'lobby'};
+  // The previously saved mix would block this party. The current selection must win.
+  room.mafia.rules = {...DEFAULT_RULES, mixologist:1, partyAnimal:1};
+  assert(setupError(room.mafia.rules,5));
+  mafiaAction(room,{isHost:true},{type:'start',rules:{mafia:1,mixologist:0,detective:0,nurse:1,partyAnimal:1,difficulty:'easy'}});
+  assert.equal(room.phase,'roleReveal');
+  assert.deepEqual(Object.values(room.mafia.roles).sort(),['mafia','nurse','partyAnimal','town','town']);
+  assert.equal(room.mafia.rules.difficulty,'easy');
+});
+
+test('default cast starts with four players; failed starts do not save invalid changes', () => {
+  const room = {players:new Map(Array.from({length:4},(_,i)=>['p'+i,{connected:true}])), mafia:createMafia(), phase:'lobby'};
+  const saved = {...room.mafia.rules};
+  assert.throws(()=>mafiaAction(room,{isHost:true},{type:'start',rules:{nurse:0,partyAnimal:1}}),/Driver/);
+  assert.deepEqual(room.mafia.rules,saved);assert.equal(room.phase,'lobby');
+  room.players.get('p0').connected=false;
+  assert.throws(()=>mafiaAction(room,{isHost:true},{type:'start',rules:{difficulty:'hard'}}),/disconnected/);
+  assert.deepEqual(room.mafia.rules,saved);
+  room.players.get('p0').connected=true;
+  mafiaAction(room,{isHost:true},{type:'start'});
+  assert.equal(room.phase,'roleReveal');
+  assert.deepEqual(Object.values(room.mafia.roles).sort(),['detective','mafia','nurse','town']);
 });
 test('configured roles deal correctly; remainder are town', () => {
   const room=game(['mafia','detective','nurse','partyAnimal','town','town']);room.phase='lobby';startMafia(room);

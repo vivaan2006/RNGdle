@@ -1,4 +1,4 @@
-import { ROLES, ROLE_KEYS, TIMER_FIELDS, DEFAULT_RULES, DIFFICULTIES, TEAM_NAMES, sipsPerAction, hasNightAbility, canTargetSelf } from './mafia-rules.js';
+import { ROLES, ROLE_KEYS, TIMER_FIELDS, DEFAULT_RULES, DIFFICULTIES, TEAM_NAMES, normalizeRules, setupError, sipsPerAction, hasNightAbility, canTargetSelf } from './mafia-rules.js';
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const KEY = 'rngparty_mafia_session';
@@ -35,6 +35,7 @@ function connect(message) {
       session = { code: m.code, pid: m.pid || null, token: m.token, role: m.type === 'hosted' ? 'host' : 'player' };
       retry = 0; save(); connection(''); $('#entry').classList.add('hidden'); $('#room').classList.remove('hidden');
       $('#copy').textContent = session.code;
+      $('#headerCode').textContent = session.code; $('#headerCode').classList.remove('hidden');
     } else if (m.type === 'state' && m.game === 'mafia') {
       state = m; serverOffset = (m.serverNow || Date.now()) - Date.now(); connection(m.hostConnected ? '' : 'The host disconnected. Waiting for them to return…'); render();
     } else if (m.type === 'error') {
@@ -42,6 +43,7 @@ function connect(message) {
       if (m.fatal || message.type === 'resume' && !authenticated) {
         stopped = true; session = null; sessionStorage.removeItem(KEY); socket.close();
         $('#entry').classList.remove('hidden'); $('#room').classList.add('hidden');
+        $('#headerCode').classList.add('hidden'); document.body.classList.remove('in-room');
       }
       $('#host').disabled = false; $('#join button').disabled = false; $('#testHost').disabled = false;
     }
@@ -87,7 +89,7 @@ async function copyLink() {
   try { await navigator.clipboard.writeText(link); $('#copyLink').textContent = 'Copied ✓'; setTimeout(() => $('#copyLink').textContent = 'Copy join link', 1800); }
   catch { prompt('Share this join link:', link); }
 }
-$('#copy').onclick = $('#copyLink').onclick = copyLink;
+$('#copy').onclick = $('#copyLink').onclick = $('#headerCode').onclick = copyLink;
 const nameOf = id => escape(state.players.find(p => p.pid === id)?.name || 'Player');
 const amount = (n, unit) => `${n} ${unit}${n === 1 ? '' : 's'}`;
 const me = () => state.players.find(p => p.pid === viewerId());
@@ -103,13 +105,17 @@ function phaseCopy() {
   }[state.phase];
 }
 function render() {
+  $('#joinedCount').textContent = `${state.players.filter(p => p.connected).length} players joined${session?.role === 'host' && !state.testing ? ' · host display is not a player' : ''}`;
+  $('#joinHint').textContent = state.testing ? 'Local test room · bots only' : ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) ? 'Open the server’s Wi-Fi address on your phone, then enter this code.' : `Open ${location.host} on your phone and enter this code.`;
+  document.body.classList.toggle('in-room', !!session);
+  if (state.phase === 'lobby') $('#phase').after($('#action')); else $('#result').after($('#action'));
   if (!state.testing || !state.players.some(p => p.pid === testPlayer)) testPlayer = null;
   if (state.testing) state.private = state.testing.seats.find(p => p.pid === testPlayer)?.private || null;
   const phaseKey = `${state.phase}:${state.round}`;
   if (lastPhase !== phaseKey) { selected = null; revealed = false; lastPhase = phaseKey; narrate(); }
   const [title, copy] = phaseCopy(), host = isHostView();
   $('#phase').innerHTML = `<section class="panel phase-panel"><div class="phase-head"><span class="eyebrow">${state.phase === 'lobby' ? 'MAKE IT YOUR PARTY' : `ROUND ${state.round}`}</span><span class="clock mono" id="clock"></span></div><h1>${title}</h1>${state.phase !== 'lobby' && state.phase !== 'gameOver' ? `<div class="phase-steps">${[['roleReveal','Roles'],['night','Night'],['discussion','Discuss'],['voting','Vote'],['roundEnd','Verdict']].map(([key, label]) => `<span class="phase-step ${state.phase === key ? 'current' : ''}">${label}</span>`).join('')}</div>` : ''}<p>${copy}</p>${['roleReveal','night','voting'].includes(state.phase) ? `<span class="pill">${state.progress.submitted} / ${state.progress.total} locked in</span>` : ''}${host && state.phase === 'lobby' ? '<p class="small">This is the shared host screen. To play too, open the join link on your phone or in another tab.</p>' : ''}</section>`;
-  if (state.phase !== 'gameOver') $('#phase').insertAdjacentHTML('beforeend', `<p class="notice">${state.nightPlan.attackers ? `Each Instigator can choose up to <b>${state.nightPlan.targetsPerAttacker} different players</b> tonight (${state.nightPlan.players} players, ${state.nightPlan.attackers} active Instigator${state.nightPlan.attackers === 1 ? '' : 's'}).` : 'No active Instigators remain. The town still needs to catch the remaining Mixologists.'} The Instigator team needs <b>3 night hits on every opposing player</b>. Sips and hits are tracked separately.</p>`);
+  if (!['lobby', 'gameOver'].includes(state.phase)) $('#phase').insertAdjacentHTML('beforeend', `<p class="notice">${state.nightPlan.attackers ? `Each Instigator can choose up to <b>${state.nightPlan.targetsPerAttacker} different players</b> tonight (${state.nightPlan.players} players, ${state.nightPlan.attackers} active Instigator${state.nightPlan.attackers === 1 ? '' : 's'}).` : 'No active Instigators remain. The town still needs to catch the remaining Mixologists.'} The Instigator team needs <b>3 night hits on every opposing player</b>. Sips and hits are tracked separately.</p>`);
   renderTesting(); renderSettings(); renderPrivate(); renderResult(); renderAction(); renderRoster(); renderHistory(); updateClock();
 }
 function testCommand(type, extra = {}) { send({ type, phase: state.phase, round: state.round, ...extra }); }
@@ -129,19 +135,33 @@ function renderTesting() {
   if ($('#testReset')) $('#testReset').onclick = () => { testPlayer = null; selected = null; revealed = false; settingsKey = ''; testCommand('mafiaTestReset'); };
   if ($('#testCountForm')) $('#testCountForm').onsubmit = event => { event.preventDefault(); testCommand('mafiaTestPlayers', { count: Number($('#testCount').value) }); };
 }
-const fields = [
-  ['caughtShots','Caught Instigator ally','Shots per eliminated ally',0,10],['losingShots','Losing players','Shots per losing player',0,10]
-];
+const EDITABLE_TIMERS = TIMER_FIELDS.filter(([key]) => ['nightSeconds', 'discussionSeconds', 'voteSeconds'].includes(key));
+function lobbyRules() {
+  const form = $('#config');
+  if (!form) return state.rules;
+  const data = new FormData(form), rules = {};
+  [...ROLE_KEYS, ...EDITABLE_TIMERS.map(([key]) => key)].forEach(key => rules[key] = data.get(key) === '' ? NaN : Number(data.get(key)));
+  rules.difficulty = data.get('difficulty');
+  return normalizeRules(rules, state.rules);
+}
+function lobbyError() {
+  try {
+    const problem = setupError(lobbyRules(), state.players.length);
+    if (problem) return problem;
+    const offline = state.players.filter(p => !p.connected);
+    return offline.length ? `Waiting for ${offline.map(p => p.name).join(', ')} to reconnect. They can rejoin, or you can remove their seat below.` : '';
+  } catch (e) { return e.message; }
+}
 function difficultyInputs(r) {
   return `<fieldset class="difficulty-picker"><legend>Sips per action</legend><p class="small">Applies to night hits, wrong accusations, and voluntary Party Animal drinks. Mixologist matches double the sips, not the hit count.</p><div class="difficulty-grid">${Object.entries(DIFFICULTIES).map(([key,d]) => `<label class="difficulty-option"><input type="radio" name="difficulty" value="${key}" ${r.difficulty === key ? 'checked' : ''}><span class="difficulty-body"><span class="role-icon">${d.icon}</span><strong>${d.name}</strong><span>${amount(d.sips,'sip')} per action</span></span></label>`).join('')}</div></fieldset>`;
 }
 function timerInputs(r) {
-  return `<div class="timer-grid">${TIMER_FIELDS.map(([key,label,hint]) => `<label class="timer-card" for="cfg-${key}"><span>${label}</span><span class="timer-value"><input class="inp mono" id="cfg-${key}" type="number" name="${key}" min="0" max="300" step="1" value="${r[key]}" required><span>sec</span></span><span class="small">${hint}</span></label>`).join('')}</div>`;
+  return `<div class="timer-grid">${EDITABLE_TIMERS.map(([key,label,hint]) => `<label class="timer-card" for="cfg-${key}"><span>${label}</span><span class="timer-value"><input class="inp mono" id="cfg-${key}" type="number" name="${key}" min="0" max="300" step="1" value="${r[key]}" required><span>sec</span></span><span class="small">${hint}</span></label>`).join('')}</div>`;
 }
 function roleCards(r, editable) {
   return `<div class="role-grid">${ROLE_KEYS.map(key => {
     const role = ROLES[key];
-    return `<div class="role-choice ${r[key] ? 'included' : ''}" data-role-card="${key}"><label for="role-${key}"><span class="role-icon">${role.icon}</span><span class="role-name">${role.name}</span><span class="role-team">${TEAM_NAMES[role.team]}</span></label>${editable ? `<div class="role-counter"><button type="button" data-role-step="${key}" data-step="-1" aria-label="Remove one ${role.name}">−</button><input class="mono" id="role-${key}" name="${key}" type="number" min="${key === 'mafia' ? 1 : 0}" max="12" step="1" value="${r[key]}" aria-label="${role.name} count" required><button type="button" data-role-step="${key}" data-step="1" aria-label="Add one ${role.name}">+</button></div>` : `<div class="role-number mono">${r[key]}</div>`}<p class="small">${role.description}</p></div>`;
+    return `<div class="role-choice ${r[key] ? 'included' : ''}" data-role-card="${key}"><label for="role-${key}"><span class="role-icon">${role.icon}</span><span class="role-name">${role.name}</span><span class="role-team">${TEAM_NAMES[role.team]}</span></label>${editable ? `<div class="role-counter"><button type="button" data-role-step="${key}" data-step="-1" aria-label="Remove one ${role.name}">−</button><input class="mono" id="role-${key}" name="${key}" type="number" min="${key === 'mafia' ? 1 : 0}" max="12" step="1" value="${r[key]}" aria-label="${role.name} count" required><button type="button" data-role-step="${key}" data-step="1" aria-label="Add one ${role.name}">+</button></div>` : `<div class="role-number mono">${r[key]}</div>`}<details class="role-help"><summary>What they do</summary><p class="small">${role.description}</p></details></div>`;
   }).join('')}<div class="role-choice town-fill"><span class="role-icon">🏘️</span><span class="role-name">Townspeople</span><span class="role-team">TOWN</span><output id="townCount" class="role-number mono">0</output><p class="small">Automatically fills the remaining seats.</p></div></div><p class="small" id="roleBudget" aria-live="polite"></p>`;
 }
 function updateRoleBudget() {
@@ -152,40 +172,35 @@ function updateRoleBudget() {
   }
   if ($('#townCount')) $('#townCount').textContent = Math.max(0, state.players.length - assigned);
   if ($('#roleBudget')) $('#roleBudget').textContent = assigned > state.players.length ? `${assigned} special roles selected for ${state.players.length} players. Add players or reduce role counts.` : `${assigned} special roles + ${state.players.length - assigned} Townspeople = ${state.players.length} players. Set an optional role to 0 to leave it out.`;
+  if ($('#config') && $('#roleBudget')) {
+    const problem = lobbyError();
+    $('#roleBudget').classList.toggle('notice', !!problem);
+    if (problem) $('#roleBudget').textContent = problem;
+  }
 }
 function renderSettings() {
   const host = isHostView(), r = state.rules, key = JSON.stringify([host, state.phase === 'lobby', r]);
   if (settingsKey === key) { updateRoleBudget(); return; } settingsKey = key;
   if (host && state.phase === 'lobby') {
-    $('#settings').innerHTML = `<details class="panel" open><summary>Party rules</summary><div class="settings-heading"><h3>Build your cast</h3><p class="small">Pick the roles, then set how many of each join the game.</p></div><div class="presets"><button class="secbtn" data-preset="classic">Classic · 4+ players</button><button class="secbtn" data-preset="house">House mix · 5+ players</button><button class="secbtn" data-preset="chaos">Wild card · 6+ players</button></div><form id="config">${roleCards(r, true)}${difficultyInputs(r)}<div class="settings-heading"><h3>Let the game run itself</h3><p class="small">Every phase advances automatically. Roles, night moves, and votes can finish early when everyone locks in. Set a timer to 0 for manual pacing.</p></div>${timerInputs(r)}<button class="secbtn" type="button" id="defaultTimers">Use automatic timer defaults</button><details class="extra-settings"><summary>Drinks & other rules</summary><div class="settings-grid">${fields.map(([key,label,hint,min,max]) => `<label class="setting"><span>${label}<span class="small">${hint}</span></span><input class="inp" type="number" name="${key}" value="${r[key]}" min="${min}" max="${max}" step="1" required></label>`).join('')}<label class="setting"><span>Narration<span class="small">Host can enable spoken cues</span></span><input name="narration" type="checkbox" ${r.narration ? 'checked' : ''}></label><label class="setting"><span>Protection cooldown<span class="small">No Driver can repeat last night’s protected players</span></span><input name="protectionCooldown" type="checkbox" ${r.protectionCooldown ? 'checked' : ''}></label><label class="setting"><span>Driver can protect themself</span><input name="nurseSelf" type="checkbox" ${r.nurseSelf ? 'checked' : ''}></label></div></details><button class="bigbtn ghost">Save party rules</button><p id="unsaved" class="small">These are the saved rules. Changes apply after saving.</p></form></details>`;
-    $('#config').oninput = () => { updateRoleBudget(); $('#unsaved').textContent = 'Unsaved changes — save before dealing roles.'; const start = $('#start'); if (start) start.disabled = true; };
+    $('#settings').innerHTML = `<section class="panel"><h2>Choose your cast</h2><p class="small">Start with Classic, or add a Party Animal. Extra seats become Townspeople.</p><div class="presets"><button class="secbtn" data-preset="classic">Classic</button><button class="secbtn" data-preset="animal">Party Animal</button></div><form id="config">${roleCards(r, true)}${difficultyInputs(r)}<details class="extra-settings"><summary>Round timers</summary><p class="small">The game runs automatically. Adjust night, discussion, and voting here. Role reveal and verdict use automatic defaults.</p>${timerInputs(r)}</details><p class="small">Your selections apply when you press Start game. Narration can be toggled with the sound button.</p></form></section>`;
+    $('#config').oninput = () => { updateRoleBudget(); renderAction(); };
+    $('#config').onsubmit = event => { event.preventDefault(); $('#start')?.click(); };
     $('#settings').querySelectorAll('[data-role-step]').forEach(button => button.onclick = () => {
-      const input = $(`#role-${button.dataset.roleStep}`);
+      const input = $('#role-' + button.dataset.roleStep);
       if (button.dataset.step === '1') input.stepUp(); else input.stepDown();
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    $('#defaultTimers').onclick = () => { TIMER_FIELDS.forEach(([key]) => $(`[name="${key}"]`).value = DEFAULT_RULES[key]); $('#config').dispatchEvent(new Event('input')); };
-    $('#config').onsubmit = event => {
-      event.preventDefault(); const form = new FormData(event.currentTarget), rules = {};
-      [...ROLE_KEYS, ...fields.map(([key]) => key), ...TIMER_FIELDS.map(([key]) => key)].forEach(key => rules[key] = Number(form.get(key)));
-      rules.difficulty = form.get('difficulty');
-      rules.narration = form.has('narration'); rules.nurseSelf = form.has('nurseSelf');
-      rules.protectionCooldown = form.has('protectionCooldown');
-      settingsKey = ''; send({ type: 'mafiaConfigure', rules });
-    };
     $('#settings').querySelectorAll('[data-preset]').forEach(button => button.onclick = () => {
-      settingsKey = '';
-      // Cast presets preserve the party's timers and drink settings.
-      const roles = Object.fromEntries(ROLE_KEYS.map(key => [key, DEFAULT_RULES[key]]));
-      if (button.dataset.preset === 'classic') roles.mixologist = 0;
-      if (button.dataset.preset === 'chaos') roles.partyAnimal = 1;
-      send({ type: 'mafiaConfigure', rules: roles });
+      const animal = button.dataset.preset === 'animal';
+      const roles = { mafia: 1, mixologist: 0, detective: animal ? 0 : 1, nurse: 1, partyAnimal: animal ? 1 : 0 };
+      for (const role of ROLE_KEYS) $('#role-' + role).value = roles[role];
+      $('#config').dispatchEvent(new Event('input'));
     });
   } else {
-    $('#settings').innerHTML = `<details class="panel"><summary>This room’s roles & rules</summary>${roleCards(r, false)}<p class="small">${DIFFICULTIES[r.difficulty].name}: ${amount(sipsPerAction(r),'sip')} per action · Caught: ${amount(r.caughtShots,'shot')} · Losing players: ${amount(r.losingShots,'shot')}<br>Narration ${r.narration ? 'on' : 'off'} · Driver self-protection ${r.nurseSelf ? 'on' : 'off'}</p><p class="small">${TIMER_FIELDS.map(([key,label]) => `${label}: ${r[key] ? r[key] + 's' : 'manual'}`).join(' · ')}</p></details>${host ? `<details class="panel"><summary>Edit round timers</summary><p class="small">Saving restarts this phase’s countdown with the new duration. Role counts and drink rules stay locked until the next lobby. Set 0 to pause automatic advancement in a phase.</p><form id="liveTimers">${timerInputs(r)}<button class="bigbtn ghost">Save timers</button></form></details>` : ''}`;
+    $('#settings').innerHTML = `<details class="panel"><summary>This room’s roles & rules</summary>${roleCards(r, false)}<p class="small">${DIFFICULTIES[r.difficulty].name}: ${amount(sipsPerAction(r),'sip')} per action · Caught: ${amount(r.caughtShots,'shot')} · Losing players: ${amount(r.losingShots,'shot')}</p><p class="small">${TIMER_FIELDS.map(([key,label]) => label + ': ' + (r[key] ? r[key] + 's' : 'manual')).join(' · ')}</p></details>${host ? `<details class="panel"><summary>Edit round timers</summary><p class="small">Saving restarts this phase’s countdown. Set 0 to pause a phase.</p><form id="liveTimers">${timerInputs(r)}<button class="bigbtn ghost">Save timers</button></form></details>` : ''}`;
     if ($('#liveTimers')) $('#liveTimers').onsubmit = event => {
       event.preventDefault(); const form = new FormData(event.currentTarget);
-      send({ type: 'mafiaTimers', rules: Object.fromEntries(TIMER_FIELDS.map(([key]) => [key, Number(form.get(key))])) });
+      send({ type: 'mafiaTimers', rules: Object.fromEntries(EDITABLE_TIMERS.map(([key]) => [key, Number(form.get(key))])) });
     };
   }
   updateRoleBudget();
@@ -209,12 +224,22 @@ function renderResult() {
 }
 function renderAction() {
   const host = isHostView(), p = state.private, phase = state.phase;
+  if (host && phase === 'lobby') {
+    const problem = lobbyError();
+    $('#action').innerHTML = `<section class="panel host-control lobby-start"><div><h2>${state.players.length} players at the table</h2><p id="startStatus" class="${problem ? 'notice' : 'small'}" role="status">${escape(problem || 'Ready to go. Start applies the roles and difficulty selected below.')}</p></div><button class="bigbtn" id="start" aria-describedby="startStatus" ${problem ? 'disabled' : ''}>Start game →</button></section>`;
+    $('#start').onclick = () => {
+      if (!$('#config').reportValidity()) return;
+      const problem = lobbyError(); if (problem) { error(problem); renderAction(); return; }
+      send({ type: 'start', rules: lobbyRules() });
+    };
+    return;
+  }
   if (host) {
-    const label = { lobby: 'Deal secret roles →', roleReveal: 'Start night with current players →', night: 'Resolve night now →', discussion: 'Open voting →', voting: 'Close voting now →', roundEnd: 'Next night →', gameOver: 'Open a new lobby →' }[phase];
+    const label = { roleReveal: 'Start night with current players →', night: 'Resolve night now →', discussion: 'Open voting →', voting: 'Close voting now →', roundEnd: 'Next night →', gameOver: 'Open a new lobby →' }[phase];
     const missing = state.progress.total - state.progress.submitted;
     const auto = !!state.deadline;
-    $('#action').innerHTML = `${auto ? '<details class="panel host-control"><summary>Host override · skip ahead</summary><p class="small">The timer is running. No host action is needed.</p>' : `<section class="panel host-control"><h2>${phase === 'lobby' ? 'Ready for trouble?' : 'Host controls'}</h2>`}${phase === 'lobby' && state.setupError ? `<p class="notice">${escape(state.setupError)}</p>` : ''}${['night','voting','roleReveal'].includes(phase) ? `<p class="small">${missing} still pending. ${phase === 'night' ? 'Resolving now skips missing actions.' : phase === 'voting' ? 'Closing now treats missing votes as abstentions.' : 'You can start if someone has not tapped ready.'}</p>` : ''}<button class="bigbtn" id="start" ${phase === 'lobby' && (state.setupError || state.players.some(p => !p.connected) || $('#unsaved')?.textContent.startsWith('Unsaved')) ? 'disabled' : ''}>${label}</button>${auto ? '</details>' : '</section>'}`;
-    $('#start').onclick = () => { if (missing && ['roleReveal','night','voting'].includes(phase) && !confirm('Advance with missing responses? Unsubmitted actions will be skipped.')) return; send({ type: phase === 'lobby' ? 'start' : phase === 'gameOver' ? 'mafiaRematch' : 'mafiaAdvance', phase, round: state.round }); };
+    $('#action').innerHTML = `${auto ? '<details class="panel host-control"><summary>Host override · skip ahead</summary><p class="small">The timer is running. No host action is needed.</p>' : `<section class="panel host-control"><h2>Host controls</h2>`}${['night','voting','roleReveal'].includes(phase) ? `<p class="small">${missing} still pending. ${phase === 'night' ? 'Resolving now skips missing actions.' : phase === 'voting' ? 'Closing now treats missing votes as abstentions.' : 'You can start if someone has not tapped ready.'}</p>` : ''}<button class="bigbtn" id="start">${label}</button>${auto ? '</details>' : '</section>'}`;
+    $('#start').onclick = () => { if (missing && ['roleReveal','night','voting'].includes(phase) && !confirm('Advance with missing responses? Unsubmitted actions will be skipped.')) return; send({ type: phase === 'gameOver' ? 'mafiaRematch' : 'mafiaAdvance', phase, round: state.round }); };
     return;
   }
   if (phase === 'lobby') { $('#action').innerHTML = '<p class="notice">You’re in. The host will deal roles when everyone is here.</p>'; return; }

@@ -20,15 +20,15 @@ export function nightPlan(room) {
   return { players, attackers, targetsPerAttacker, totalPicks: attackers * targetsPerAttacker };
 }
 
-export function startMafia(room) {
-  const g = room.mafia, ids = [...room.players.keys()];
-  const error = setupError(g.rules, ids.length);
+export function startMafia(room, rules = room.mafia.rules) {
+  const ids = [...room.players.keys()];
+  const error = setupError(rules, ids.length);
   if (error) fail(error);
   if ([...room.players.values()].some(p => !p.connected)) fail('Wait for disconnected players to return or remove them in the lobby.');
-  const roles = ROLE_KEYS.flatMap(r => Array(g.rules[r] || 0).fill(r));
+  const roles = ROLE_KEYS.flatMap(r => Array(rules[r] || 0).fill(r));
   while (roles.length < ids.length) roles.push('town');
   for (let i = roles.length - 1; i > 0; i--) { const j = randomInt(i + 1); [roles[i], roles[j]] = [roles[j], roles[i]]; }
-  room.mafia = { ...createMafia(), rules: g.rules };
+  room.mafia = { ...createMafia(), rules };
   ids.forEach((id, i) => {
     room.mafia.roles[id] = roles[i]; room.mafia.active[id] = true;
     room.mafia.sips[id] = 0; room.mafia.shots[id] = 0; room.mafia.hitCounts[id] = 0;
@@ -111,7 +111,7 @@ export function mafiaAction(room, info, m) {
       const timers = Object.fromEntries(TIMER_FIELDS.filter(([key]) => Object.hasOwn(m.rules || {}, key)).map(([key]) => [key, m.rules[key]]));
       g.rules = normalizeRules(timers, g.rules); return;
     }
-    if (m.type === 'start' && room.phase === 'lobby') { startMafia(room); return; }
+    if (m.type === 'start' && room.phase === 'lobby') { startMafia(room, normalizeRules(m.rules, g.rules)); return; }
     if (m.type === 'mafiaAdvance') {
       if (m.phase !== room.phase || m.round !== room.round) fail('The game has already moved on. Use the current host control.');
       advanceMafia(room); return;

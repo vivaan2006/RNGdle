@@ -13,6 +13,7 @@
   <header><div class="hbar">
     <a class="logo" href="/">RNG<b>party</b></a>
     <span class="mode-tag">🕶️ MAFIA</span><span class="hspace"></span>
+    <button class="header-code mono hidden" id="headerCode" title="Copy join link" aria-label="Room code"></button>
     <button class="iconbtn" id="speech" aria-label="Enable spoken narration" title="Spoken narration">🔇</button>
     <button class="iconbtn" id="theme" aria-label="Toggle color theme">🌙</button>
   </div></header>
@@ -28,7 +29,7 @@
       <section class="panel test-entry"><div><h2>🧪 Try it on your own</h2><p>Run the real game with five bots. Switch between player screens, choose their moves, or auto-fill a phase. No extra devices needed.</p></div><button class="bigbtn ghost" id="testHost">Start local test →</button></section>
     </section>
     <section id="room" class="hidden">
-      <div class="room-bar"><div><span class="eyebrow">ROOM CODE</span><button id="copy" class="room-code mono" title="Copy join link">····</button></div><div class="room-actions"><button class="secbtn" id="copyLink">Copy join link</button><button class="secbtn" id="leave">Leave</button></div></div>
+      <section class="room-bar" aria-label="Join this party"><div class="room-invite"><span class="eyebrow">YOUR ROOM CODE</span><button id="copy" class="room-code mono" title="Copy join link">····</button><p id="joinHint" class="small">Open RNGparty on your phone and enter this code.</p><span class="pill" id="joinedCount" aria-live="polite">0 players joined</span></div><div class="room-actions"><button class="secbtn" id="copyLink">Copy join link</button><button class="secbtn" id="leave">Leave</button></div></section>
       <div id="phase"></div>
       <div id="testing"></div>
       <div id="settings"></div>
@@ -41,7 +42,7 @@
     <details class="panel rulebook" id="rules"><summary>How to play & role guide</summary>
       <ol><li>Join on your own device. Roles stay private. After the deal, editable timers run role reveal → night → discussion → vote → verdict → next night.</li><li>The Instigator team consists of Instigators and Mixologists. Each Instigator may pick up to ceil(active players ÷ (3 × active Instigators)) different people each night. Picks can include teammates or yourself. Different Instigators can overlap; the same Instigator cannot repeat a person within one night.</li><li>Easy / Medium / Hard assign 1 / 2 / 3 sips per action. A Mixologist matching a hit doubles that player’s night sips once. Doubles do not add extra hits; each unprotected Instigator pick counts as one hit. Wrong votes, shots, and voluntary drinks never count as hits.</li><li>The Designated Driver blocks all hits and sips for a chosen player. By default, no Driver can protect anyone who was protected last night: a shared one-night cooldown prevents endless protection. The Vibe Checker privately learns a player’s team at dawn.</li><li>The Party Animal is independent. They can log voluntary drinks as often as they want during play; this tally stays private until the end. Their goal is to trick a Designated Driver into choosing them. At dawn, any Party Animal chosen by a Driver wins and the game ends. Unchosen Party Animals do not share the win. A Party Animal needs a Driver in the cast.</li><li>Discuss and secretly vote. The highest vote count accuses a player. A caught Instigator or Mixologist takes the configured shots and is out. Everyone else takes the difficulty’s sips and stays in. Ties and all-abstain votes have no penalty. Self-votes are disabled. Missed actions do nothing; missed votes abstain.</li><li>After a vote, the town wins if all Instigator allies are out. Otherwise, the Instigator team wins when every opposing player, including every Party Animal, has taken at least three successful night hits. Hits on teammates do not help this goal. Every losing player takes the configured shots, in addition to any catch penalty. Independent players lose if either main team wins.</li></ol>
       <div id="roleGuide" class="role-guide"></div>
-      <p class="small">Use the role cards to set counts; 0 removes an optional role. Keep at least one Instigator and more town players than Instigator allies. Party Animals do not count as town. Role counts and drink rules lock for the game. Timers can be edited anytime: saving restarts the current countdown; 0 means manual pacing. Sips can be any drink; shot penalties can be set to 0.</p>
+      <p class="small">Use the role cards to set counts; 0 removes an optional role. Keep at least one Instigator and more town players than Instigator allies. Party Animals do not count as town. Press Start game to apply your cast and difficulty together. Night, discussion, and voting timers can be edited anytime: saving during play restarts the current countdown; 0 means manual pacing. Role reveal and verdict run automatically. Catches and losses default to one shot each. Sips can be any drink.</p>
     </details>
   </main>
   <script type="module" src="/mafia-client.js"></script>

@@ -17,7 +17,7 @@ export const TIMER_FIELDS = [
 export const DIFFICULTIES = { easy: { name: 'Easy', icon: '🌱', sips: 1 }, medium: { name: 'Medium', icon: '🍻', sips: 2 }, hard: { name: 'Hard', icon: '🔥', sips: 3 } };
 export const TEAM_NAMES = { mafia: 'Instigator team', town: 'Town team', solo: 'Independent' };
 export const HIT_GOAL = 3;
-export const DEFAULT_RULES = { mafia: 1, mixologist: 1, detective: 1, nurse: 1, partyAnimal: 0, difficulty: 'medium', caughtShots: 1, losingShots: 1, narration: true, nurseSelf: true, protectionCooldown: true, revealSeconds: 20, nightSeconds: 45, discussionSeconds: 90, voteSeconds: 30, verdictSeconds: 12 };
+export const DEFAULT_RULES = { mafia: 1, mixologist: 0, detective: 1, nurse: 1, partyAnimal: 0, difficulty: 'medium', caughtShots: 1, losingShots: 1, narration: true, nurseSelf: true, protectionCooldown: true, revealSeconds: 20, nightSeconds: 45, discussionSeconds: 90, voteSeconds: 30, verdictSeconds: 12 };
 export const sipsPerAction = rules => DIFFICULTIES[rules.difficulty].sips;
 export function nightAllowance(playerCount, instigatorCount) {
   if (instigatorCount < 1 || playerCount < 1) return 0;
@@ -48,6 +48,7 @@ export function setupError(rules, count) {
   const special = ROLE_KEYS.reduce((sum, role) => sum + (rules[role] || 0), 0);
   if (special > count) return `${special} special roles need ${special} players. Add players or reduce optional roles.`;
   if (rules.partyAnimal > 0 && rules.nurse < 1) return 'Party Animals need at least one Designated Driver to have a chance to win.';
-  if ((rules.mafia + rules.mixologist) * 2 + rules.partyAnimal >= count) return 'The Instigator team must start smaller than the town. Independent Party Animals are not town players.';
+  const allies = rules.mafia + rules.mixologist, town = count - allies - rules.partyAnimal;
+  if (allies >= town) return `${allies} Instigator-team players (including Mixologists) and ${town} town players. The Instigator team must be smaller: reduce Instigators or Mixologists, or add town players. Party Animals are independent.`;
   return '';
 }

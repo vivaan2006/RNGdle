@@ -71,9 +71,14 @@ by joining on a phone or in another tab. Rooms support 4–24 players.
 ### Cast and teams
 
 Role cards provide an icon, description, and +/− count. Set optional roles to
-0 to omit them; remaining seats become Townspeople. The default House Mix has
-one Instigator, Mixologist, Vibe Checker, and Designated Driver (5+ players).
-Classic omits the Mixologist (4+); Wild Card adds a Party Animal (6+).
+0 to omit them; remaining seats become Townspeople. Classic is the default:
+one Instigator, Vibe Checker, and Designated Driver (4+ players). The Party
+Animal preset has one Instigator, Party Animal, and Designated Driver; with
+five players, the other two are Townspeople. Mixologists are off by default.
+Start game validates and applies the displayed selections in one step;
+there is no separate save button. Invalid casts and disconnected seats show
+the reason beside Start and below the role cards. A large amber room-code
+banner and a persistent header code help everyone join the right room.
 
 - **Instigator** (formerly Mafia): delivers night hits. The Instigator team
   also includes Mixologists. All their allies must be caught for town to win.
@@ -87,7 +92,7 @@ Classic omits the Mixologist (4+); Wild Card adds a Party Animal (6+).
   multiple Drivers from alternating permanent protection. Targets become
   available after a one-night gap. Drivers may pass if there are no eligible
   targets; their bot controls handle this too. Self-protection and cooldown
-  can be changed in the lobby.
+  are enabled by default and no longer have lobby switches.
 - **Party Animal:** independent, with repeatable voluntary drinks throughout
   play. Their private drink button assigns the difficulty's sip amount;
   voluntary sips never count as hits and are private until final totals.
@@ -111,8 +116,8 @@ Different Instigators may overlap, producing one hit per unprotected pick.
 **Easy / Medium / Hard** assign **1 / 2 / 3 sips per action** (Medium by
 default), covering night hits, wrong accusations, and voluntary Animal drinks.
 Mixologist matches double sips but not hit counts. Raw sip fields are no longer
-accepted. Catch and losing-player shot penalties remain independently editable,
-including 0. Nurses' replacement, the Driver, blocks both hits and sips.
+accepted. The simplified lobby omits individual penalty controls; catches and
+losses default to one shot each. The Driver blocks both hits and sips.
 
 The vote accuses whoever has the most votes. Caught Instigator allies are out
 and take catch shots. Other players take the preset sips and stay active;
@@ -131,9 +136,11 @@ allies or unchosen Animals, receive the losing-player shots once.
 
 Defaults are role reveal 20s, night 45s, discussion 90s, voting 30s, verdict
 12s. Phases advance automatically; roles, night, and voting may finish early
-when everyone responds. Timers are editable during play; saving restarts the
-current countdown. A 0 timer is manually paced. Role counts, difficulty, and
-other house rules lock until the next lobby. Public narration can be enabled
+when everyone responds. Night, discussion, and voting timers are tucked in a
+collapsed section and remain editable during play; saving restarts the current
+countdown. A 0 timer is manually paced. Reveal and verdict use fixed defaults
+in the normal setup. Role counts and difficulty lock until the next lobby.
+Public narration can be enabled
 with the host's sound button; private information is never spoken.
 
 **Start local test** creates five controllable bots. Adjust the count and cast,
