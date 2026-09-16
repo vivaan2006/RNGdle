@@ -36,7 +36,8 @@ server.js            HTTP + static + /api routes; hosts RNGdle and Mafia rooms
 node-ws.js           zero-dependency WebSocket + static server (Node path)
 horsrng-server.js    \
 imposter-server.js    > one room map each, own ws path
-rngoldrush-server.js /
+rngoldrush-server.js  |
+irishpoker-server.js /
 rooms-registry.js    SHARED: mints globally unique room codes, maps code -> game
 qr.js                SHARED: QR encoder (byte mode, EC M, versions 1-10)
 join-qr.js           SHARED: renders a join QR, resolving a LAN-reachable origin

@@ -162,6 +162,33 @@ Run `npm test` (Node 22+) for role rules, hit counts, solo wins, protection
 cooldowns, privacy, timers, reconnects, testing controls, and live WebSocket
 integration including the existing RNGdle flow.
 
+## Irish Poker (in progress)
+
+`/irishpoker` — online only: a host screen (the TV, a pure spectator) plus
+2–10 phones. The room leader (first to join) deals and paces everything from
+their phone.
+
+1. **The deal.** Four face-down cards each. Four rounds, everyone guessing at
+   once: red/black, higher/lower, inside/outside, then the suit. You lock in
+   your guess *and* who drinks if you're right, so rounds never stall on
+   picking targets. Right = give 1/2/3/4 sips; wrong = drink 1/2/3/2; landing
+   exactly on a boundary card (the post) = drink double.
+2. **Memorize.** Hands are shown for 15s, then go face-down.
+3. **Give & Take.** Two rows of four flip alternately (take 1, give 1 … give 4).
+   Take cards are automatic: every holder drinks per match. Give cards are a
+   bluffing round — anyone can claim a match and point at someone; the target
+   drinks or calls bluff, and whoever's wrong drinks double. With memory mode
+   on, your own hand is hidden too (peeking costs a sip).
+4. **Ride the bus** — mandatory. Most pyramid matches rides (ties: most wrong
+   guesses, then random). Call higher/lower through a 4–6 card row; a miss or
+   a tie means drink the guess number and redeal. Spectators can side-bet each
+   call (wrong bet = 1 sip). A deliberately small two-tap *skip the bus* link
+   exists for the rider or leader.
+
+Intensity (×1/×2/×3 sips), memory mode and bus length are set in the lobby.
+Stragglers are auto-picked after 45s (guesses), 30s (claims = pass) and 25s
+(calls = drink), and disconnected players never block a step.
+
 ## Files
 
 ```

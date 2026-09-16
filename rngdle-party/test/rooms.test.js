@@ -11,7 +11,7 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   const server = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), env: { ...process.env, NODE_ENV: 'development', FLY_APP_NAME: '', PORT: String(port) }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
   t.after(() => server.kill());
   await new Promise((resolve,reject) => { server.stdout.on('data', data => { if (String(data).includes('server running')) resolve(); }); server.once('error',reject); server.once('exit',code=>reject(new Error(`Server exited ${code}`))); });
-  for (const path of ['/', '/mafia.html', '/mafia-client.js', '/mafia.css', '/mafia-rules.js', '/horsrng', '/imposter', '/rngoldrush', '/qr.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
+  for (const path of ['/', '/mafia.html', '/mafia-client.js', '/mafia.css', '/mafia-rules.js', '/horsrng', '/imposter', '/rngoldrush', '/irishpoker', '/qr.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);
   assert.equal((await fetch(`http://127.0.0.1:${port}/mafia-engine.js`)).status,404);
   async function client(path = '/ws') {
     const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`), queue = [], waiters = [];
@@ -32,7 +32,7 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   const lookup = async code => (await fetch(`http://127.0.0.1:${port}/api/room?code=${code}`)).json();
   assert.deepEqual(await lookup(hosted.code.toLowerCase()), {ok:true,code:hosted.code,game:'mafia',name:'Mafia',path:'/mafia.html'});
   const codes = new Set([hosted.code]);
-  for (const game of ['horsrng', 'imposter', 'rngoldrush']) {
+  for (const game of ['horsrng', 'imposter', 'rngoldrush', 'irishpoker']) {
     const otherHost = await client(`/${game}-ws`);
     otherHost.send({type:'host'});
     const other = await otherHost.next(type('hosted'));

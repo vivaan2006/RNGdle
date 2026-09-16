@@ -38,7 +38,8 @@ export const GAME_PATHS = {
   mafia: "/mafia.html",
   horsrng: "/horsrng",
   imposter: "/imposter",
-  rngoldrush: "/rngoldrush"
+  rngoldrush: "/rngoldrush",
+  irishpoker: "/irishpoker"
 };
 
 export const GAME_NAMES = {
@@ -46,7 +47,8 @@ export const GAME_NAMES = {
   mafia: "Mafia",
   horsrng: "HorsRNG",
   imposter: "ImpostRNG",
-  rngoldrush: "RNGold Rush"
+  rngoldrush: "RNGold Rush",
+  irishpoker: "Irish Poker"
 };
 
 export function liveRoomCount() { return owner.size; }

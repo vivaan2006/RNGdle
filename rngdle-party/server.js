@@ -14,6 +14,7 @@ import { TIMER_FIELDS } from './mafia-rules.js';
 import * as HorsRNG from "./horsrng-server.js";     // separate game, separate rooms, separate ws path
 import * as Imposter from "./imposter-server.js";   // separate game, separate rooms, separate ws path
 import * as GoldRush from "./rngoldrush-server.js"; // separate game, separate rooms, separate ws path
+import * as IrishPoker from "./irishpoker-server.js"; // separate game, separate rooms, separate ws path
 const R = globalThis.RNGDLE;
 const D = globalThis.RNGPARTY_DRINKS;
 
@@ -29,7 +30,8 @@ const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "
   "/mafia.html": "mafia.html", "/mafia-client.js": "mafia-client.js", "/mafia-rules.js": "mafia-rules.js", "/mafia.css": "mafia.css",
   "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
   "/imposter": "imposter.html", "/imposter.html": "imposter.html",
-  "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html" };
+  "/rngoldrush": "rngoldrush.html", "/rngoldrush.html": "rngoldrush.html",
+  "/irishpoker": "irishpoker.html", "/irishpoker.html": "irishpoker.html" };
 
 const rooms = new Map();     // code -> room
 const meta  = new Map();     // ws -> { roomCode, pid, isHost }
@@ -391,6 +393,7 @@ const WS_ROUTES = {
   "/horsrng-ws":    { open:HorsRNG.open, message:HorsRNG.message, close:HorsRNG.close },
   "/imposter-ws":   { open:Imposter.open, message:Imposter.message, close:Imposter.close },
   "/rngoldrush-ws": { open:GoldRush.open, message:GoldRush.message, close:GoldRush.close },
+  "/irishpoker-ws": { open:IrishPoker.open, message:IrishPoker.message, close:IrishPoker.close },
 };
 
 if (globalThis.Bun) {
