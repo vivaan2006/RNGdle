@@ -63,7 +63,9 @@ browser off the same file.
 - **Reveal timing is duplicated on purpose.** `PER_DIGIT`, `LAST_EXTRA`,
   `BADGE_*` and `PAYOFF_HOLD` exist in both `index.html` and `server.js`. The
   server holds the round open for as long as clients animate. Change both or
-  rounds end mid-animation.
+  rounds end mid-animation. Same idea in Irish Poker: `BURN_MS` and
+  `BUS_FINISH_HOLD_MS` in `irishpoker-server.js` must outlast the `TM` timeline
+  in `irishpoker.html`.
 - **Rooms are in memory.** Any restart or deploy drops every live room.
 - **New shared files need a static route.** A file loaded by the browser must
   be added to `STATIC` in `server.js` or it 404s — and a server already running

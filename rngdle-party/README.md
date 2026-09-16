@@ -168,26 +168,34 @@ integration including the existing RNGdle flow.
 2–10 phones. The room leader (first to join) deals and paces everything from
 their phone.
 
-1. **The deal.** Four face-down cards each. Four rounds, everyone guessing at
-   once: red/black, higher/lower, inside/outside, then the suit. You lock in
-   your guess *and* who drinks if you're right, so rounds never stall on
-   picking targets. Right = give 1/2/3/4 sips; wrong = drink 1/2/3/2; landing
-   exactly on a boundary card (the post) = drink double.
-2. **Memorize.** Hands are shown for 15s, then go face-down.
-3. **Give & Take.** Two rows of four flip alternately (take 1, give 1 … give 4).
-   Take cards are automatic: every holder drinks per match. Give cards are a
-   bluffing round — anyone can claim a match and point at someone; the target
-   drinks or calls bluff, and whoever's wrong drinks double. With memory mode
-   on, your own hand is hidden too (peeking costs a sip).
-4. **Ride the bus** — mandatory. Most pyramid matches rides (ties: most wrong
-   guesses, then random). Call higher/lower through a 4–6 card row; a miss or
-   a tie means drink the guess number and redeal. Spectators can side-bet each
-   call (wrong bet = 1 sip). A deliberately small two-tap *skip the bus* link
-   exists for the rider or leader.
+1. **Guess your cards.** Four face-down cards each. Four rounds, everyone
+   guessing at once: red/black, higher/lower, inside/outside, then the suit.
+   You lock in your guess *and* who drinks if you're right. Right = give
+   1/2/3/4 sips; wrong = drink 1/2/3/2; landing exactly on a boundary card (the
+   post) = drink double. Intensity (×1/×2/×3) scales rounds and the bus.
+2. **The pyramid.** Hands stay face-up. Ten cards sit face-down in a 4‑3‑2‑1
+   pyramid and flip from the bottom row up. Everyone holding that rank taps
+   *I have it* (a wrong tap just gets a "nope") and the game waits for every
+   holder. Holders then hand out drinks — bottom row 1 sip, then 2, then 3,
+   stacked on anyone — and the top card makes someone finish their drink. A
+   card nobody holds burns and is replaced until someone does (after three
+   burns the next card is guaranteed to match).
+3. **Ride the bus** — mandatory. Most cards left unplayed rides (ties: most
+   wrong guesses, then chance), revealed with a roulette spin. Call
+   higher/lower through a 4–6 card row; a miss or a tie means drink the guess
+   number and redeal. Spectators can side-bet each call (wrong bet = 1 sip). A
+   deliberately small two-tap *skip the bus* link exists for the rider or leader.
 
-Intensity (×1/×2/×3 sips), memory mode and bus length are set in the lobby.
-Stragglers are auto-picked after 45s (guesses), 30s (claims = pass) and 25s
-(calls = drink), and disconnected players never block a step.
+**Pacing is casino-style: inputs are instant, reveals are slow.** Every state
+carries `stepAt` (server time) and the page schedules drumrolls, card wobble,
+flips, stamps, coin bursts and payouts from it, so the TV and every phone reveal
+together. Server holds that must outlast an animation — `BURN_MS` and
+`BUS_FINISH_HOLD_MS` in `irishpoker-server.js` — are sized against the `TM`
+table in `irishpoker.html`; change both together. Tests run with
+`IRISHPOKER_FAST=1` to shrink those holds.
+
+Stragglers are auto-picked after 60s (guesses) and 75s (hand-outs); the leader
+can also force a step. Disconnected players never block a step.
 
 ## Files
 

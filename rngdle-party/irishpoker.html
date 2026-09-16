@@ -1,227 +1,298 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Irish Poker — RNGparty</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --background:#0a0a0a; --foreground:#fafafa;
-  --surface:oklch(25.7% .014 295); --surface-raised:oklch(31.1% .014 295);
-  --outline:oklch(39.5% .014 295); --prose-2:#c4c4c4; --prose-3:#9a9a9a;
-  --card:#111112; --card-line:oklch(30% .012 295);
-  --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --felt:#0f3d24; --felt-2:#14532d;
+  --bg:#050d09; --felt:#0e5234; --felt2:#093a25; --felt3:#052417;
+  --gold:#f7c948; --gold2:#d6981c; --cream:#fff8e7;
+  --red:#ff3d5f; --green:#3ee089; --ink:#f7f3e8; --muted:#b8c4ba; --dim:#7d8a81;
+  --panel:rgba(8,22,15,.78); --line:rgba(247,201,72,.18); --line2:rgba(255,255,255,.08);
 }
-html:not(.dark){
-  --background:#fafafa; --foreground:#0a0a0a;
-  --surface:#f1f1f4; --surface-raised:#e8e8ec; --outline:#d3d3da;
-  --prose-2:#3f3f46; --prose-3:#6b6b74; --card:#ffffff; --card-line:#e5e5ea;
-  --felt:#dcfce7; --felt-2:#bbf7d0;
-}
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
-body{background:var(--background);color:var(--foreground);font-family:Inter,-apple-system,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-.mono{font-family:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace}
+body{color:var(--ink);font-family:Inter,-apple-system,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  background:radial-gradient(ellipse 120% 80% at 50% 0%,#10573a 0%,#07301f 45%,var(--bg) 100%) fixed}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:4px 4px}
+body.shake{animation:shake .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translate(-2px,0)}20%,80%{transform:translate(4px,1px)}30%,50%,70%{transform:translate(-7px,-1px)}40%,60%{transform:translate(7px,1px)}}
+.mono{font-family:'Space Mono',ui-monospace,monospace}
 button{font-family:inherit;cursor:pointer;color:inherit}
-.wrap{max-width:1100px;margin:0 auto;padding:0 16px 140px}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 16px 150px}
 .hidden{display:none!important}
-.center{text-align:center}.mt8{margin-top:8px}.mt16{margin-top:16px}.mt24{margin-top:24px}
-.small{font-size:12px;color:var(--prose-3)}
+.center{text-align:center}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt24{margin-top:24px}
+.small{font-size:12px;color:var(--muted)}
 .phone{max-width:460px;margin:0 auto}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:90}
 
-header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--background) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--card-line)}
-.hbar{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
+/* ---------- timeline states ---------- */
+.pend{opacity:0;transform:translateY(12px) scale(.96);transition:opacity .45s ease,transform .55s cubic-bezier(.2,1.4,.4,1);pointer-events:none}
+.pend.on{opacity:1;transform:none;pointer-events:auto}
+.gone.on{display:none!important}
+.fxonly{display:none}
+
+header{position:sticky;top:0;z-index:30;background:rgba(4,14,9,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hbar{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
 .logo{font-weight:800;font-size:20px;letter-spacing:-.5px;color:inherit;text-decoration:none}
-.logo b{color:var(--amber)}
-.gametitle{font-weight:700;font-size:14px;color:var(--prose-2);padding-left:10px;border-left:1px solid var(--card-line);white-space:nowrap}
-.wiptag{font-size:9.5px;font-weight:800;letter-spacing:.6px;padding:3px 7px;border-radius:999px;background:#6366f122;color:#818cf8;border:1px solid #6366f155;white-space:nowrap}
+.logo b{color:var(--gold)}
+.gametitle{font-weight:700;font-size:14px;color:var(--muted);padding-left:10px;border-left:1px solid var(--line);white-space:nowrap}
+.wiptag{font-size:9.5px;font-weight:800;letter-spacing:.6px;padding:3px 7px;border-radius:999px;background:#6366f122;color:#a5b4fc;border:1px solid #6366f166;white-space:nowrap}
 .hspace{flex:1}
-.iconbtn{border:1px solid var(--card-line);background:var(--surface);width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:15px}
+.iconbtn{border:1px solid var(--line);background:rgba(255,255,255,.04);width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:15px}
 
-.panel{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:18px;margin-top:18px}
-.panel h3{margin:0 0 14px;font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--prose-2)}
-.prow{display:flex;gap:8px;margin-bottom:10px}
-.inp{flex:1;min-width:0;background:var(--surface);border:1px solid var(--card-line);border-radius:9px;padding:12px 13px;color:var(--foreground);font-size:15px;font-family:inherit}
-.inp:focus{outline:2px solid #f59e0b55;border-color:var(--amber)}
-.bigbtn{width:100%;border:0;background:var(--amber);color:#1a1205;font-weight:800;font-size:16px;padding:15px;border-radius:12px;margin-top:14px}
-.bigbtn:disabled{opacity:.45}
-.bigbtn.green{background:var(--green);color:#052e16}
-.secbtn{border:1px solid var(--card-line);background:var(--surface);padding:10px 16px;border-radius:10px;font-weight:600;font-size:13px}
-.secbtn:disabled{opacity:.45}
-.linkbtn{background:none;border:0;color:var(--prose-3);font-size:12px;text-decoration:underline;padding:8px;margin-top:6px}
-.linkbtn.armed{color:var(--red);font-weight:700;text-decoration:none}
+/* ---------- surfaces ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:18px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.panel h3{margin:0 0 14px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold);font-weight:800}
+.marquee{position:relative;border-radius:24px;padding:22px 18px;margin-top:22px;
+  background:radial-gradient(ellipse at center,var(--felt) 0%,var(--felt2) 60%,var(--felt3) 100%);
+  box-shadow:inset 0 0 60px rgba(0,0,0,.55),0 20px 60px rgba(0,0,0,.5)}
+.marquee::before{content:'';position:absolute;inset:-6px;border-radius:30px;padding:5px;pointer-events:none;
+  background:repeating-linear-gradient(90deg,var(--gold) 0 7px,rgba(247,201,72,.15) 7px 18px);background-size:36px 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:chase 1.1s linear infinite;filter:drop-shadow(0 0 6px rgba(247,201,72,.7))}
+@keyframes chase{to{background-position:36px 0}}
+.neon{color:var(--gold);text-shadow:0 0 12px rgba(247,201,72,.65),0 0 32px rgba(247,201,72,.35)}
+.neon-red{color:#ff6b83;text-shadow:0 0 12px rgba(255,61,95,.7),0 0 34px rgba(255,61,95,.4)}
+.neon-green{color:var(--green);text-shadow:0 0 12px rgba(62,224,137,.6),0 0 30px rgba(62,224,137,.35)}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.55;transform:scale(.985)}}
 
-.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px auto 0;max-width:900px}
-.choice{background:var(--card);border:1px solid var(--card-line);border-radius:16px;padding:22px 18px;text-align:center;transition:.15s;cursor:pointer}
-.choice:hover{border-color:var(--green);transform:translateY(-2px)}
-.choice .ic{font-size:34px}
-.choice .t{font-weight:800;font-size:17px;margin-top:10px}
-.choice .d{font-size:12px;color:var(--prose-3);margin-top:6px;line-height:1.5}
+/* ---------- buttons ---------- */
+.btn{position:relative;overflow:hidden;width:100%;border:0;border-radius:16px;padding:17px 14px;font-weight:900;font-size:17px;letter-spacing:.3px;margin-top:14px;
+  transition:transform .08s ease,filter .15s ease;user-select:none}
+.btn:active{transform:scale(.965)}
+.btn:disabled{opacity:.4;filter:grayscale(.4)}
+.gold{background:linear-gradient(180deg,#ffe28a 0%,var(--gold) 45%,var(--gold2) 100%);color:#2b1c00;box-shadow:0 6px 0 #8a5d08,0 10px 30px rgba(247,201,72,.35)}
+.gold:active{box-shadow:0 2px 0 #8a5d08,0 6px 20px rgba(247,201,72,.3);transform:translateY(4px) scale(.98)}
+.greenb{background:linear-gradient(180deg,#8ff5bd,var(--green) 50%,#1fa35f);color:#032413;box-shadow:0 6px 0 #11653a,0 10px 30px rgba(62,224,137,.3)}
+.redb{background:linear-gradient(180deg,#ff8aa0,var(--red) 50%,#c0163a);color:#fff;box-shadow:0 6px 0 #7d0d25,0 10px 30px rgba(255,61,95,.3)}
+.ghost{background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--ink);font-weight:700;font-size:14px;padding:12px}
+.shine::after{content:'';position:absolute;top:0;bottom:0;left:-60%;width:40%;transform:skewX(-20deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:shine 2.6s ease-in-out infinite}
+@keyframes shine{0%{left:-60%}55%,100%{left:130%}}
+.linkbtn{background:none;border:0;color:var(--dim);font-size:12px;text-decoration:underline;padding:8px;margin-top:6px}
+.linkbtn.armed{color:var(--red);font-weight:800;text-decoration:none}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btnrow .btn{margin-top:0}
 
-.codebox{text-align:center;background:linear-gradient(135deg,var(--felt),var(--surface-raised));border:1px solid var(--outline);border-radius:16px;padding:20px;margin-top:18px}
-.codebox .lbl{font-size:11px;letter-spacing:2px;color:var(--prose-3)}
-.codebox .code{font-size:48px;font-weight:800;letter-spacing:10px;margin:6px 0}
-.codebox .url{font-size:13px;color:var(--prose-2);word-break:break-all}
-.qrbox{width:132px;height:132px;margin:14px auto 0;background:#fff;border-radius:10px;padding:6px;line-height:0}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:26px auto 0;max-width:900px}
+.choice{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px 18px;text-align:center;transition:.15s;cursor:pointer}
+.choice:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 0 30px rgba(247,201,72,.2)}
+.choice .ic{font-size:36px}
+.choice .t{font-weight:900;font-size:18px;margin-top:10px}
+.choice .d{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.inp{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:14px;color:var(--ink);font-size:16px;font-family:inherit;margin-bottom:10px}
+.inp:focus{outline:2px solid rgba(247,201,72,.45);border-color:var(--gold)}
+
+.codebox{text-align:center}
+.codebox .lbl{font-size:11px;letter-spacing:2.5px;color:var(--muted);font-weight:700}
+.codebox .code{font-size:56px;font-weight:900;letter-spacing:12px;margin:4px 0}
+.codebox .url{font-size:13px;color:var(--muted);word-break:break-all}
+.qrbox{width:136px;height:136px;margin:12px auto 0;background:#fff;border-radius:12px;padding:6px;line-height:0}
 .qrbox svg{width:100%;height:100%;display:block}
 .qrbox:empty{display:none}
 
-.connbar{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin:14px 0}
-.connbar.warn{background:#f59e0b1a;border:1px solid #f59e0b55;color:var(--amber)}
-.connbar.bad{background:#ef44441a;border:1px solid #ef444455;color:var(--red)}
-.connbar .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;flex:none}
+.connbar{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;padding:10px 14px;border-radius:12px;margin:14px 0}
+.connbar.warn{background:#f7c9481a;border:1px solid #f7c94855;color:var(--gold)}
+.connbar.bad{background:#ff3d5f1a;border:1px solid #ff3d5f55;color:var(--red)}
+.connbar .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.offlinetag{color:var(--red);font-weight:700;font-size:10.5px;letter-spacing:.3px;margin-left:6px}
 
-.av{border-radius:50%;display:grid;place-items:center;font-weight:800;color:#1a1205;flex:none;width:28px;height:28px;font-size:13px}
+.av{border-radius:50%;display:grid;place-items:center;font-weight:900;color:#1a1205;flex:none;width:30px;height:30px;font-size:13px;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
 .plist{display:flex;flex-direction:column;gap:8px}
-.pchip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px}
-.pchip .end{margin-left:auto;font-size:12px;color:var(--prose-3);font-weight:700;white-space:nowrap}
-.pchip.me{border-color:#f59e0b88}
+.pchip{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:12px;padding:9px 12px;font-weight:700;font-size:14px}
+.pchip .end{margin-left:auto;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+.pchip.me{border-color:rgba(247,201,72,.5)}
+.offlinetag{color:var(--red);font-weight:800;font-size:10px;margin-left:6px}
 
-/* ---------- playing cards ---------- */
-.pc{--w:58px;position:relative;flex:none;width:var(--w);height:calc(var(--w)*1.42);border-radius:calc(var(--w)*.12);background:#fdfdfb;color:#18181b;border:1px solid #d4d4d8;box-shadow:0 3px 10px rgba(0,0,0,.35);font-family:'Space Mono',ui-monospace,monospace;font-weight:700;user-select:none}
-.pc.sm{--w:36px}.pc.md{--w:58px}.pc.lg{--w:min(84px,19vw)}.pc.xl{--w:min(112px,15vw)}
-.pc.red{color:#dc2626}
-.pc .tl{position:absolute;top:5%;left:9%;line-height:.95;font-size:calc(var(--w)*.24);text-align:center}
-.pc .mid{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--w)*.5);font-family:Inter,sans-serif}
-.pc.sm .tl{font-size:calc(var(--w)*.3)}.pc.sm .mid{font-size:calc(var(--w)*.42);top:22%}
-.pc.back{background:radial-gradient(circle at 50% 50%,#16a34a 0 22%,transparent 23%),repeating-linear-gradient(45deg,#14532d 0 5px,#166534 5px 10px);border:calc(var(--w)*.06) solid #f4f4f5}
-.pc.back::after{content:'☘';position:absolute;inset:0;display:grid;place-items:center;color:#dcfce7;font-size:calc(var(--w)*.34);font-family:Inter,sans-serif}
-.pc.slot{background:transparent;border:2px dashed var(--outline);box-shadow:none}
-.pc.q{outline:3px solid var(--amber);outline-offset:2px;animation:pulse 1.4s ease-in-out infinite}
-.pc.cur{outline:3px solid var(--amber);outline-offset:3px}
-.pc.nextup{outline:2px dashed var(--amber);outline-offset:3px;animation:pulse 1.4s ease-in-out infinite}
-.pc.dim{opacity:.35}
-@keyframes pulse{50%{outline-color:transparent}}
-.flipin{animation:flipin .55s cubic-bezier(.2,.9,.3,1.2) both}
-@keyframes flipin{0%{transform:perspective(600px) rotateY(90deg) scale(.85);filter:brightness(.6)}100%{transform:perspective(600px) rotateY(0) scale(1)}}
+/* ---------- 3D cards ---------- */
+.c3{--w:64px;position:relative;flex:none;width:var(--w);height:calc(var(--w)*1.4);perspective:900px}
+.c3.xs{--w:30px}.c3.sm{--w:42px}.c3.md{--w:62px}.c3.lg{--w:min(86px,20vw)}.c3.xl{--w:min(118px,15.5vw)}
+.c3 .in{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(180deg);transition:transform .8s cubic-bezier(.25,1.45,.4,1)}
+.c3.up .in,.c3.on .in{transform:rotateY(0)}
+.c3.soon:not(.on) .in{animation:wob .11s linear infinite alternate}
+@keyframes wob{from{transform:rotateY(180deg) rotate(-4deg) scale(1.06)}to{transform:rotateY(180deg) rotate(4deg) scale(1.06)}}
+.c3 .f{position:absolute;inset:0;border-radius:calc(var(--w)*.12);backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden}
+.c3 .face{background:linear-gradient(160deg,#fffdf6,#f3ead3);color:#15171c;border:1px solid #e2d4b0;box-shadow:0 4px 14px rgba(0,0,0,.45);font-family:'Space Mono',monospace;font-weight:700}
+.c3 .face.red{color:#d11a3a}
+.c3 .cn{position:absolute;line-height:.9;font-size:calc(var(--w)*.23);text-align:center}
+.c3 .cn i{display:block;font-style:normal;font-family:Inter,sans-serif;font-size:calc(var(--w)*.2)}
+.c3 .cn.tl{top:6%;left:8%}.c3 .cn.br{bottom:6%;right:8%;transform:rotate(180deg)}
+.c3 .pip{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--w)*.46);font-family:Inter,sans-serif}
+.c3 .pip b{font-family:'Space Mono',monospace;font-size:calc(var(--w)*.4)}
+.c3.xs .cn.br,.c3.sm .cn.br{display:none}
+.c3.xs .pip{font-size:calc(var(--w)*.42);top:30%}.c3.xs .cn{font-size:calc(var(--w)*.3)}
+.c3 .back{transform:rotateY(180deg);border:calc(var(--w)*.055) solid var(--cream);box-shadow:0 4px 14px rgba(0,0,0,.45);
+  background:radial-gradient(circle at 50% 50%,rgba(247,201,72,.9) 0 13%,transparent 14%),
+             repeating-linear-gradient(45deg,#0b4d31 0 5px,#0f6440 5px 10px)}
+.c3 .back::after{content:'☘';position:absolute;inset:0;display:grid;place-items:center;color:#0b3a25;font-size:calc(var(--w)*.2);font-family:Inter,sans-serif}
+.c3.glow .f{box-shadow:0 0 0 3px var(--gold),0 0 26px rgba(247,201,72,.75)}
+.c3.nextup .back{box-shadow:0 0 0 2px var(--gold);animation:nextglow 1.2s ease-in-out infinite}
+@keyframes nextglow{50%{box-shadow:0 0 0 3px var(--gold),0 0 22px rgba(247,201,72,.8)}}
+.c3.q .back{box-shadow:0 0 0 3px var(--gold),0 0 20px rgba(247,201,72,.6)}
+.c3.played::after{content:'✓';position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);color:#032413;font-weight:900;font-size:12px;display:grid;place-items:center;box-shadow:0 0 10px rgba(62,224,137,.7);z-index:3}
+.c3.match .f{box-shadow:0 0 0 3px var(--green),0 0 22px rgba(62,224,137,.8)}
+.c3 .burnx{position:absolute;inset:-4px;border-radius:calc(var(--w)*.14);display:grid;place-items:center;font-size:calc(var(--w)*.5);opacity:0;z-index:4;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,120,20,.65),rgba(255,40,0,.25) 60%,transparent 75%)}
+.c3 .burnx.on{animation:burn 1.2s ease forwards}
+@keyframes burn{0%{opacity:0;transform:scale(.6)}30%{opacity:1;transform:scale(1.15)}100%{opacity:.95;transform:scale(1)}}
 .cardrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.cardrow.big{gap:12px;justify-content:center}
+.cardrow.big{gap:12px;justify-content:center;flex-wrap:nowrap}
 
-/* ---------- table / seats ---------- */
-.banner{text-align:center;margin-top:22px}
-.banner .kick{font-size:12px;letter-spacing:2.5px;font-weight:800;color:var(--green);text-transform:uppercase}
-.banner .q{font-size:34px;font-weight:800;margin-top:6px;letter-spacing:-.5px}
-.banner .stakes{font-size:14px;color:var(--prose-2);margin-top:8px}
-.cd{font-size:13px;color:var(--prose-3);font-weight:600;margin-top:8px;min-height:18px}
-.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:22px}
-.seat{background:var(--card);border:1px solid var(--card-line);border-radius:14px;padding:12px 14px}
-.seat.locked{border-color:#f59e0b88}
-.seat.right{border-color:#22c55e99;background:linear-gradient(135deg,#22c55e18,var(--card))}
-.seat.wrong{border-color:#ef444499;background:linear-gradient(135deg,#ef444418,var(--card))}
-.seat.rider{border-color:var(--amber);box-shadow:0 0 0 3px #f59e0b33}
-.seat .hd{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;margin-bottom:10px}
-.seat .hd .sips{margin-left:auto;font-size:12px;color:var(--prose-3);font-weight:700}
-.seat .st{font-size:12.5px;font-weight:700;color:var(--prose-2);margin-top:10px;min-height:17px}
+/* ---------- stamps / verdicts ---------- */
+.stamp{display:inline-block;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;border:3px solid currentColor;border-radius:10px;padding:3px 10px;transform:rotate(-6deg)}
+.stamp.pend{transform:rotate(-6deg) scale(2.6);opacity:0;transition:transform .35s cubic-bezier(.2,1.6,.4,1),opacity .15s}
+.stamp.pend.on{transform:rotate(-6deg) scale(1);opacity:1}
+.stamp.win{color:var(--gold);text-shadow:0 0 10px rgba(247,201,72,.6);box-shadow:0 0 18px rgba(247,201,72,.35)}
+.stamp.lose{color:var(--red);text-shadow:0 0 10px rgba(255,61,95,.6);box-shadow:0 0 18px rgba(255,61,95,.3)}
+.banner{text-align:center;margin-top:24px;position:relative}
+.banner .kick{font-size:12px;letter-spacing:3px;font-weight:900;color:var(--green);text-transform:uppercase}
+.banner .q{font-size:38px;font-weight:900;margin-top:6px;letter-spacing:-.5px;line-height:1.1}
+.banner .sub{font-size:14px;color:var(--muted);margin-top:8px}
+.swap{position:relative}
+.cd{font-size:13px;color:var(--muted);font-weight:700;margin-top:8px;min-height:18px}
 
-.drinks{display:flex;flex-direction:column;gap:6px}
-.drow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px}
-.drow .n{margin-left:auto;color:var(--amber);font-weight:800}
-.drow.me{border-color:var(--amber);background:#f59e0b1c}
-.drinknow{background:linear-gradient(135deg,#ef444433,#f59e0b22);border:1px solid #ef444477;border-radius:14px;padding:14px;text-align:center;margin-top:14px;font-weight:800;font-size:20px}
-.drinknow .small{font-weight:600;color:var(--prose-2)}
-@keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-2deg)}75%{transform:rotate(2deg)}}
-.drinknow{animation:wobble .5s ease 2}
-.mystat{display:flex;justify-content:center;gap:16px;font-size:12px;color:var(--prose-3);font-weight:700;margin-top:10px}
-.mystat b{color:var(--foreground)}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.seat{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:16px;padding:12px 14px;transition:box-shadow .4s,border-color .4s}
+.seat.locked{border-color:rgba(247,201,72,.5)}
+.seat.right.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 30px rgba(247,201,72,.35)}
+.seat.wrong.on{border-color:var(--red);box-shadow:0 0 0 1px var(--red),0 0 30px rgba(255,61,95,.3)}
+.seat .hd{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:10px}
+.seat .hd .sips{margin-left:auto;font-size:12px;color:var(--muted);font-weight:800}
+.seat .st{font-size:13px;font-weight:800;margin-top:10px;min-height:28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lockchip{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(180deg,#ffe28a,var(--gold));color:#2b1c00;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:900}
+.lockchip.fresh{animation:chipin .5s cubic-bezier(.2,1.8,.4,1)}
+@keyframes chipin{0%{transform:scale(0) rotate(-90deg)}100%{transform:scale(1)}}
+
+.drinks{display:flex;flex-direction:column;gap:7px}
+.drow{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border:1px solid var(--line2);border-radius:12px;padding:9px 12px;font-weight:800;font-size:15px}
+.drow .n{margin-left:auto;color:var(--gold);font-weight:900}
+.drow.me{border-color:var(--gold);background:rgba(247,201,72,.12)}
+.drinknow{background:linear-gradient(135deg,rgba(255,61,95,.35),rgba(247,201,72,.2));border:1px solid rgba(255,61,95,.6);border-radius:18px;padding:16px;text-align:center;margin-top:14px;font-weight:900;font-size:26px;letter-spacing:.5px}
+.drinknow.on{animation:throb 1s ease-in-out 3}
+@keyframes throb{50%{transform:scale(1.05);box-shadow:0 0 40px rgba(255,61,95,.5)}}
+.mystat{display:flex;justify-content:center;gap:16px;font-size:12px;color:var(--muted);font-weight:800;margin-top:10px}
+.mystat b{color:var(--ink)}
 
 /* ---------- pyramid ---------- */
-.felt{background:radial-gradient(ellipse at center,var(--felt-2),var(--felt));border:1px solid #16653455;border-radius:18px;padding:18px;margin-top:20px}
-.pyr{display:grid;grid-template-columns:auto repeat(4,auto);gap:12px 14px;justify-content:center;align-items:center}
-.pyr .rl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-align:right}
-.pyr .rl.give{color:var(--green)}.pyr .rl.take{color:var(--red)}
-.pyr .cell{display:flex;flex-direction:column;align-items:center;gap:5px}
-.pyr .val{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap}
-.pyr.compact{gap:8px 10px}.pyr.compact .rl{font-size:10px;letter-spacing:1px}.pyr.compact .val{font-size:10px;padding:1px 6px}
-.pyr .val.give{background:#22c55e22;color:var(--green)}.pyr .val.take{background:#ef444422;color:var(--red)}
-.stepbox{text-align:center;margin-top:16px}
-.stepbox .big{font-size:26px;font-weight:800}
-.stepbox .sub{font-size:14px;color:var(--prose-2);margin-top:6px}
-.lines{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.line{background:var(--surface);border:1px solid var(--card-line);border-radius:11px;padding:10px 14px;font-size:14px;font-weight:600;line-height:1.45}
-.line.good{border-color:#22c55e66}.line.bad{border-color:#ef444477}.line.call{border-color:var(--amber)}
-.line b{font-weight:800}
-.tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px}
-.tag.truth{background:#22c55e22;color:var(--green)}.tag.lie{background:#ef444422;color:var(--red)}.tag.wait{background:var(--surface-raised);color:var(--prose-3)}
-.tvgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:18px;align-items:start}
-@media (max-width:820px){.tvgrid{grid-template-columns:1fr}}
+.pyr{display:flex;flex-direction:column;align-items:center;gap:12px}
+.prow{display:flex;align-items:center;gap:14px}
+.prow .cells{display:flex;gap:12px}
+.prow .lv{width:70px;text-align:right;font-size:11px;font-weight:900;letter-spacing:1px;color:var(--gold)}
+.prow .lv.fin{color:#ff6b83}
+.prow .lvr{width:70px}
+.pyr.compact{gap:7px}.pyr.compact .prow{gap:7px}.pyr.compact .cells{gap:7px}.pyr.compact .lv{width:44px;font-size:9.5px}.pyr.compact .lvr{width:44px}
+.status{text-align:center;margin-top:18px;min-height:90px}
+.status .big{font-size:30px;font-weight:900;letter-spacing:-.3px}
+.status .sub{font-size:14px;color:var(--muted);margin-top:6px}
+.claimed{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.claimed .pchip{animation:chipin .5s cubic-bezier(.2,1.8,.4,1)}
+.lines{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.line{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.32);border:1px solid var(--line);border-radius:14px;padding:11px 14px;font-size:16px;font-weight:800}
+.line .arrow{color:var(--gold)}
+.line .amt{margin-left:auto;color:var(--gold);font-size:18px;font-weight:900}
+.line.fin{border-color:rgba(255,61,95,.6);background:rgba(255,61,95,.12)}
+.tvgrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.tvgrid{grid-template-columns:1fr}}
+.handrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}
+.handrow:first-child{border-top:0}
+.handrow .nm{font-weight:800;font-size:14px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.handrow .left{font-size:11px;color:var(--muted);font-weight:800;white-space:nowrap}
+
+/* ---------- takeover (finish your drink) ---------- */
+.takeover{position:fixed;inset:0;z-index:80;display:grid;place-items:center;text-align:center;padding:24px;
+  background:radial-gradient(circle,rgba(255,61,95,.92),rgba(80,0,20,.96));animation:strobe .5s steps(2) infinite}
+@keyframes strobe{50%{background:radial-gradient(circle,rgba(247,201,72,.95),rgba(120,60,0,.96))}}
+.takeover .t1{font-size:clamp(15px,4vw,30px);font-weight:900;letter-spacing:clamp(1px,.6vw,4px);color:#fff}
+.takeover .t2{font-size:clamp(44px,11vw,120px);font-weight:900;line-height:1;margin:10px 0;color:#fff;text-shadow:0 6px 0 rgba(0,0,0,.35)}
+.takeover .t3{font-size:clamp(16px,3.4vw,26px);font-weight:800;color:#fff}
+.takeover .btn{max-width:320px;margin:26px auto 0}
 
 /* ---------- phone controls ---------- */
 .answers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
-.answers.four{grid-template-columns:1fr 1fr}
-.ans{border:2px solid var(--card-line);background:var(--card);border-radius:14px;padding:18px 8px;font-weight:800;font-size:19px;transition:.12s}
-.ans:active{transform:scale(.97)}
-.ans.sel{border-color:var(--amber);background:#f59e0b1f;box-shadow:0 0 0 3px #f59e0b33}
-.ans.redc{color:#ef4444}.ans.blackc{color:var(--foreground)}
-.ans .ic{display:block;font-size:28px;line-height:1.1}
-.ans .lb{display:block;font-size:13px;font-weight:700;margin-top:4px;color:var(--prose-2)}
+.ans{border:2px solid var(--line2);background:rgba(0,0,0,.35);border-radius:18px;padding:18px 8px;font-weight:900;font-size:19px;transition:transform .08s,border-color .15s,box-shadow .15s}
+.ans:active{transform:scale(.95)}
+.ans.sel{border-color:var(--gold);background:rgba(247,201,72,.14);box-shadow:0 0 0 3px rgba(247,201,72,.25),0 0 24px rgba(247,201,72,.3)}
+.ans.redc{color:#ff5a76}
+.ans .ic{display:block;font-size:30px;line-height:1.1}
+.ans .lb{display:block;font-size:13px;font-weight:800;margin-top:4px;color:var(--muted)}
 .targets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.tchip{display:flex;align-items:center;gap:8px;border:2px solid var(--card-line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 5px;font-weight:700;font-size:14px}
-.tchip.sel{border-color:var(--green);background:#22c55e1f}
-.tchip .av{width:24px;height:24px;font-size:11px}
-.lbl2{font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--prose-3);margin-top:18px}
-.lockmsg{text-align:center;background:var(--surface);border:1px solid var(--card-line);border-radius:14px;padding:20px;margin-top:18px;font-weight:700;color:var(--prose-2);line-height:1.5}
-.verdict{text-align:center;border-radius:16px;padding:18px;margin-top:16px}
-.verdict.right{background:linear-gradient(135deg,#22c55e2a,transparent);border:1px solid #22c55e66}
-.verdict.wrong{background:linear-gradient(135deg,#ef44442a,transparent);border:1px solid #ef444466}
-.verdict .t{font-size:13px;letter-spacing:2px;font-weight:800}
-.verdict.right .t{color:var(--green)}.verdict.wrong .t{color:var(--red)}
-.verdict .n{font-size:22px;font-weight:800;margin-top:6px}
-.claimcard{background:var(--card);border:2px solid var(--amber);border-radius:14px;padding:14px;margin-top:12px}
-.claimcard .who{font-weight:700;font-size:15px;line-height:1.4}
-.claimcard .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.claimcard .btns button{margin:0;font-size:14px;padding:13px 6px}
-.bigbtn.redb{background:var(--red);color:#fff}
-.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--card-line);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
-.actionbar .bigbtn{max-width:428px;margin-top:0}
-.actionbar .row{display:flex;gap:8px;width:100%;max-width:428px}
-.actionbar .row .secbtn{flex:1}
+.tchip{position:relative;display:flex;align-items:center;gap:8px;border:2px solid var(--line2);background:rgba(0,0,0,.35);border-radius:999px;padding:5px 14px 5px 5px;font-weight:800;font-size:15px;transition:transform .08s}
+.tchip:active{transform:scale(.94)}
+.tchip.sel{border-color:var(--gold);background:rgba(247,201,72,.15)}
+.tchip .av{width:26px;height:26px;font-size:11px}
+.tchip .cnt{position:absolute;right:-6px;top:-8px;min-width:22px;height:22px;border-radius:11px;background:var(--red);color:#fff;font-size:12px;font-weight:900;display:grid;place-items:center;padding:0 5px;box-shadow:0 0 12px rgba(255,61,95,.6)}
+.lbl2{font-size:11.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin-top:18px}
+.lockmsg{text-align:center;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:18px;font-weight:800;color:var(--ink);line-height:1.5}
+.verdict{text-align:center;margin-top:18px;min-height:74px}
+.verdict .n{font-size:18px;font-weight:800;margin-top:10px}
+.bigstamp{font-size:34px}
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(4,14,9,.6),rgba(4,14,9,.96));border-top:1px solid var(--line);backdrop-filter:blur(8px)}
+.actionbar .btn{max-width:428px;margin-top:0}
+.actionbar.pend{transform:translateY(40px)}
+.toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:95;background:#1b0a10;border:1px solid var(--red);color:#fff;font-weight:800;padding:12px 18px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:toast 2.2s ease forwards}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-10px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+.haveBtn{font-size:22px;padding:22px}
+.haveBtn.on{animation:havepulse 1s ease-in-out infinite}
+@keyframes havepulse{50%{box-shadow:0 6px 0 #8a5d08,0 0 44px rgba(247,201,72,.75)}}
 
-/* ---------- bus ---------- */
-.busroad{position:relative;height:46px;overflow:hidden;margin-top:12px}
-.busroad .bus{position:absolute;top:0;font-size:38px;left:-60px;transition:left .8s cubic-bezier(.3,.9,.3,1)}
-.busroad::after{content:'';position:absolute;left:0;right:0;bottom:4px;border-bottom:3px dashed var(--outline)}
-.bustrack{display:flex;gap:12px;justify-content:center;align-items:flex-end;flex-wrap:wrap;margin-top:14px}
+/* ---------- rider roulette + bus ---------- */
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}
+.rseat{background:rgba(0,0,0,.32);border:2px solid var(--line2);border-radius:16px;padding:14px;text-align:center;transition:transform .08s,border-color .08s,box-shadow .08s}
+.rseat .av{margin:0 auto;width:40px;height:40px;font-size:17px}
+.rseat .nm{font-weight:900;margin-top:8px}
+.rseat .left{font-size:12px;color:var(--muted);font-weight:700;margin-top:3px}
+.rseat.spot{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold),0 0 30px rgba(247,201,72,.6);transform:scale(1.05)}
+.rseat.win{border-color:var(--red);box-shadow:0 0 0 3px var(--red),0 0 50px rgba(255,61,95,.7);animation:throb .8s ease-in-out infinite}
+.busroad{position:relative;height:52px;overflow:hidden;margin-top:6px}
+.busroad .bus{position:absolute;top:0;font-size:42px;transition:left 1s cubic-bezier(.3,1.3,.4,1)}
+.busroad::after{content:'';position:absolute;left:0;right:0;bottom:5px;border-bottom:3px dashed rgba(247,201,72,.4)}
+.bustrack{display:flex;gap:12px;justify-content:center;align-items:flex-end;flex-wrap:nowrap;margin-top:12px}
 .hilo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
-.hilo button{border:0;border-radius:16px;padding:22px 8px;font-weight:800;font-size:20px}
-.hilo .hi{background:var(--green);color:#052e16}.hilo .lo{background:var(--red);color:#fff}
-.hilo button:disabled{opacity:.4}
-.bets{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.award{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--card-line);border-radius:12px;padding:10px 14px}
-.award .ic{font-size:26px}
-.award .t{font-size:11px;letter-spacing:1px;font-weight:800;color:var(--prose-3);text-transform:uppercase}
-.award .w{font-weight:800;font-size:15px}
+.hilo .btn{margin-top:0;font-size:22px;padding:24px 8px}
+.award{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:14px;padding:11px 14px}
+.award .ic{font-size:28px}
+.award .t{font-size:10.5px;letter-spacing:1.4px;font-weight:900;color:var(--gold);text-transform:uppercase}
+.award .w{font-weight:900;font-size:15px}
 .awards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 table.lb{width:100%;border-collapse:collapse;font-size:13px}
-table.lb th{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--prose-3);text-align:right;padding:6px 8px;font-weight:800}
+table.lb th{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold);text-align:right;padding:6px 8px;font-weight:900}
 table.lb th:first-child,table.lb td:first-child{text-align:left}
-table.lb td{padding:9px 8px;border-top:1px solid var(--card-line);text-align:right;font-weight:600}
-table.lb td b{font-weight:800}
-.feed{display:flex;flex-direction:column;gap:5px;max-height:220px;overflow:auto}
-.feed div{font-size:12.5px;color:var(--prose-2);background:var(--surface);border-radius:8px;padding:6px 10px}
-.rules ol{margin:0;padding-left:20px;line-height:1.6;font-size:14px;color:var(--prose-2)}
-.rules li{margin-bottom:6px}
-.seg{display:flex;gap:6px;flex-wrap:wrap}
-.seg button{flex:1;border:2px solid var(--card-line);background:var(--surface);border-radius:10px;padding:10px 6px;font-weight:700;font-size:13px}
-.seg button.sel{border-color:var(--green);background:#22c55e1f}
-.toggle{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--card-line);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;width:100%;text-align:left}
-.toggle .sw{margin-left:auto;width:40px;height:22px;border-radius:999px;background:var(--outline);position:relative;flex:none;transition:.15s}
-.toggle .sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
-.toggle.on .sw{background:var(--green)}.toggle.on .sw::after{left:21px}
-@keyframes rise{0%{transform:translateY(8px);opacity:0}100%{transform:none;opacity:1}}
-.rise{animation:rise .3s ease both}
+table.lb td{padding:10px 8px;border-top:1px solid var(--line2);text-align:right;font-weight:700}
+table.lb td b{font-weight:900;color:var(--gold)}
+.rules ol{margin:0;padding-left:20px;line-height:1.6;font-size:14px;color:var(--muted)}
+.rules li{margin-bottom:6px}.rules b{color:var(--ink)}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;border:2px solid var(--line2);background:rgba(0,0,0,.3);border-radius:12px;padding:10px 6px;font-weight:800;font-size:13px}
+.seg button.sel{border-color:var(--gold);background:rgba(247,201,72,.14)}
+
+/* ---------- stim toy ---------- */
+.toy{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:22px}
+.chip{position:relative;width:86px;height:86px;border:0;border-radius:50%;padding:0;background:none;perspective:600px}
+.chip .disc{position:absolute;inset:0;transform-style:preserve-3d;transition:transform 1.1s cubic-bezier(.15,.9,.25,1)}
+.chip .cf{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;font-size:34px;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  background:radial-gradient(circle,#1a6b46 0 46%,#f7c948 47% 52%,#1a6b46 53%),repeating-conic-gradient(#f7c948 0 15deg,#b3122f 15deg 30deg);
+  box-shadow:inset 0 0 0 5px rgba(255,255,255,.25),0 6px 18px rgba(0,0,0,.5)}
+.chip .cf.b{transform:rotateY(180deg);background:radial-gradient(circle,#8c1027 0 46%,#f7c948 47% 52%,#8c1027 53%),repeating-conic-gradient(#f7c948 0 15deg,#0f5234 15deg 30deg)}
+.toycount{font-size:12px;color:var(--muted);font-weight:800;min-height:16px}
+
 @media (max-width:480px){
   .hbar{gap:7px;padding:10px 12px}.logo{font-size:16px}.gametitle{font-size:12px;padding-left:7px;min-width:0;overflow:hidden;text-overflow:ellipsis}
   .wiptag{font-size:8.5px;padding:2px 6px}.iconbtn{width:30px;height:30px;font-size:13px}
-  .banner .q{font-size:26px}.felt{padding:14px 10px}
+  .banner .q{font-size:26px}.marquee{padding:16px 10px}.codebox .code{font-size:44px}
 }
+@media (prefers-reduced-motion: reduce){.marquee::before,.shine::after,.pulse{animation:none}}
 </style>
 </head>
 <body>
+<canvas id="fx"></canvas>
 
 <header>
   <div class="hbar">
@@ -230,7 +301,6 @@ table.lb td b{font-weight:800}
     <span class="wiptag">IN PROGRESS</span>
     <div class="hspace"></div>
     <button class="iconbtn" id="muteBtn" title="Sound">🔊</button>
-    <button class="iconbtn" id="themeBtn" title="Theme">🌙</button>
   </div>
 </header>
 
@@ -239,19 +309,19 @@ table.lb td b{font-weight:800}
 
   <!-- ===== CHOOSE ===== -->
   <div id="chooseView">
+    <div class="banner"><div class="kick">RNGparty casino</div><div class="q neon">☘️ Irish Poker</div><div class="sub">Guess your cards. Work the pyramid. Pray you don't ride the bus.</div></div>
     <div class="choices">
       <div class="choice" id="hostBtn"><div class="ic">🖥️</div><div class="t">Host on this screen</div>
         <div class="d">Put this on a TV or laptop. Everyone plays from their phone.</div></div>
       <div class="choice" id="joinBtn"><div class="ic">📱</div><div class="t">Join a game</div>
         <div class="d">Enter the room code from the host screen.</div></div>
     </div>
-    <div class="panel rules phone" style="max-width:900px">
+    <div class="panel rules" style="max-width:900px;margin:18px auto 0">
       <h3>How it plays</h3>
       <ol>
-        <li><b>The deal.</b> Four face-down cards each. Guess your next card, four rounds: red/black, higher/lower, inside/outside, then the suit. Right = give sips. Wrong = drink. Hit the post = drink double.</li>
-        <li><b>Memorize.</b> Your hand flips face-down for the rest of the game.</li>
-        <li><b>Give &amp; Take.</b> Eight cards flip one by one. Take cards: holders drink. Give cards: claim you've got one and point at someone — they drink, or call bluff and the loser drinks double.</li>
-        <li><b>Ride the bus.</b> Whoever matched the most rides — no way out. Call higher/lower through the row; any miss means drink and start over.</li>
+        <li><b>Guess your cards.</b> Four face-down cards each, four rounds: red or black, higher or lower, inside or outside, then the suit. Right = give sips. Wrong = drink. Hit the post = drink double.</li>
+        <li><b>The pyramid.</b> Ten cards in a 4‑3‑2‑1 pyramid flip one by one. Got that card? Tap <i>I have it</i> and hand out drinks: 1 sip, 2, 3 — and the top card makes someone finish their drink.</li>
+        <li><b>Ride the bus.</b> Most cards left unplayed rides. Higher or lower down the row. Miss and start over.</li>
       </ol>
     </div>
   </div>
@@ -259,11 +329,11 @@ table.lb td b{font-weight:800}
   <!-- ===== HOST (TV) ===== -->
   <div id="hostView" class="hidden">
     <div id="hLobby">
-      <div class="codebox">
+      <div class="marquee codebox">
         <div class="lbl">JOIN AT</div><div class="url" id="joinUrl">—</div>
-        <div class="lbl mt16">ROOM CODE</div><div class="code mono" id="roomCode">····</div>
+        <div class="lbl mt16">ROOM CODE</div><div class="code mono neon" id="roomCode">····</div>
         <div class="qrbox" id="qrBox" aria-label="Scan to join"></div>
-        <button class="secbtn" id="copyLink" style="margin-top:10px">Copy join link</button>
+        <button class="btn ghost" id="copyLink" style="width:auto;padding:10px 16px">Copy join link</button>
       </div>
       <div id="hLobbyBody"></div>
     </div>
@@ -273,17 +343,18 @@ table.lb td b{font-weight:800}
   <!-- ===== PLAYER (phone) ===== -->
   <div id="playerView" class="hidden phone">
     <div id="pJoinForm">
-      <div class="panel"><h3>Join the game</h3>
-        <div class="prow"><input class="inp mono" id="jCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-weight:700"></div>
-        <div class="prow"><input class="inp" id="jName" placeholder="Your name" maxlength="18" autocomplete="off"></div>
-        <button class="bigbtn green" id="jGo">Deal me in ☘️</button>
+      <div class="panel"><h3>Take a seat</h3>
+        <input class="inp mono" id="jCode" placeholder="ROOM CODE" maxlength="4" autocomplete="off" style="text-transform:uppercase;letter-spacing:6px;font-weight:700;text-align:center">
+        <input class="inp" id="jName" placeholder="Your name" maxlength="18" autocomplete="off">
+        <button class="btn gold shine" id="jGo">Deal me in ☘️</button>
         <div id="joinErr"></div>
       </div>
-      <div class="center mt16"><a class="secbtn" href="/" style="text-decoration:none;display:inline-block">← back</a></div>
+      <div class="center mt16"><a class="linkbtn" href="/">← back to RNGparty</a></div>
     </div>
     <div id="pMain" class="hidden"></div>
   </div>
 </div>
+<div id="overlay"></div>
 
 <script src="qr.js"></script>
 <script src="join-qr.js"></script>
@@ -291,39 +362,149 @@ table.lb td b{font-weight:800}
 const $ = s => document.querySelector(s);
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function sips(n){ return `${n} sip${n===1?'':'s'}`; }
+const buzz = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
 
-/* ---------- SOUND (Web Audio, synthesized, zero deps) ---------- */
+/* ==================================================================
+   TIMING — every reveal is scheduled from the server's stepAt, so the TV
+   and every phone play the same slow reveal together. Server holds that
+   depend on these (BURN_MS, BUS_FINISH_HOLD_MS) live in irishpoker-server.js.
+   ================================================================== */
+const TM = {
+  R_SUS:1900, R_STAG:1150, R_STAMP:650, R_TAIL:900,      // round reveal
+  P_SUS:1500, P_SUS_BURN:950, P_BURN_MSG:2350, P_CLAIM_UI:2500,   // pyramid flip
+  RES_START:450, RES_STEP:1150,                          // hand-out reveal
+  ROUL:5600,                                             // rider roulette
+  BUS_SUS:1700, BUS_VERDICT:2650, BUS_UI:3200, BUS_DEAL:650,
+};
+
+/* ---------- SOUND: synthesized casino (Web Audio, zero deps) ---------- */
 const SFX = (function(){
-  let ctx, muted=false;
+  let ctx, master, muted=false;
   try{ muted=localStorage.getItem('irishpoker_mute')==='1'; }catch(e){}
-  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null} } if(ctx.state==='suspended')ctx.resume(); return ctx; }
-  function tone(freq,dur,type,gain,glideTo,delay){ if(muted)return; const c=ac(); if(!c)return; const t=c.currentTime+(delay||0);
-    const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(freq,t);
+  function ac(){
+    if(!ctx){ try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); master=ctx.createGain(); master.gain.value=.9; master.connect(ctx.destination); }catch(e){ return null; } }
+    if(ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq,dur,type,gain,glideTo,delay){ if(muted) return; const c=ac(); if(!c) return; const t=c.currentTime+(delay||0);
+    const o=c.createOscillator(), g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(freq,t);
     if(glideTo) o.frequency.exponentialRampToValueAtTime(glideTo,t+dur);
-    g.gain.setValueAtTime(gain,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+.02); }
-  function noise(dur,gain,delay,freq){ if(muted)return; const c=ac(); if(!c)return; const t=c.currentTime+(delay||0);
-    const b=c.createBuffer(1,Math.floor(c.sampleRate*dur),c.sampleRate), d=b.getChannelData(0);
-    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3);
+    g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(gain||.08,t+.008); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+.03); }
+  function noise(dur,gain,delay,freq,ftype,sweep){ if(muted) return; const c=ac(); if(!c) return; const t=c.currentTime+(delay||0);
+    const b=c.createBuffer(1,Math.max(1,Math.floor(c.sampleRate*dur)),c.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
     const src=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain(); src.buffer=b;
-    f.type='bandpass'; f.frequency.value=freq||2400; g.gain.value=gain; src.connect(f); f.connect(g); g.connect(c.destination); src.start(t); }
-  return {
+    f.type=ftype||'bandpass'; f.frequency.setValueAtTime(freq||2400,t); if(sweep) f.frequency.exponentialRampToValueAtTime(sweep,t+dur);
+    g.gain.value=gain; src.connect(f); f.connect(g); g.connect(master); src.start(t); }
+  const S = {
     resume(){ ac(); },
-    flip(delay){ noise(.09,.35,delay,2600); tone(900,.04,'triangle',.03,500,delay); },
-    tap(){ tone(660,.05,'square',.03); },
-    right(){ tone(660,.12,'sine',.09,880); tone(990,.2,'sine',.08,1320,.1); },
-    wrong(){ tone(220,.32,'sawtooth',.07,110); },
-    post(){ tone(300,.18,'sine',.1,900); tone(900,.25,'sine',.08,200,.16); },
-    horn(){ tone(311,.28,'square',.05); tone(392,.28,'square',.05); tone(311,.4,'square',.05,null,.34); tone(392,.4,'square',.05,null,.34); },
-    drum(){ noise(.25,.5,0,180); tone(90,.3,'sine',.2,45); },
-    cheer(){ [523,659,784,1047].forEach((f,i)=>tone(f,.22,'sine',.08,null,i*.09)); },
+    tap(){ tone(1100,.035,'triangle',.05,700); },
+    tick(p){ tone(900*(p||1),.03,'square',.03); },
+    chip(){ tone(2600,.025,'square',.045); tone(3400,.04,'square',.03,null,.03); },
+    coins(n,delay){ for(let i=0;i<(n||10);i++) tone(1900+Math.random()*2200,.06,'square',.02,null,(delay||0)+i*.05+Math.random()*.025); },
+    drumroll(dur){ dur=dur||1.6; for(let t=0;t<dur;t+=.042) noise(.05,.05+.3*Math.pow(t/dur,2),t,180+400*(t/dur),'lowpass'); noise(.35,.55,dur,900,'lowpass',120); },
+    flip(){ noise(.14,.4,0,3200,'bandpass',900); tone(500,.07,'triangle',.06,1400,.03); },
+    win(){ [659,880,1047,1319].forEach((f,i)=>tone(f,.2,'sine',.1,null,i*.075)); S.coins(10,.3); },
+    lose(){ tone(340,.55,'sawtooth',.07,95); noise(.3,.35,.05,150,'lowpass'); },
+    post(){ tone(240,.2,'sine',.12,820); tone(820,.4,'sine',.1,140,.2); },
+    burn(){ noise(1.1,.4,0,1800,'lowpass',200); tone(180,.7,'sawtooth',.045,55); },
+    claimcall(){ [523,659,784].forEach((f,i)=>tone(f,.12,'triangle',.07,null,i*.09)); },
+    have(){ tone(784,.08,'triangle',.1); tone(1175,.16,'triangle',.1,null,.07); S.coins(4,.1); },
+    nope(){ tone(180,.18,'square',.06); tone(150,.25,'square',.06,null,.14); },
+    give(){ tone(1400,.05,'square',.04); S.coins(5,.04); },
+    lever(){ for(let i=0;i<7;i++) tone(1400-i*120,.03,'square',.04,null,i*.045); noise(.25,.3,.32,700,'lowpass'); },
+    jackpot(){ for(let i=0;i<10;i++) tone(i%2?988:740,.17,'square',.05,null,i*.17); [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.3,'sine',.09,null,1.7+i*.09)); S.coins(28,1.9); },
+    horn(){ [0,.36].forEach(d=>{ tone(311,.3,'square',.05,null,d); tone(392,.3,'square',.05,null,d); }); },
+    cheer(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,.26,'sine',.09,null,i*.09)); S.coins(20,.4); },
     isMuted(){ return muted; },
     toggle(){ muted=!muted; try{ localStorage.setItem('irishpoker_mute',muted?'1':'0'); }catch(e){} return muted; },
   };
+  return S;
 })();
 $('#muteBtn').textContent=SFX.isMuted()?'🔇':'🔊';
-$('#muteBtn').addEventListener('click',()=>{const m=SFX.toggle();$('#muteBtn').textContent=m?'🔇':'🔊';if(!m)SFX.resume();});
-$('#themeBtn').addEventListener('click',()=>{const d=document.documentElement.classList.toggle('dark');$('#themeBtn').textContent=d?'🌙':'☀️';});
+$('#muteBtn').addEventListener('click',()=>{ const m=SFX.toggle(); $('#muteBtn').textContent=m?'🔇':'🔊'; if(!m) SFX.resume(); });
+
+/* ---------- PARTICLES: coins, confetti, embers ---------- */
+const FX = (function(){
+  const cv=$('#fx'), cx=cv.getContext('2d'); let parts=[], running=false, dpr=1;
+  function size(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; }
+  addEventListener('resize', size); size();
+  const COLS={ coins:['#f7c948','#ffe28a','#d6981c'], confetti:['#f7c948','#3ee089','#ff3d5f','#6ea8ff','#fff8e7'], embers:['#ff7a1a','#ffb347','#ff3d00'], drops:['#ffb347','#ffd166'] };
+  function burst(x,y,kind,n){
+    kind=kind||'coins'; n=n||40;
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, sp=(kind==='embers'?2:5)+Math.random()*9;
+      parts.push({ x:x*dpr, y:y*dpr, vx:Math.cos(a)*sp*dpr, vy:(Math.sin(a)*sp-(kind==='embers'?2:7))*dpr, g:(kind==='embers'?-.05:.38)*dpr,
+        life:60+Math.random()*50, age:0, c:COLS[kind][i%COLS[kind].length], s:(kind==='confetti'?7:kind==='embers'?4:9)*dpr*(0.6+Math.random()*.7),
+        rot:Math.random()*6, vr:(Math.random()-.5)*.4, kind });
+    }
+    if(!running){ running=true; requestAnimationFrame(step); }
+  }
+  function step(){
+    cx.clearRect(0,0,cv.width,cv.height);
+    parts=parts.filter(p=>p.age<p.life);
+    for(const p of parts){
+      p.age++; p.vy+=p.g; p.vx*=.985; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      const alpha=Math.max(0,1-p.age/p.life); cx.globalAlpha=alpha; cx.fillStyle=p.c;
+      cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+      if(p.kind==='coins'){ cx.scale(Math.abs(Math.cos(p.age*.25))+.15,1); cx.beginPath(); cx.arc(0,0,p.s/2,0,Math.PI*2); cx.fill(); cx.fillStyle='rgba(255,255,255,.5)'; cx.fillRect(-p.s*.15,-p.s*.3,p.s*.12,p.s*.6); }
+      else if(p.kind==='confetti'){ cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2); }
+      else { cx.beginPath(); cx.arc(0,0,p.s/2,0,Math.PI*2); cx.fill(); }
+      cx.restore();
+    }
+    cx.globalAlpha=1;
+    if(parts.length) requestAnimationFrame(step); else { running=false; cx.clearRect(0,0,cv.width,cv.height); }
+  }
+  function at(el,kind,n){ const r=el.getBoundingClientRect(); if(!r.width && !r.height) return; burst(r.left+r.width/2, r.top+r.height/2, kind, n); }
+  function rain(kind,n){ for(let i=0;i<(n||120);i++) setTimeout(()=>burst(Math.random()*innerWidth, -10, kind||'confetti', 1), i*12); }
+  return { burst, at, rain };
+})();
+function shakeScreen(){ document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); setTimeout(()=>document.body.classList.remove('shake'),500); }
+
+/* ---------- TIMELINE: data-at elements switch on when their moment arrives ---------- */
+const FIRED = new Set();
+let BASE = 0, STEPKEY = '';
+function tl(ms, key, fx){
+  const t=BASE+ms, on=Date.now()>=t;
+  if(on && key) FIRED.add(STEPKEY+key);
+  return { c: on?'on':'', a:` data-at="${t}"${key?` data-key="${STEPKEY+key}"`:''}${fx?` data-fx="${fx}"`:''}` };
+}
+function runFx(list, el){
+  for(const fx of String(list||'').split(' ')){
+    switch(fx){
+      case 'flip': SFX.flip(); break;
+      case 'drum': SFX.drumroll((+el.dataset.dur||1600)/1000); break;
+      case 'win': SFX.win(); FX.at(el,'coins',46); buzz([30,40,30]); break;
+      case 'lose': SFX.lose(); buzz(220); break;
+      case 'post': SFX.post(); FX.at(el,'drops',24); buzz([80,60,80]); break;
+      case 'burn': SFX.burn(); FX.at(el,'embers',60); break;
+      case 'claimcall': SFX.claimcall(); buzz(40); break;
+      case 'give': SFX.give(); FX.at(el,'coins',18); break;
+      case 'chip': SFX.chip(); break;
+      case 'coins': SFX.coins(12); FX.at(el,'coins',30); break;
+      case 'jackpot': SFX.jackpot(); FX.rain('confetti',160); buzz([200,100,200,100,400]); break;
+      case 'horn': SFX.horn(); FX.at(el,'confetti',60); buzz([100,60,100]); break;
+      case 'cheer': SFX.cheer(); FX.rain('coins',90); break;
+      case 'shake': shakeScreen(); break;
+    }
+  }
+}
+function frame(){
+  const t=Date.now();
+  document.querySelectorAll('[data-at]').forEach(el=>{
+    const at=+el.dataset.at;
+    if(t>=at){
+      if(!el.classList.contains('on')){
+        el.classList.add('on'); el.classList.remove('soon');
+        const k=el.dataset.key; if(k && !FIRED.has(k)){ FIRED.add(k); runFx(el.dataset.fx, el); }
+      }
+    } else if(el.dataset.soon && t>=at-(+el.dataset.soon)) el.classList.add('soon');
+  });
+  stepRoulette();
+  tickCountdowns();
+}
+setInterval(frame, 50);
 
 /* ---------- session persistence (reconnect) ---------- */
 const SESSION_KEY='irishpoker_session';
@@ -332,7 +513,7 @@ function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(
 function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
 
 /* ---------- network ---------- */
-const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, offset:0,
+const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, offset:0, resuming:false,
   manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
   connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/irishpoker-ws`);
     this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
@@ -344,10 +525,7 @@ const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, o
     this.reconnecting=true; renderConnBar();
     clearTimeout(this.reconnectTimer);
     const delay=Math.min(1000*Math.pow(1.6,this.reconnectAttempts),6000);
-    this.reconnectTimer=setTimeout(()=>{
-      this.reconnectAttempts++;
-      this.connect(()=>this.send({type:'resume',code:this.code,pid:this.pid,token:this.token}));
-    },delay);
+    this.reconnectTimer=setTimeout(()=>{ this.reconnectAttempts++; this.connect(()=>this.send({type:'resume',code:this.code,pid:this.pid,token:this.token})); },delay);
   },
   onMsg(m){
     if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.connected(); hostLobbyReady(m.code); }
@@ -357,12 +535,12 @@ const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, o
       else if(this.resuming){ this.resuming=false; clearSession(); this.manualClose=true; try{ this.ws.close(); }catch(e){} this.role=null; this.code=null; this.pid=null; showOnly('chooseView'); }
       else onNetError(m.msg);
     }
-    else if(m.type==='hand'){ UI.peekCards=m.cards; UI.peekUntil=Date.now()+4000; rerender(); setTimeout(rerender,4050); }
+    else if(m.type==='nope'){ const c=currentSlotCard(); toast(`Nope — no ${c?rankWord(c.r):'match'} in your hand 🙃`); SFX.nope(); buzz([60,40,60]); shakeScreen(); }
     else if(m.type==='state'){ this.offset=m.serverNow-Date.now(); const prev=this.state; this.state=m; onState(prev,m); }
   },
   connected(){ this.resuming=false; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); }
 };
-function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small mt8" style="color:#ef4444">${esc(msg)}</div>`; }
+function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small mt8" style="color:#ff6b83">${esc(msg)}</div>`; }
 function renderConnBar(){
   const bar=$('#connBar');
   if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
@@ -370,11 +548,10 @@ function renderConnBar(){
   if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.textContent='📺 Shared screen disconnected — keep playing on your phone.'; return; }
   bar.className='connbar hidden';
 }
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2300); }
 
-/* ---------- local UI state (selections, peeks, two-tap confirms) ---------- */
-const UI = { key:null, answer:null, target:null, claimTarget:null, peekCards:null, peekUntil:0, armed:null, armedTimer:null };
-const SEEN = new Set();       // card keys that already played their flip animation
-let SEEN_GAME = null;
+/* ---------- local UI state ---------- */
+const UI = { key:null, answer:null, target:null, alloc:{}, finishPick:[], armed:null, armedTimer:null, dismissed:new Set(), prevLocked:new Set(), toyStreak:0, toyLast:null };
 
 /* ---------- helpers ---------- */
 const SUIT = { s:'♠', h:'♥', d:'♦', c:'♣' };
@@ -389,28 +566,30 @@ const ROUNDS = [
   { wrong:2, give:4, options:['s','h','d','c'] },
 ];
 const INTENSITY_LABEL = { sipping:'🥤 Sipping', drinking:'🍺 Drinking', hammered:'🥴 Hammered' };
-function rank(r){ return RANKS[r]||String(r); }
-function rankWord(r){ return RANK_WORD[r]||String(r); }
-function aRank(r){ return (r===14||r===8?'an ':'a ')+rankWord(r); }
-function cardName(c){ return `${rank(c.r)}${SUIT[c.s]}`; }
-function isRed(c){ return c.s==='h'||c.s==='d'; }
-function mult(s){ return MULT[s.settings.intensity]||1; }
-function player(s,pid){ return s.players.find(p=>p.pid===pid); }
-function nameOf(s,pid){ const p=player(s,pid); return p?esc(p.name):'someone'; }
+const rank = r => RANKS[r]||String(r);
+const rankWord = r => RANK_WORD[r]||String(r);
+const aRank = r => (r===14||r===8?'an ':'a ')+rankWord(r);
+const cardName = c => `${rank(c.r)}${SUIT[c.s]}`;
+const isRed = c => c.s==='h'||c.s==='d';
+const mult = s => MULT[s.settings.intensity]||1;
+const player = (s,pid) => s.players.find(p=>p.pid===pid);
+const nameOf = (s,pid) => { const p=player(s,pid); return p?esc(p.name):'someone'; };
+const dealt = s => s.players.filter(p=>p.dealt);
+const leaderName = s => s.leaderPid ? nameOf(s,s.leaderPid) : 'the room';
+const cardsLeft = p => 4-(p.played||[]).filter(Boolean).length;
 function avatar(p){ return `<span class="av" style="background:${p.color}">${esc(p.name[0].toUpperCase())}</span>`; }
-function offline(p){ return p.connected===false ? '<span class="offlinetag">· OFFLINE</span>' : ''; }
-function dealt(s){ return s.players.filter(p=>p.dealt); }
-function leaderName(s){ return s.leaderPid ? nameOf(s,s.leaderPid) : 'the room'; }
-function answerLabel(v){
-  return ({red:'Red',black:'Black',higher:'Higher',lower:'Lower',inside:'Inside',outside:'Outside'})[v] || `${SUIT[v]} ${SUIT_NAME[v]}`;
-}
-function cardHtml(card, o={}){
-  const size=o.size||'md', extra=o.cls?' '+o.cls:'';
-  if(o.slot) return `<div class="pc ${size} slot${extra}"></div>`;
-  if(!card) return `<div class="pc ${size} back${extra}"></div>`;
-  let anim='', style='';
-  if(o.key && !SEEN.has(o.key)){ SEEN.add(o.key); anim=' flipin'; if(o.delay) style=` style="animation-delay:${o.delay}ms"`; }
-  return `<div class="pc ${size}${isRed(card)?' red':''}${anim}${extra}"${style}><span class="tl">${rank(card.r)}<br>${SUIT[card.s]}</span><span class="mid">${SUIT[card.s]}</span></div>`;
+function offline(p){ return p.connected===false ? '<span class="offlinetag">OFFLINE</span>' : ''; }
+function answerLabel(v){ return ({red:'Red',black:'Black',higher:'Higher',lower:'Lower',inside:'Inside',outside:'Outside'})[v] || `${SUIT[v]} ${SUIT_NAME[v]}`; }
+function currentSlotCard(){ const y=NET.state&&NET.state.pyramid; return y&&y.idx>=0 ? y.slots[y.idx].card : null; }
+function levelLabel(sl){ return sl.finish ? '🍺 FINISH' : sips(sl.sips).toUpperCase(); }
+function joinNames(list){ return list.length<=1 ? (list[0]||'') : list.slice(0,-1).join(', ')+' & '+list[list.length-1]; }
+
+function cardHtml(c, o){
+  o=o||{};
+  const sz=o.size||'md';
+  const face = c ? `<div class="f face${isRed(c)?' red':''}"><span class="cn tl">${rank(c.r)}<i>${SUIT[c.s]}</i></span><span class="pip">${c.r>=11&&c.r<=13?`<b>${rank(c.r)}</b>`:SUIT[c.s]}</span><span class="cn br">${rank(c.r)}<i>${SUIT[c.s]}</i></span></div>` : `<div class="f face"></div>`;
+  const state = !c ? '' : o.t ? o.t.c : 'up';
+  return `<div class="c3 ${sz} ${state} ${o.cls||''}"${o.t?o.t.a:''}${o.t&&o.soon?` data-soon="${o.soon}"`:''}><div class="in">${face}<div class="f back"></div></div>${o.burn||''}</div>`;
 }
 function countdownHtml(s, label){ return s.deadline ? `<div class="cd" data-cd="${esc(label)}"></div>` : ''; }
 function tickCountdowns(){
@@ -420,7 +599,9 @@ function tickCountdowns(){
     el.textContent = secs>0 ? `⏱ ${el.dataset.cd} ${secs}s` : '';
   });
 }
-setInterval(tickCountdowns,250);
+function setHtml(el, html){ if(el._html===html) return; el._html=html; el.innerHTML=html; }
+function drumEl(ms, dur){ const x=tl(ms,'drum'+ms,'drum'); return `<i class="fxonly"${x.a} data-dur="${dur}"></i>`; }
+function fxEl(ms, key, fx){ const x=tl(ms,key,fx); return `<i class="fxonly"${x.a}></i>`; }
 
 function questionFor(s, cards){
   const r=s.round;
@@ -433,154 +614,185 @@ function questionFor(s, cards){
 }
 function stakesFor(s){
   const d=ROUNDS[s.round-1], x=mult(s);
-  return `Right: give ${sips(d.give*x)} · Wrong: drink ${sips(d.wrong*x)}${s.round===2||s.round===3?` · On the post: drink ${sips(d.wrong*x*2)}`:''}`;
+  return `Right: give ${sips(d.give*x)} · Wrong: drink ${sips(d.wrong*x)}${s.round===2||s.round===3?` · Post: drink ${sips(d.wrong*x*2)}`:''}`;
 }
-function drinksHtml(s, meId, title){
+function drinksPanel(s, meId, startMs, title){
   const rows=Object.entries(s.stepDrinks||{}).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
-  if(!rows.length) return `<div class="panel"><h3>${title||'🍺 Drink up'}</h3><div class="small">Nobody drinks. Suspicious.</div></div>`;
-  return `<div class="panel"><h3>${title||'🍺 Drink up'}</h3><div class="drinks">${rows.map(([pid,n])=>{ const p=player(s,pid); if(!p) return '';
-    return `<div class="drow rise${pid===meId?' me':''}">${avatar(p)}${esc(p.name)}${pid===meId?' (you)':''}<span class="n">${sips(n)}</span></div>`; }).join('')}</div></div>`;
+  const head=tl(startMs);
+  if(!rows.length) return `<div class="panel pend ${head.c}"${head.a}><h3>${title||'🍺 Drink up'}</h3><div class="small">Nobody drinks. Suspicious.</div></div>`;
+  return `<div class="panel pend ${head.c}"${head.a}><h3>${title||'🍺 Drink up'}</h3><div class="drinks">${rows.map(([pid,n],i)=>{ const p=player(s,pid); if(!p) return '';
+    const x=tl(startMs+250+i*260,'dr'+pid,'chip');
+    return `<div class="drow pend ${x.c}${pid===meId?' me':''}"${x.a}>${avatar(p)}${esc(p.name)}${pid===meId?' (you)':''}<span class="n">${sips(n)}</span></div>`; }).join('')}</div></div>`;
 }
-function feedHtml(s){
-  if(!s.feed || !s.feed.length) return '';
-  return `<div class="panel"><h3>Table talk</h3><div class="feed">${s.feed.slice().reverse().map(f=>`<div>${esc(f.text)}</div>`).join('')}</div></div>`;
+function roundStamp(r, forMe, s){
+  if(r.verdict==='right') return { cls:'win', text:'WIN', fx:'win', sub:`${forMe?'You give':'gives'} <b>${nameOf(s,r.target)}</b> ${sips(r.sips)}` };
+  if(r.verdict==='post') return { cls:'lose', text:`POST ×2`, fx:'post shake', sub:`${forMe?'Drink':'drinks'} ${sips(r.sips)}` };
+  return { cls:'lose', text:`DRINK ${r.sips}`, fx:'lose', sub:`${answerLabel(r.guess)} was wrong` };
 }
-function roundResultText(s, r, forMe){
-  const p=player(s,r.pid), who=forMe?'You':esc(p?p.name:'?');
-  const auto=r.auto?' <span class="tag wait">AUTO</span>':'';
-  if(r.verdict==='right') return `✅ <b>${answerLabel(r.guess)}</b> — ${forMe?'you give':'gives'} <b>${nameOf(s,r.target)}</b> ${sips(r.sips)}${auto}`;
-  if(r.verdict==='post') return `🎯 <b>On the post!</b> — ${forMe?'drink':'drinks'} ${sips(r.sips)}${auto}`;
-  return `❌ <b>${answerLabel(r.guess)}</b> — ${forMe?'drink':'drinks'} ${sips(r.sips)}${auto}`;
-}
+function revealEnd(s){ return TM.R_SUS + dealt(s).length*TM.R_STAG + TM.R_STAMP + TM.R_TAIL; }
 
-/* Pyramid board. `size` lg on the TV, sm on phones. */
+/* Pyramid: rows top (finish) to bottom (1 sip); flip order runs bottom-left upward. */
 function pyramidHtml(s, size){
   const y=s.pyramid; if(!y) return '';
-  const cell=(slot,i)=>{
-    const flipped=!!slot.card, cls=i===y.idx?'cur':(i===y.idx+1&&(y.step==='ready'||y.step==='result')?'nextup':'');
-    const face=flipped ? cardHtml(slot.card,{size,key:`g${s.gameId}:pyr:${i}`,cls}) : cardHtml(null,{size,cls});
-    const val=slot.value*mult(s);
-    return `<div class="cell">${face}<span class="val ${slot.row}">${size==='sm'?(slot.row==='give'?'+':'−'):(slot.row==='give'?'GIVE ':'TAKE ')}${val}</span></div>`;
+  const compact=size==='sm'||size==='xs';
+  const slotHtml=i=>{
+    const sl=y.slots[i];
+    if(i<y.idx) return cardHtml(sl.card,{size});
+    if(i===y.idx && sl.card){
+      if(y.step==='burn' || y.step==='claim'){
+        const sus = sl.burns ? TM.P_SUS_BURN : TM.P_SUS;
+        const burn = y.step==='burn' ? (x=>`<div class="burnx ${x.c}"${x.a}>🔥</div>`)(tl(TM.P_BURN_MSG,'burn'+i+'_'+sl.burns,'burn')) : '';
+        return cardHtml(sl.card,{size, t:tl(sus,'pf'+i+'_'+sl.burns,'flip'), soon:sus-150, cls:'glow', burn});
+      }
+      return cardHtml(sl.card,{size, cls:'glow'});
+    }
+    const next = (y.step==='ready'||y.step==='result') && i===y.idx+1;
+    return cardHtml(null,{size, cls: next?'nextup':''});
   };
-  const give=y.slots.map((sl,i)=>[sl,i]).filter(([sl])=>sl.row==='give');
-  const take=y.slots.map((sl,i)=>[sl,i]).filter(([sl])=>sl.row==='take');
-  const compact=size==='sm';
-  return `<div class="felt"><div class="pyr${compact?' compact':''}">
-    <div class="rl give">🍻${compact?'':' GIVE'}</div>${give.map(([sl,i])=>cell(sl,i)).join('')}
-    <div class="rl take">🥃${compact?'':' TAKE'}</div>${take.map(([sl,i])=>cell(sl,i)).join('')}
-  </div></div>`;
+  const rows=[1,2,3,4].map(level=>{
+    const idxs=y.slots.map((sl,i)=>sl.level===level?i:-1).filter(i=>i>=0);
+    const sl=y.slots[idxs[0]];
+    return `<div class="prow"><div class="lv ${sl.finish?'fin':''}">${compact?(sl.finish?'🍺':'×'+sl.sips):levelLabel(sl)}</div><div class="cells">${idxs.map(slotHtml).join('')}</div><div class="lvr"></div></div>`;
+  }).join('');
+  return `<div class="marquee"><div class="pyr${compact?' compact':''}">${rows}</div></div>`;
 }
-function currentSlot(s){ const y=s.pyramid; return y && y.idx>=0 ? y.slots[y.idx] : null; }
-function pyramidResultLines(s, meId){
-  const res=s.pyramid.result; if(!res) return '';
-  const you=pid=>pid===meId?'you':nameOf(s,pid);
-  const You=pid=>pid===meId?'You':nameOf(s,pid);
-  if(res.row==='take'){
-    if(!res.takers.length) return `<div class="lines"><div class="line good">Nobody had ${aRank(res.card.r)}. Lucky table.</div></div>`;
-    return `<div class="lines">${res.takers.map(t=>`<div class="line bad rise">🥃 <b>${You(t.pid)}</b> ${t.pid===meId?'have':'has'} ${t.count>1?t.count+' of them':'one'} — ${t.pid===meId?'drink':'drinks'} <b>${sips(t.sips)}</b></div>`).join('')}</div>`;
-  }
-  if(!res.claims.length) return `<div class="lines"><div class="line">Nobody claimed ${aRank(res.card.r)}. Not a single liar at the table?</div></div>`;
-  return `<div class="lines">${res.claims.map(c=>{
-    if(c.response==='drink') return `<div class="line rise">🍻 <b>${You(c.from)}</b> → <b>${you(c.to)}</b>: ${you(c.to)} ${c.to===meId?'drink':'drinks'} <b>${sips(c.sips)}</b>${c.auto?' <span class="tag wait">NO ANSWER</span>':''}</div>`;
-    if(c.truthful) return `<div class="line call rise">🚨 <b>${You(c.to)}</b> called bluff on <b>${you(c.from)}</b> <span class="tag truth">TRUTH</span> — ${you(c.to)} ${c.to===meId?'drink':'drinks'} <b>${sips(c.sips)}</b></div>`;
-    return `<div class="line call rise">🚨 <b>${You(c.to)}</b> called bluff on <b>${you(c.from)}</b> <span class="tag lie">LIAR 🤥</span> — ${you(c.from)} ${c.from===meId?'drink':'drinks'} <b>${sips(c.sips)}</b></div>`;
-  }).join('')}</div>`;
+function resultLines(s, meId){
+  const y=s.pyramid, res=y.result; if(!res) return '';
+  const pairs=[];
+  for(const g of res.gives){ const e=pairs.find(p=>p.from===g.from&&p.to===g.to); if(e) e.sips+=g.sips; else pairs.push({...g}); }
+  const you=(pid,cap)=>pid===meId?(cap?'You':'you'):nameOf(s,pid);
+  const lines=[];
+  res.finishes.forEach((f,i)=>{ const x=tl(TM.RES_START+i*TM.RES_STEP,'fin'+i,'give'); lines.push(`<div class="line fin pend ${x.c}"${x.a}>${avatar(player(s,f.from)||{color:'#999',name:'?'})}<b>${you(f.from,true)}</b><span class="arrow">➜</span><b>${you(f.to,true)}</b><span class="amt neon-red">FINISH IT 🍺</span></div>`); });
+  pairs.forEach((g,i)=>{ const x=tl(TM.RES_START+(res.finishes.length+i)*TM.RES_STEP,'give'+i,'give'); lines.push(`<div class="line pend ${x.c}"${x.a}>${avatar(player(s,g.from)||{color:'#999',name:'?'})}<b>${you(g.from,true)}</b><span class="arrow">➜</span><b>${you(g.to,true)}</b><span class="amt">🍺 ×${g.sips}</span></div>`); });
+  return `<div class="lines">${lines.join('')}</div>`;
+}
+function resultEnd(s){ const r=s.pyramid.result; if(!r) return 0; const pairs=new Set(r.gives.map(g=>g.from+'>'+g.to)).size; return TM.RES_START + (r.finishes.length+pairs)*TM.RES_STEP + 300; }
+function takeoverHtml(s, meId, allowDismiss){
+  const y=s.pyramid, res=y&&y.result;
+  if(!res || !res.finishes.length) return '';
+  const key='tk'+s.gameId+'_'+s.stepAt;
+  if(UI.dismissed.has(key)) return '';
+  const mine=res.finishes.some(f=>f.to===meId);
+  const targets=[...new Set(res.finishes.map(f=>f.to))];
+  const givers=[...new Set(res.finishes.map(f=>f.from))];
+  const on=tl(TM.RES_START,'tk','jackpot'), off=tl(TM.RES_START+(mine?60000:6500));
+  const who = mine ? 'YOU' : esc(joinNames(targets.map(pid=>(player(s,pid)||{name:'?'}).name))).toUpperCase();
+  return `<div class="gone ${off.c}"${off.a}><div class="takeover pend ${on.c}"${on.a}><div>
+    <div class="t1">🚨 TOP OF THE PYRAMID 🚨</div><div class="t2">${who}</div><div class="t3">${mine?'FINISH YOUR DRINK':'FINISH'+(targets.length>1?'':'ES')+' THEIR DRINK'} — courtesy of ${esc(joinNames(givers.map(pid=>(player(s,pid)||{name:'?'}).name)))}</div>
+    ${allowDismiss?`<button class="btn gold" data-act="dismiss" data-k="${key}">${mine?'Done. Glass is empty 🍺':'Close'}</button>`:''}
+  </div></div></div>`;
 }
 function riderReasonText(s){
   const r=player(s,s.riderPid);
-  if(s.riderReason==='matches') return `Matched the most cards (${r?r.matches:'?'}).`;
-  if(s.riderReason==='wrong') return `Tied on matches — most wrong guesses breaks it.`;
-  return `Tied all the way down — the deck chose.`;
+  if(s.riderReason==='cardsLeft') return `Most cards left unplayed (${r?cardsLeft(r):'?'}).`;
+  if(s.riderReason==='wrong') return `Tied on cards left — most wrong guesses rides.`;
+  return `Dead even on everything — the wheel decided.`;
+}
+
+/* ---------- rider roulette (spotlight sweeps, slows, lands) ---------- */
+let ROUL=null;
+function setupRoulette(s){
+  const key=s.gameId+':'+s.stepAt;
+  if(ROUL && ROUL.key===key) return;
+  const ps=dealt(s).map(p=>p.pid), ri=Math.max(0,ps.indexOf(s.riderPid)), n=ps.length;
+  let K=n*4+ri; if(K<14) K+=n*Math.ceil((14-K)/n);
+  const seq=[]; for(let k=0;k<=K;k++) seq.push({ t:TM.ROUL*(1-Math.pow(1-k/K,2.4)), pid:ps[k%n] });
+  ROUL={ key, base:BASE, seq, lastK:-1 };
+}
+function stepRoulette(){
+  const s=NET.state; if(!ROUL || !s || s.phase!=='rider') return;
+  const el=Date.now()-ROUL.base, done=el>=TM.ROUL;
+  let k=0; while(k+1<ROUL.seq.length && ROUL.seq[k+1].t<=el) k++;
+  const pid=ROUL.seq[k].pid, last=ROUL.seq[ROUL.seq.length-1].pid;
+  document.querySelectorAll('[data-rpid]').forEach(x=>{ x.classList.toggle('spot', !done && x.dataset.rpid===pid); x.classList.toggle('win', done && x.dataset.rpid===last); });
+  if(!done && k!==ROUL.lastK){ ROUL.lastK=k; SFX.tick(1+k/ROUL.seq.length*.8); buzz(8); }
+}
+function rouletteGrid(s){
+  return `<div class="rgrid">${dealt(s).map(p=>`<div class="rseat" data-rpid="${p.pid}">${avatar(p)}<div class="nm">${esc(p.name)}</div><div class="left">${cardsLeft(p)} card${cardsLeft(p)===1?'':'s'} left · ${p.wrong} wrong</div></div>`).join('')}</div>`;
+}
+
+/* ---------- bus ---------- */
+function busTiming(b){
+  if(b.lastEvent==='deal'||b.lastEvent==='redeal') return { idx:0, flip:TM.BUS_DEAL, verdict:null, ui:TM.BUS_DEAL+800 };
+  if(b.lastEvent==='hit') return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
+  if(b.lastEvent==='miss') return { idx:b.pos+1, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
+  return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };   // done
 }
 function busTrackHtml(s, size){
   const b=s.bus; if(!b) return '';
+  const T=busTiming(b);
   const cards=b.cards.map((c,i)=>{
-    const cls = b.status==='guessing' && i===b.pos ? 'cur' : (b.status==='guessing' && i===b.pos+1 ? 'q' : '');
-    return c ? cardHtml(c,{size,key:`g${s.gameId}:bus:${b.attempt}:${i}`,cls}) : cardHtml(null,{size,cls});
+    if(c && i===T.idx){ return cardHtml(c,{size, t:tl(T.flip,'bf'+b.attempt+'_'+i+'_'+b.lastEvent,'flip'), soon:T.flip>1000?T.flip-100:0, cls:'glow'}); }
+    const cls = b.status==='guessing' && i===b.pos+1 ? 'q' : '';
+    return c ? cardHtml(c,{size}) : cardHtml(null,{size,cls});
   }).join('');
   const progress = b.status==='done' ? 100 : (b.pos/(b.length-1))*100;
-  return `<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*46}px)">🚌</span></div><div class="bustrack">${cards}</div>`;
+  const drum = (b.lastEvent==='hit'||b.lastEvent==='miss'||b.lastEvent==='done') ? drumEl(60, TM.BUS_SUS-80) : '';
+  return `${drum}<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*52}px)">🚌</span></div><div class="bustrack">${cards}</div>`;
 }
-function busStatusHtml(s, meId){
-  const b=s.bus, riderName=nameOf(s,s.riderPid), isMe=s.riderPid===meId;
-  let html='';
-  if(b.status==='done') html=`<div class="verdict right rise"><div class="t">OFF THE BUS</div><div class="n">🎉 ${isMe?'You made it':riderName+' made it'} — attempt ${b.attempt}</div></div>`;
-  else if(b.status==='failed') html=`<div class="verdict wrong rise"><div class="t">${b.lastGuess.verdict==='post'?'SAME CARD — THAT’S A MISS':'WRONG'}</div><div class="n">🍺 ${isMe?'Drink':riderName+' drinks'} ${sips(b.lastGuess.sips)}</div><div class="small mt8">${isMe?'Then deal again — back to the start.':'Back to the start of the bus…'}</div></div>`;
-  else if(b.lastGuess && b.pos>0) html=`<div class="small center mt8">✅ ${answerLabel(b.lastGuess.guess)} was right — keep going</div>`;
+function busVerdictHtml(s, meId){
+  const b=s.bus, T=busTiming(b); if(T.verdict==null) return '';
+  const riderName=nameOf(s,s.riderPid), isMe=s.riderPid===meId;
+  let inner='';
+  if(b.status==='done'){ const x=tl(T.verdict,'bv','cheer'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp win bigstamp">OFF THE BUS</span><div class="verdict"><div class="n">🎉 ${isMe?'You made it':riderName+' made it'} — attempt ${b.attempt}</div></div></div>`; }
+  else if(b.status==='failed'){ const x=tl(T.verdict,'bv','lose shake'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp lose bigstamp">${b.lastGuess.verdict==='post'?'SAME CARD':'MISS'}</span><div class="verdict"><div class="n">🍺 ${isMe?'Drink':riderName+' drinks'} ${sips(b.lastGuess.sips)} — back to the start</div></div></div>`; }
+  else { const x=tl(T.verdict,'bv','win'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp win">${answerLabel(b.lastGuess.guess).toUpperCase()} ✓</span></div>`; }
+  let bets='';
   if(b.lastBets && b.lastBets.length){
     const losers=b.lastBets.filter(x=>!x.won).map(x=>x.pid===meId?'you':nameOf(s,x.pid));
     const mine=b.lastBets.find(x=>x.pid===meId);
-    html+=`<div class="small center mt8">${mine?(mine.won?'🎲 Your side bet hit.':'🎲 Your side bet missed — drink 1.'):''} ${losers.length?`Side-bet losers drink 1: ${losers.join(', ')}`:'All side bets hit.'}</div>`;
+    const x=tl(T.verdict+500);
+    bets=`<div class="small center mt8 pend ${x.c}"${x.a}>${mine?(mine.won?'🎲 Your side bet hit. ':'🎲 Your side bet missed — drink 1. '):''}${losers.length?`Side-bet losers drink 1: ${losers.join(', ')}`:'Every side bet hit.'}</div>`;
   }
-  return html;
+  return `<div class="center mt16">${inner}${bets}</div>`;
 }
 function awardsHtml(s){
   const ps=dealt(s); if(!ps.length) return '';
-  const best=(key,min)=>{ const top=Math.max(...ps.map(p=>p[key]||0)); if(top<(min||1)) return null; return { v:top, names:ps.filter(p=>(p[key]||0)===top).map(p=>esc(p.name)).join(' & ') }; };
+  const best=key=>{ const top=Math.max(...ps.map(p=>p[key]||0)); if(top<1) return null; return { v:top, names:esc(joinNames(ps.filter(p=>(p[key]||0)===top).map(p=>p.name))) }; };
   const list=[
     ['🍺','Thirstiest', best('sipsTaken'), v=>sips(v)+' taken'],
     ['🎁','Most generous', best('sipsGiven'), v=>sips(v)+' handed out'],
     ['🧠','Card sharp', best('correct'), v=>`${v}/4 guesses right`],
-    ['🤥','Smoothest liar', best('bluffsGotAway'), v=>`${v} bluff${v===1?'':'s'} nobody called`],
-    ['🚨','Lie detector', best('callsWon'), v=>`${v} bluff${v===1?'':'s'} caught`],
-    ['👀','Goldfish memory', best('peeks'), v=>`peeked ${v} time${v===1?'':'s'}`],
+    ['🥤','Chugged', best('finishes'), v=>`finished ${v} drink${v===1?'':'s'}`],
+    ['🃏','Pyramid shark', best('matches'), v=>`played ${v} card${v===1?'':'s'}`],
   ].filter(a=>a[2]);
   const r=player(s,s.riderPid), b=s.bus;
   const busLine = !r ? '' : s.busSkipped ? `${esc(r.name)} pulled the emergency stop 🥴` : b ? `${esc(r.name)} got off after ${b.attempt} ${b.attempt===1?'try':'tries'} (${sips(b.totalSips)})` : '';
-  return `<div class="awards">${busLine?`<div class="award"><span class="ic">🚌</span><div><div class="t">The bus</div><div class="w">${busLine}</div></div></div>`:''}${list.map(([ic,t,a,fmt])=>`<div class="award"><span class="ic">${ic}</span><div><div class="t">${t}</div><div class="w">${a.names}</div><div class="small">${fmt(a.v)}</div></div></div>`).join('')}</div>`;
+  const items=[]; if(busLine) items.push(['🚌','The bus',busLine,'']);
+  list.forEach(([ic,t,a,fmt])=>items.push([ic,t,a.names,fmt(a.v)]));
+  return `<div class="awards">${items.map(([ic,t,w,sub],i)=>{ const x=tl(700+i*550,'aw'+i,'chip'); return `<div class="award pend ${x.c}"${x.a}><span class="ic">${ic}</span><div><div class="t">${t}</div><div class="w">${w}</div>${sub?`<div class="small">${sub}</div>`:''}</div></div>`; }).join('')}</div>`;
 }
 function leaderboardHtml(s, meId){
   const ps=dealt(s).slice().sort((a,b)=>b.sipsTaken-a.sipsTaken);
-  return `<table class="lb"><tr><th>Player</th><th>Drank</th><th>Gave</th><th>Right</th><th>Caught lying</th></tr>${ps.map(p=>`<tr><td>${esc(p.name)}${p.pid===meId?' (you)':''}</td><td><b>${p.sipsTaken}</b></td><td>${p.sipsGiven}</td><td>${p.correct}/4</td><td>${p.bluffsCaught}</td></tr>`).join('')}</table>`;
+  return `<table class="lb"><tr><th>Player</th><th>Drank</th><th>Gave</th><th>Finished</th><th>Right</th></tr>${ps.map(p=>`<tr><td>${esc(p.name)}${p.pid===meId?' (you)':''}</td><td><b>${p.sipsTaken}</b></td><td>${p.sipsGiven}</td><td>${p.finishes}</td><td>${p.correct}/4</td></tr>`).join('')}</table>`;
 }
-function settingsSummary(s){
-  const st=s.settings;
-  return `${INTENSITY_LABEL[st.intensity]} · ${st.memory?'🙈 Memory mode':'👁 Hands visible'} · 🚌 ${st.busLength}-card bus`;
-}
+function settingsSummary(s){ return `${INTENSITY_LABEL[s.settings.intensity]} rounds · 🚌 ${s.settings.busLength}-card bus`; }
+function chipToy(){ return `<div class="toy"><button class="chip" data-act="toy" aria-label="Flip a chip"><span class="disc" id="toyDisc"><span class="cf a">☘️</span><span class="cf b">🍺</span></span></button><div class="toycount" id="toyCount">tap the chip while you wait</div></div>`; }
 
 /* ==================================================================
-   STATE -> sounds + render
+   STATE -> render
    ================================================================== */
 function onState(prev, s){
-  if(SEEN_GAME!==s.gameId){ SEEN.clear(); SEEN_GAME=s.gameId; }
-  const key=`${s.gameId}:${s.phase}:${s.round}:${s.pyramid?s.pyramid.idx:''}`;
-  if(UI.key!==key){ UI.key=key; UI.answer=null; UI.claimTarget=null; UI.armed=null; }
-  playTransitionSounds(prev, s);
+  BASE = s.stepAt - NET.offset;
+  STEPKEY = `${s.gameId}:${s.stepAt}:`;
+  const key=`${s.gameId}:${s.phase}:${s.round}:${s.pyramid?s.pyramid.idx+':'+s.pyramid.step:''}`;
+  if(UI.key!==key){ UI.key=key; UI.answer=null; UI.alloc={}; UI.finishPick=[]; UI.armed=null; }
+  if(s.phase==='rider') setupRoulette(s);
+  if(prev){
+    // Instant feedback for the fast parts: locks and claims clack in as they land.
+    if(s.phase==='guess' && prev.phase==='guess'){ const newly=dealt(s).filter(p=>p.locked && !(prev.players.find(q=>q.pid===p.pid)||{}).locked); if(newly.length){ SFX.chip(); UI.fresh=new Set(newly.map(p=>p.pid)); } else UI.fresh=null; }
+    const pc=prev.pyramid&&prev.pyramid.claimed, nc=s.pyramid&&s.pyramid.claimed;
+    if(nc && pc && nc.length>pc.length) SFX.have();
+    if(s.phase==='pyramid' && s.pyramid.step==='assign' && prev.pyramid && prev.pyramid.step==='assign' && s.pyramid.assigned.length>prev.pyramid.assigned.length) SFX.give();
+  }
   rerender();
   if(NET.role==='player') renderConnBar();
-}
-function playTransitionSounds(prev, s){
-  if(!prev) return;
-  const me=NET.pid;
-  if(s.phase==='reveal' && prev.phase!=='reveal'){
-    dealt(s).forEach((p,i)=>SFX.flip(i*.12));
-    const mine=(s.roundResults||[]).find(r=>r.pid===me);
-    if(mine) setTimeout(()=>mine.verdict==='right'?SFX.right():mine.verdict==='post'?SFX.post():SFX.wrong(), 550);
-    else if(NET.role==='host') setTimeout(()=>SFX.tap(), 500);
-  }
-  if(s.phase==='pyramid' && s.pyramid && prev.pyramid && s.pyramid.idx!==prev.pyramid.idx) SFX.flip();
-  if(s.pyramid && prev.pyramid && s.pyramid.step==='result' && prev.pyramid.step==='calls' && s.pyramid.result.claims.some(c=>c.response==='call')) SFX.drum();
-  if(s.phase==='busIntro' && prev.phase!=='busIntro') SFX.horn();
-  if(s.phase==='bus' && s.bus && prev.bus){
-    if(s.bus.status==='failed' && prev.bus.status!=='failed') SFX.wrong();
-    else if(s.bus.status==='done' && prev.bus.status!=='done') SFX.cheer();
-    else if(s.bus.pos>prev.bus.pos) { SFX.flip(); setTimeout(()=>SFX.right(),200); }
-    else if(s.bus.attempt!==prev.bus.attempt) SFX.flip();
-  }
-  if(s.phase==='gameOver' && prev.phase!=='gameOver') SFX.cheer();
-  if(me){
-    const now=(s.stepDrinks||{})[me]||0, before=(prev.stepDrinks||{})[me]||0;
-    if(now>before && navigator.vibrate){ try{ navigator.vibrate([120,60,120]); }catch(e){} }
-  }
 }
 function rerender(){
   const s=NET.state; if(!s) return;
   if(NET.role==='host') hostRender(s); else if(NET.role==='player') playerRender(s);
-  tickCountdowns();
+  frame();
 }
-// Re-rendering identical markup would restart every entrance animation on
-// unrelated pushes (someone placing a side bet), so only touch the DOM on change.
-function setHtml(el, html){ if(el._html===html) return; el._html=html; el.innerHTML=html; }
 
 /* ==================================================================
    HOST (shared/TV screen) — a pure spectator, never has a button
@@ -597,10 +809,10 @@ function hostLobbyReady(code){
   window.RNGPARTY_JOINQR.render($('#qrBox'), '/irishpoker', code, {quiet:2});
   $('#copyLink').onclick=()=>{ const link=$('#qrBox').dataset.joinUrl||url; navigator.clipboard&&navigator.clipboard.writeText(link).then(()=>$('#copyLink').textContent='Copied!'); };
 }
-function hostSeat(s, p, i, opts){
-  const vis=p.cards.map((c,j)=>cardHtml(c,{size:'md',key:c?`g${s.gameId}:${s.phase==='gameOver'?'end:':''}${p.pid}:${j}`:null,delay:i*120}));
-  return `<div class="seat ${opts.cls||''}"><div class="hd">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
-    <div class="cardrow">${vis.join('')}</div>${opts.status!=null?`<div class="st">${opts.status}</div>`:''}</div>`;
+function hostHands(s, highlightRank){
+  return `<div class="panel"><h3>Hands on the table</h3>${dealt(s).map(p=>`<div class="handrow">${avatar(p)}<span class="nm">${esc(p.name)}${offline(p)}</span>
+    <span class="cardrow">${p.cards.map((c,i)=>cardHtml(c,{size:'xs', cls:[p.played[i]?'played':'', c&&highlightRank&&c.r===highlightRank?'match':''].join(' ')})).join('')}</span>
+    <span class="left">🍺${p.sipsTaken}</span></div>`).join('')}</div>`;
 }
 function hostRender(s){
   $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
@@ -610,73 +822,88 @@ function hostRender(s){
   if(s.phase==='lobby'){
     const connected=s.players.filter(p=>p.connected).length;
     setHtml($('#hLobbyBody'), `<div class="tvgrid">
-      <div class="panel"><h3>Players (${s.players.length}/10)</h3><div class="plist">${s.players.map(p=>`<div class="pchip">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')||'<div class="small">Waiting for players to join…</div>'}</div>
-        <div class="small mt16">${connected<2?`Need at least 2 players (${connected} connected).`:`Ready — ${leaderName(s)} deals from their phone.`}</div>
+      <div class="panel"><h3>At the table (${s.players.length}/10)</h3><div class="plist">${s.players.map(p=>`<div class="pchip">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')||'<div class="small">Waiting for players to join…</div>'}</div>
+        <div class="small mt16">${connected<2?`Need at least 2 players (${connected} connected).`:`<span class="neon">Ready</span> — ${leaderName(s)} deals from their phone.`}</div>
         <div class="small mt8">${settingsSummary(s)}</div></div>
       <div class="panel rules"><h3>How it plays</h3><ol>
         <li><b>Guess your cards.</b> Red/black → higher/lower → inside/outside → suit. Right: give. Wrong: drink.</li>
-        <li><b>Memorize</b>, then every hand goes face-down.</li>
-        <li><b>Give &amp; Take.</b> Take cards make holders drink. Give cards are a bluffing game — call a liar and they drink double.</li>
-        <li><b>Ride the bus.</b> Most matches rides. Higher/lower to the end. Miss and start over.</li>
+        <li><b>The pyramid.</b> Got the flipped card? Tap it. Hand out 1, 2, 3 sips — top card: someone finishes their drink.</li>
+        <li><b>Ride the bus.</b> Most cards left rides. Higher or lower to the end.</li>
       </ol></div></div>`);
     return;
   }
 
   let html='';
-  if(s.phase==='guess' || s.phase==='reveal'){
+  if(s.phase==='guess'){
     const locked=ps.filter(p=>p.locked).length;
-    if(s.phase==='guess'){
-      html+=`<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q">${['Red or black?','Higher or lower?','Inside or outside?','Name the suit'][s.round-1]}</div>
-        <div class="stakes">${stakesFor(s)}</div><div class="small mt8">${locked}/${ps.length} locked in</div>${countdownHtml(s,'Auto-picking for stragglers in')}</div>`;
-      html+=`<div class="seats">${ps.map((p,i)=>{
-        return hostSeat(s,p,i,{cls:p.locked?'locked':'', status:p.locked?'🔒 Locked in':(p.connected?'🤔 Thinking…':'💤 Offline — auto-pick')}); }).join('')}</div>`;
-    } else {
-      html+=`<div class="banner"><div class="kick">Round ${s.round} of 4 — the flip</div><div class="q">${['Red or black','Higher or lower','Inside or outside','The suit'][s.round-1]}</div></div>`;
-      html+=`<div class="tvgrid"><div class="seats">${ps.map((p,i)=>{ const r=(s.roundResults||[]).find(x=>x.pid===p.pid);
-        return hostSeat(s,p,i,{cls:r?(r.verdict==='right'?'right':'wrong'):'', status:r?roundResultText(s,r,false):''}); }).join('')}</div>
-        <div>${drinksHtml(s,null)}<div class="small center mt16">${s.round<4?`${leaderName(s)} deals the next round`:`${leaderName(s)} moves on to memorize`}</div></div></div>`;
-    }
+    html+=`<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q neon">${['Red or black?','Higher or lower?','Inside or outside?','Name the suit'][s.round-1]}</div>
+      <div class="sub">${stakesFor(s)}</div><div class="cd" style="font-size:15px;color:var(--gold)">${locked}/${ps.length} locked in</div>${countdownHtml(s,'Auto-picking stragglers in')}</div>`;
+    html+=`<div class="marquee"><div class="seats">${ps.map(p=>`<div class="seat ${p.locked?'locked':''}"><div class="hd">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
+      <div class="cardrow">${p.cards.map((c,j)=>cardHtml(c,{size:'md', cls:j===s.round-1?'q':''})).join('')}</div>
+      <div class="st">${p.locked?`<span class="lockchip ${UI.fresh&&UI.fresh.has(p.pid)?'fresh':''}">🔒 LOCKED</span>`:(p.connected?'<span class="small pulse">🤔 thinking…</span>':'<span class="small">💤 auto-pick</span>')}</div></div>`).join('')}</div></div>`;
   }
-  else if(s.phase==='memorize'){
-    html+=`<div class="banner"><div class="kick">Last look</div><div class="q">🧠 Memorize your cards</div><div class="stakes">Every hand goes face-down for Give &amp; Take${s.settings.memory?' — peeking will cost a sip':''}.</div>${countdownHtml(s,'Face-down in')}</div>
-      <div class="seats">${ps.map((p,i)=>hostSeat(s,p,i,{})).join('')}</div>`;
+  else if(s.phase==='reveal'){
+    const sus=tl(TM.R_SUS);
+    html+=`${drumEl(60, TM.R_SUS-100)}<div class="banner"><div class="kick">Round ${s.round} of 4</div>
+      <div class="q neon pulse gone ${sus.c}"${sus.a}>🥁 All bets are in…</div><div class="q neon pend ${sus.c}"${sus.a}>The flip</div></div>`;
+    html+=`<div class="tvgrid"><div class="marquee"><div class="seats">${ps.map((p,i)=>{ const r=(s.roundResults||[]).find(x=>x.pid===p.pid); if(!r) return '';
+      const flipAt=TM.R_SUS+i*TM.R_STAG, st=roundStamp(r,false,s), sx=tl(flipAt+TM.R_STAMP,'st'+p.pid,st.fx), seatT=tl(flipAt+TM.R_STAMP);
+      return `<div class="seat ${r.verdict==='right'?'right':'wrong'} ${seatT.c}"${seatT.a}><div class="hd">${avatar(p)}${esc(p.name)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
+        <div class="cardrow">${p.cards.map((c,j)=> j===s.round-1 ? cardHtml(c,{size:'md', t:tl(flipAt,'f'+p.pid,'flip'), soon:700}) : cardHtml(c,{size:'md'})).join('')}</div>
+        <div class="st pend ${sx.c}"${sx.a}><span class="stamp ${st.cls}">${st.text}</span><span class="small">${st.sub}</span></div></div>`; }).join('')}</div></div>
+      <div>${drinksPanel(s,null,revealEnd(s)-TM.R_TAIL+200)}${(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>${s.round<4?`${leaderName(s)} deals the next round`:`${leaderName(s)} builds the pyramid`}</div>`)(tl(revealEnd(s)))}</div></div>`;
   }
   else if(s.phase==='pyramid'){
-    const y=s.pyramid, slot=currentSlot(s), x=mult(s);
-    let step='';
-    if(y.step==='ready') step=`<div class="stepbox"><div class="big">Give &amp; Take</div><div class="sub">${leaderName(s)} flips the first card.</div></div>`;
-    else if(y.step==='claims') step=`<div class="stepbox"><div class="big">🍻 Who's got ${aRank(slot.card.r)}?</div><div class="sub">Claim it on your phone and give ${sips(slot.value*x)} — or bluff. Get called on a lie and you drink ${sips(slot.value*x*2)}.</div>
-        <div class="small mt8">${y.responded.length}/${ps.length} answered</div>${countdownHtml(s,'Claims close in')}</div>`;
-    else if(y.step==='calls') step=`<div class="stepbox"><div class="big">🚨 Drink it — or call bluff?</div>${countdownHtml(s,'Calls close in')}</div>
-        <div class="lines">${y.claims.map(c=>`<div class="line${c.response==='call'?' call':''}"><b>${nameOf(s,c.from)}</b> claims ${aRank(slot.card.r)} → <b>${nameOf(s,c.to)}</b> ${c.response==='call'?'<span class="tag lie">BLUFF CALLED</span>':c.response==='drink'?'<span class="tag truth">DRINKING</span>':'<span class="tag wait">DECIDING…</span>'}</div>`).join('')}</div>`;
-    else step=`<div class="stepbox"><div class="big">${slot.row==='take'?'🥃 TAKE':'🍻 GIVE'} — ${rankWord(slot.card.r)}</div></div>${pyramidResultLines(s,null)}
-        <div class="small center mt16">${y.idx<7?`${leaderName(s)} flips the next card`:`That's the last card — ${leaderName(s)} reveals who rides the bus`}</div>`;
-    html+=`<div class="tvgrid"><div>${pyramidHtml(s,'lg')}${step}</div><div>
-      ${y.step==='result'?drinksHtml(s,null):''}
-      <div class="panel"><h3>The table</h3><div class="plist">${ps.map(p=>`<div class="pchip">${avatar(p)}${esc(p.name)}${offline(p)}<span class="end">🍺 ${p.sipsTaken} · 🎁 ${p.sipsGiven}</span></div>`).join('')}</div></div>
-      ${feedHtml(s)}</div></div>`;
+    const y=s.pyramid, sl=y.idx>=0?y.slots[y.idx]:null, c=sl&&sl.card;
+    let status='';
+    if(y.step==='ready'){
+      const nxt=y.slots[y.idx+1];
+      status=`<div class="big neon">🎰 ${y.idx<0?'The pyramid is set':'Next card'}</div><div class="sub">${leaderName(s)} pulls the lever · next up: <b>${levelLabel(nxt)}</b></div>`;
+    } else if(y.step==='burn'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_BURN_MSG);
+      status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burn it — dealing another</div></div>`;
+    } else if(y.step==='claim'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
+      status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div>
+        <div class="pend ${m.c}"${m.a}><div class="big neon">👀 Who's got ${aRank(c.r)}?</div><div class="sub">${sl.finish?'Top card — whoever has it makes someone <b>finish their drink</b>':`Worth ${sips(sl.sips)} to hand out`} · check your phone</div>
+        <div class="claimed">${y.claimed.map(pid=>{ const p=player(s,pid); return p?`<div class="pchip">${avatar(p)}${esc(p.name)} ✋</div>`:''; }).join('')}</div>
+        ${y.remaining>0?`<div class="sub pulse mt8" style="color:var(--gold);font-weight:800">${y.remaining} more ${y.remaining===1?'player has':'players have'} it…</div>`:''}</div>`;
+    } else if(y.step==='assign'){
+      const names=y.holders.map(h=>(player(s,h.pid)||{name:'?'}).name);
+      status=`<div class="big neon">${sl.finish?'🚨':'🎁'} ${esc(joinNames(names))} ${names.length===1?'has':'have'} ${aRank(c.r)}</div>
+        <div class="sub">${sl.finish?'Choosing who has to <b>finish their drink</b>…':`Handing out ${sips(sl.sips)} per card…`}</div>
+        <div class="claimed">${y.holders.map(h=>{ const p=player(s,h.pid); return p?`<div class="pchip">${avatar(p)}${esc(p.name)}${h.count>1?` ×${h.count}`:''} ${y.assigned.includes(h.pid)?'✅':'<span class="pulse">…</span>'}</div>`:''; }).join('')}</div>${countdownHtml(s,'Auto-picking in')}`;
+    } else if(y.step==='result'){
+      const end=resultEnd(s), nx=tl(end);
+      status=`<div class="big neon">${sl.finish?'🚨 The top card':'🍻 Drinks are served'}</div>${resultLines(s,null)}
+        <div class="sub mt12 pend ${nx.c}"${nx.a}>${y.idx<9?`${leaderName(s)} flips the next card`:`Pyramid done — ${leaderName(s)} spins for the bus rider`}</div>`;
+      html+=takeoverHtml(s,null,false);
+    }
+    const highlight = c && (y.step==='assign'||y.step==='result') ? c.r : null;
+    html+=`<div class="tvgrid"><div>${pyramidHtml(s,'lg')}<div class="status">${status}</div></div>
+      <div>${y.step==='result'&&y.result.gives.length?drinksPanel(s,null,resultEnd(s)-200):''}${hostHands(s, highlight)}</div></div>`;
   }
-  else if(s.phase==='busIntro'){
-    const r=player(s,s.riderPid);
-    html+=`<div class="banner"><div class="q" style="font-size:64px">🚌</div><div class="kick">Next stop: regret</div><div class="q">${r?esc(r.name):'Someone'} is riding the bus</div><div class="stakes">${riderReasonText(s)}</div>
-      <div class="small mt8">${s.settings.busLength} cards. Higher or lower through every one. Miss and start over.</div></div>
-      <div class="panel phone" style="max-width:520px"><h3>Cards matched</h3><div class="plist">${ps.slice().sort((a,b)=>b.matches-a.matches).map(p=>`<div class="pchip${p.pid===s.riderPid?' me':''}">${avatar(p)}${esc(p.name)}<span class="end">${p.matches} match${p.matches===1?'':'es'} · ${p.wrong} wrong</span></div>`).join('')}</div>
-      <div class="small center mt16">Waiting for ${r?esc(r.name):'the rider'} to board…</div></div>`;
+  else if(s.phase==='rider'){
+    const r=player(s,s.riderPid), sp=tl(TM.ROUL), won=tl(TM.ROUL+120,'rwin','horn');
+    html+=`${drumEl(80, TM.ROUL-250)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🎰 Spinning for a rider…</div>
+      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:72px">🚌</div><div class="q neon-red">${r?esc(r.name):'Someone'} rides the bus</div><div class="sub">${riderReasonText(s)}</div></div></div>
+      <div class="marquee">${rouletteGrid(s)}</div>
+      ${(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${r?esc(r.name):'the rider'} to board…</div>`)(tl(TM.ROUL+900))}`;
   }
   else if(s.phase==='bus'){
-    const b=s.bus, r=player(s,s.riderPid), cur=b.cards[b.pos];
+    const b=s.bus, r=player(s,s.riderPid), T=busTiming(b), qx=tl(T.ui);
+    const cur=b.cards[b.pos];
     html+=`<div class="banner"><div class="kick">🚌 ${r?esc(r.name):'?'} is riding the bus · attempt ${b.attempt}</div>
-      <div class="q">${b.status==='guessing'?`Higher or lower than ${cardName(cur)}?`:b.status==='done'?'🎉 Off the bus!':'💥 Missed'}</div>
-      <div class="stakes">Card ${Math.min(b.pos+2,b.length)} of ${b.length} · best run ${b.bestRun}/${b.length-1} · ${sips(b.totalSips)} on the bus so far</div></div>
-      <div class="felt">${busTrackHtml(s,'xl')}</div>
-      <div class="phone" style="max-width:560px">${busStatusHtml(s,null)}
-      ${b.status==='guessing'?`<div class="small center mt16">${b.betCount} side bet${b.betCount===1?'':'s'} placed</div>`:''}</div>`;
+      <div class="q neon pend ${qx.c}"${qx.a}>${b.status==='guessing'?`Higher or lower than ${cardName(cur)}?`:b.status==='done'?'🎉 Off the bus!':'💥 Back to the start'}</div>
+      <div class="sub">Card ${Math.min(b.pos+2,b.length)} of ${b.length} · best run ${b.bestRun}/${b.length-1} · ${sips(b.totalSips)} on the bus so far</div></div>
+      <div class="marquee">${busTrackHtml(s,'xl')}</div>
+      <div class="phone" style="max-width:600px">${busVerdictHtml(s,null)}
+      ${b.status==='guessing'?(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>${b.betCount} side bet${b.betCount===1?'':'s'} placed</div>`)(tl(T.ui)):''}</div>`;
   }
   else if(s.phase==='gameOver'){
-    html+=`<div class="banner"><div class="kick">Game over</div><div class="q">☘️ Sláinte!</div><div class="stakes">${leaderName(s)} can deal again from their phone.</div></div>
-      <div class="panel">${awardsHtml(s)}</div>
-      <div class="tvgrid"><div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,null)}</div>
-      <div class="panel"><h3>Hands</h3><div class="plist">${ps.map(p=>`<div class="pchip">${avatar(p)}${esc(p.name)}<span class="end cardrow">${p.cards.map((c,j)=>cardHtml(c,{size:'sm',key:`g${s.gameId}:end:${p.pid}:${j}`,delay:j*80})).join('')}</span></div>`).join('')}</div></div></div>`;
+    html+=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">Game over</div><div class="q neon">☘️ Sláinte!</div><div class="sub">${leaderName(s)} can deal again from their phone.</div></div>
+      <div class="marquee">${awardsHtml(s)}</div>
+      <div class="tvgrid"><div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,null)}</div>${hostHands(s,null)}</div>`;
   }
   html+=`<div class="small center mt24">Late? Join at <b>${esc(location.host)}/irishpoker</b> with code <b class="mono">${esc(NET.code||'')}</b> — you'll be dealt in next game.</div>`;
   setHtml($('#hMain'), html);
@@ -689,29 +916,52 @@ $('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toU
 $('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
 function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pMain').classList.remove('hidden'); rerender(); }
 
-// Every phone button is a data-act; one delegated handler routes them.
 document.addEventListener('click', e=>{
   const el=e.target.closest('[data-act]'); if(!el || el.disabled) return;
-  SFX.resume();
+  SFX.resume(); buzz(10);
   const a=el.dataset.act, d=el.dataset, s=NET.state;
-  const confirmFirst = d.confirm==='1';
-  if(confirmFirst && UI.armed!==a){ UI.armed=a; clearTimeout(UI.armedTimer); UI.armedTimer=setTimeout(()=>{ UI.armed=null; rerender(); },3500); rerender(); return; }
+  if(d.confirm==='1' && UI.armed!==a){ UI.armed=a; clearTimeout(UI.armedTimer); UI.armedTimer=setTimeout(()=>{ UI.armed=null; rerender(); },3500); SFX.tap(); rerender(); return; }
   UI.armed=null;
   switch(a){
-    case 'answer': UI.answer=d.v; SFX.tap(); rerender(); return;
+    case 'answer': UI.answer=d.v; SFX.chip(); rerender(); return;
     case 'target': UI.target=d.pid; SFX.tap(); rerender(); return;
-    case 'lock': { const tgt=resolveTarget(s); if(!UI.answer) return; NET.send({type:'guess',value:UI.answer,target:tgt}); SFX.tap(); return; }
-    case 'claimTarget': UI.claimTarget=d.pid; SFX.tap(); rerender(); return;
-    case 'claim': if(!UI.claimTarget) return; NET.send({type:'claim',target:UI.claimTarget}); return;
-    case 'pass': NET.send({type:'claim',pass:true}); return;
-    case 'call': NET.send({type:'call',claimId:d.id,response:d.r}); return;
-    case 'peek': NET.send({type:'peek'}); return;
-    case 'bet': NET.send({type:'bet',bet:(s.me&&s.me.bet===d.v)?null:d.v}); return;
-    case 'busGuess': NET.send({type:'busGuess',value:d.v}); return;
-    case 'setting': { const m={type:'configure'}; m[d.k]=d.k==='memory'?d.v==='true':(d.k==='busLength'?+d.v:d.v); NET.send(m); return; }
+    case 'lock': { if(!UI.answer) return; NET.send({type:'guess',value:UI.answer,target:resolveTarget(s)}); SFX.chip(); buzz(30); return; }
+    case 'have': NET.send({type:'have'}); return;
+    case 'allocAdd': {
+      const budget=myBudget(s), used=Object.values(UI.alloc).reduce((x,y)=>x+y,0);
+      if(used>=budget) { SFX.nope(); return; }
+      UI.alloc[d.pid]=(UI.alloc[d.pid]||0)+1; SFX.chip(); rerender(); return; }
+    case 'allocReset': UI.alloc={}; SFX.tap(); rerender(); return;
+    case 'finishPick': {
+      const need=myBudget(s);
+      if(need===1) UI.finishPick=[d.pid]; else { UI.finishPick.push(d.pid); if(UI.finishPick.length>need) UI.finishPick.shift(); }
+      SFX.chip(); rerender(); return; }
+    case 'sendAlloc': {
+      const sl=s.pyramid.slots[s.pyramid.idx];
+      if(sl.finish) NET.send({type:'assign', finish:UI.finishPick}); else NET.send({type:'assign', sips:UI.alloc});
+      SFX.give(); FX.at(el,'coins',30); return; }
+    case 'flip': SFX.lever(); NET.send({type:'flip'}); return;
+    case 'bet': NET.send({type:'bet',bet:(s.me&&s.me.bet===d.v)?null:d.v}); SFX.chip(); return;
+    case 'busGuess': NET.send({type:'busGuess',value:d.v}); SFX.chip(); return;
+    case 'setting': { const m={type:'configure'}; m[d.k]=d.k==='busLength'?+d.v:d.v; NET.send(m); SFX.tap(); return; }
+    case 'dismiss': UI.dismissed.add(d.k); rerender(); return;
+    case 'toy': flipChip(el); return;
     default: NET.send({type:a});
   }
 });
+function flipChip(btn){
+  const disc=btn.querySelector('.disc'); if(!disc) return;
+  const want=Math.random()<.5?1:0, cur=+(disc.dataset.rot||0);
+  const next=cur+1440+(((cur/180)%2)!==want?180:0);
+  disc.dataset.rot=next; disc.style.transform=`rotateY(${next}deg)`;
+  for(let i=0;i<9;i++) setTimeout(()=>SFX.tick(1.6-i*.07), i*95);
+  setTimeout(()=>{ SFX.chip(); buzz(25);
+    const face=(next/180)%2?'🍺':'☘️';
+    UI.toyStreak = UI.toyLast===face ? UI.toyStreak+1 : 1; UI.toyLast=face;
+    const cnt=document.getElementById('toyCount'); if(cnt) cnt.textContent = UI.toyStreak>1 ? `${face} ×${UI.toyStreak} in a row` : `${face}`;
+    if(UI.toyStreak>=3){ FX.at(btn,'coins',20); SFX.coins(8); }
+  }, 950);
+}
 function resolveTarget(s){
   const others=dealt(s).filter(p=>p.pid!==NET.pid);
   if(others.length===1) return others[0].pid;
@@ -719,192 +969,196 @@ function resolveTarget(s){
   if(s.me && s.me.lastTarget && others.some(p=>p.pid===s.me.lastTarget)) return s.me.lastTarget;
   return null;
 }
-function targetChips(s, selected, act){
-  const others=dealt(s).filter(p=>p.pid!==NET.pid);
-  return `<div class="targets">${others.map(p=>`<button class="tchip${selected===p.pid?' sel':''}" data-act="${act}" data-pid="${p.pid}">${avatar(p)}${esc(p.name)}</button>`).join('')}</div>`;
-}
+function myBudget(s){ const y=s.pyramid, sl=y.slots[y.idx], h=(y.holders||[]).find(h=>h.pid===NET.pid); if(!h) return 0; return sl.finish ? h.count : sl.sips*h.count; }
 function armedLabel(act, normal, armed){ return UI.armed===act ? armed : normal; }
-function leaderBar(buttons){ return `<div class="actionbar">${buttons}</div>`; }
+function bar(inner, ms){ const x=ms==null?{c:'on',a:''}:tl(ms); return `<div class="actionbar pend ${x.c}"${x.a}>${inner}</div>`; }
+function myHandHtml(s, me, matchRank){
+  return `<div class="panel" style="padding:12px 14px"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl2" style="margin:0">Your hand</span><span class="small">${cardsLeft(me)} left to play</span></div>
+    <div class="cardrow mt8" style="justify-content:space-between">${me.cards.map((c,i)=>cardHtml(c,{size:'md', cls:[me.played[i]?'played':'', c&&matchRank&&c.r===matchRank?'match':''].join(' ')})).join('')}</div></div>`;
+}
 
 function playerRender(s){
-  const me=player(s,NET.pid); if(!me){ return; }
+  const me=player(s,NET.pid); if(!me) return;
   const isLeader=me.pid===s.leaderPid;
   const box=$('#pMain');
   let html='';
-  const myDrink=(s.stepDrinks||{})[me.pid]||0;
-  const statBar = me.dealt && s.phase!=='lobby' ? `<div class="mystat"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span>${isLeader?'<span>👑 you run the table</span>':''}</div>` : '';
-  const drinkNow = myDrink>0 ? `<div class="drinknow">🍺 DRINK ${myDrink}<div class="small">${myDrink===1?'one sip':myDrink+' sips'} — no skipping</div></div>` : '';
-  const endGameLink = isLeader && s.phase!=='lobby' && s.phase!=='gameOver' ? `<div class="center"><button class="linkbtn${UI.armed==='toLobby'?' armed':''}" data-act="toLobby" data-confirm="1">${armedLabel('toLobby','end game for everyone','tap again to end the game')}</button></div>` : '';
+  const statBar = me.dealt && s.phase!=='lobby' ? `<div class="mystat"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span>${isLeader?'<span>👑 dealer</span>':''}</div>` : '';
+  const endGameLink = isLeader && s.phase!=='lobby' && s.phase!=='gameOver' ? `<div class="center mt16"><button class="linkbtn${UI.armed==='toLobby'?' armed':''}" data-act="toLobby" data-confirm="1">${armedLabel('toLobby','end game for everyone','tap again to end the game')}</button></div>` : '';
+  const myDrinkAt = (ms, label) => { const n=(s.stepDrinks||{})[me.pid]||0; if(!n) return ''; const x=tl(ms,'mydrink','shake'); return `<div class="drinknow pend ${x.c}"${x.a}>🍺 ${label||'DRINK'} ${n}<div class="small">${sips(n)} — no skipping</div></div>`; };
 
   if(s.phase==='lobby'){
     const connected=s.players.filter(p=>p.connected).length;
     if(isLeader){
       const st=s.settings;
-      html=`<div class="panel"><h3>You're dealing 👑</h3>
-        <div class="lbl2" style="margin-top:0">Intensity</div>
-        <div class="seg mt8">${Object.keys(INTENSITY_LABEL).map(k=>`<button class="${st.intensity===k?'sel':''}" data-act="setting" data-k="intensity" data-v="${k}">${INTENSITY_LABEL[k]}<div class="small">×${MULT[k]} sips</div></button>`).join('')}</div>
+      html=`<div class="panel"><h3>You're the dealer 👑</h3>
+        <div class="lbl2" style="margin-top:0">Round &amp; bus sips</div>
+        <div class="seg mt8">${Object.keys(INTENSITY_LABEL).map(k=>`<button class="${st.intensity===k?'sel':''}" data-act="setting" data-k="intensity" data-v="${k}">${INTENSITY_LABEL[k]}<div class="small">×${MULT[k]}</div></button>`).join('')}</div>
         <div class="lbl2">Ride the bus</div>
         <div class="seg mt8">${[4,5,6].map(n=>`<button class="${st.busLength===n?'sel':''}" data-act="setting" data-k="busLength" data-v="${n}">${n} cards</button>`).join('')}</div>
-        <div class="lbl2">Give &amp; Take</div>
-        <button class="toggle mt8${st.memory?' on':''}" data-act="setting" data-k="memory" data-v="${!st.memory}">🙈 Memory mode<span class="small" style="margin-left:6px">hands hidden, peeking costs a sip</span><span class="sw"></span></button>
-        <div class="small mt16">${connected} player${connected===1?'':'s'} here${connected<2?' — need at least 2.':'.'}</div>
-        <button class="bigbtn green" data-act="start" ${connected>=2?'':'disabled'}>Deal the cards ☘️</button></div>`;
+        <div class="small mt16">Pyramid is always 1 · 2 · 3 sips, and the top card = finish your drink.</div>
+        <div class="small mt8">${connected} player${connected===1?'':'s'} here${connected<2?' — need at least 2.':'.'}</div>
+        <button class="btn gold shine" data-act="start" ${connected>=2?'':'disabled'}>Deal the cards ☘️</button></div>`;
     } else {
-      html=`<div class="panel center"><div style="font-size:40px">☘️</div><div class="mt8" style="font-weight:700">You're in, ${esc(me.name)}.</div>
-        <div class="small mt8">Waiting for ${leaderName(s)} to deal…</div><div class="small mt8">${settingsSummary(s)}</div></div>`;
+      html=`<div class="panel center"><div style="font-size:44px">☘️</div><div class="mt8" style="font-weight:900;font-size:18px">You're in, ${esc(me.name)}.</div>
+        <div class="small mt8">Waiting for ${leaderName(s)} to deal…</div><div class="small mt8">${settingsSummary(s)}</div>${chipToy()}</div>`;
     }
-    html+=`<div class="panel"><h3>Who's here</h3><div class="plist">${s.players.map(p=>`<div class="pchip${p.pid===me.pid?' me':''}">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')}</div></div>`;
+    html+=`<div class="panel"><h3>At the table</h3><div class="plist">${s.players.map(p=>`<div class="pchip${p.pid===me.pid?' me':''}">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')}</div></div>`;
     setHtml(box, html); return;
   }
 
-  // Joined mid-game: spectate (and you can still bet on the bus).
   if(!me.dealt && s.phase!=='gameOver'){
-    html=`<div class="lockmsg">⏳ A game's already running — you're dealt in next game.<br><span class="small">Watch the TV. ${s.phase==='bus'?'You can side-bet on the bus below.':''}</span></div>`;
+    html=`<div class="lockmsg">⏳ A game's already running — you're dealt in next game.<br><span class="small">Watch the TV${s.phase==='bus'?' — you can side-bet on the bus below':''}.</span></div>`;
     if(s.phase==='bus') html+=busSpectatorHtml(s, me);
+    else html+=chipToy();
     setHtml(box, html); return;
   }
 
   if(s.phase==='guess'){
     const g=s.me&&s.me.guess, d=ROUNDS[s.round-1];
-    const cards=me.cards.map((c,j)=>j<s.round-1?cardHtml(c,{size:'lg',key:`g${s.gameId}:${me.pid}:${j}`}):cardHtml(null,{size:'lg',cls:j===s.round-1?'q':''})).join('');
-    html=`${statBar}<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q" style="font-size:24px">${questionFor(s,me.cards)}</div><div class="small mt8">${stakesFor(s)}</div></div>
-      <div class="cardrow big mt16">${cards}</div>`;
+    html=`${statBar}<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q" style="font-size:25px">${questionFor(s,me.cards)}</div><div class="small mt8">${stakesFor(s)}</div></div>
+      <div class="cardrow big mt16">${me.cards.map((c,j)=>cardHtml(c,{size:'lg', cls:j===s.round-1?'q':''})).join('')}</div>`;
     if(g){
-      html+=`<div class="lockmsg">🔒 Locked: <b>${answerLabel(g.value)}</b>${g.target?` — if right, <b>${nameOf(s,g.target)}</b> drinks`:''}<br><span class="small">${dealt(s).filter(p=>p.locked).length}/${dealt(s).length} locked in</span>${countdownHtml(s,'Revealing in')}</div>`;
+      html+=`<div class="lockmsg">🔒 <span class="neon">${answerLabel(g.value)}</span>${g.target?` — if right, <b>${nameOf(s,g.target)}</b> drinks`:''}<br><span class="small">${dealt(s).filter(p=>p.locked).length}/${dealt(s).length} locked in</span>${countdownHtml(s,'Flipping in')}</div>${chipToy()}`;
     } else {
       const opts=d.options.map(v=>{
-        const cls = v==='red'||v==='h'||v==='d' ? ' redc' : (v==='black'||v==='s'||v==='c' ? ' blackc' : '');
+        const cls = v==='red'||v==='h'||v==='d' ? ' redc' : '';
         const icon = v==='red'?'♥♦':v==='black'?'♠♣':v==='higher'?'⬆️':v==='lower'?'⬇️':v==='inside'?'↔️':v==='outside'?'⬅️➡️':SUIT[v];
         return `<button class="ans${cls}${UI.answer===v?' sel':''}" data-act="answer" data-v="${v}"><span class="ic">${icon}</span><span class="lb">${answerLabel(v).replace(/^[♠♥♦♣] /,'')}</span></button>`;
       }).join('');
-      const others=dealt(s).filter(p=>p.pid!==me.pid);
-      const tgt=resolveTarget(s);
-      html+=`<div class="answers${d.options.length===4?' four':''}">${opts}</div>`;
-      if(others.length>1) html+=`<div class="lbl2">If you're right, who drinks ${sips(d.give*mult(s))}?</div>${targetChips(s,tgt,'target')}`;
+      const others=dealt(s).filter(p=>p.pid!==me.pid), tgt=resolveTarget(s);
+      html+=`<div class="answers">${opts}</div>`;
+      if(others.length>1) html+=`<div class="lbl2">If you're right, who drinks ${sips(d.give*mult(s))}?</div><div class="targets">${others.map(p=>`<button class="tchip${tgt===p.pid?' sel':''}" data-act="target" data-pid="${p.pid}">${avatar(p)}${esc(p.name)}</button>`).join('')}</div>`;
       else if(others.length===1) html+=`<div class="small mt16 center">If you're right, ${esc(others[0].name)} drinks ${sips(d.give*mult(s))}.</div>`;
-      html+=`<button class="bigbtn" data-act="lock" ${UI.answer&&(tgt||!others.length)?'':'disabled'}>Lock it in 🔒</button>${countdownHtml(s,'Random pick in')}`;
+      html+=`<button class="btn gold shine" data-act="lock" ${UI.answer&&(tgt||!others.length)?'':'disabled'}>Lock it in 🔒</button>${countdownHtml(s,'Random pick in')}`;
     }
-    if(isLeader) html+=`<div class="center mt16"><button class="secbtn" data-act="force">⏩ Reveal now (auto-picks stragglers)</button></div>`;
+    if(isLeader) html+=`<div class="center mt16"><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Flip now (auto-picks stragglers)</button></div>`;
     html+=endGameLink;
   }
   else if(s.phase==='reveal'){
     const r=(s.roundResults||[]).find(x=>x.pid===me.pid);
-    const cards=me.cards.map((c,j)=>c?cardHtml(c,{size:'lg',key:`g${s.gameId}:${me.pid}:${j}`,delay:250}):cardHtml(null,{size:'lg'})).join('');
-    html=`${statBar}<div class="cardrow big mt24">${cards}</div>`;
-    if(r) html+=`<div class="verdict ${r.verdict==='right'?'right':'wrong'} rise"><div class="t">${r.verdict==='right'?'RIGHT':r.verdict==='post'?'ON THE POST':'WRONG'}</div><div class="n">${roundResultText(s,r,true)}</div></div>`;
-    html+=drinkNow + drinksHtml(s, me.pid, 'Everyone drinking this round');
-    html+= isLeader ? leaderBar(`<button class="bigbtn" data-act="next">${s.round<4?`Deal round ${s.round+1} →`:'Memorize & flip face-down →'}</button>`)
-                    : `<div class="small center mt16">Waiting for ${leaderName(s)} to deal the next round…</div>`;
-    html+=endGameLink;
-  }
-  else if(s.phase==='memorize'){
-    html=`${statBar}<div class="banner"><div class="kick">Last look</div><div class="q" style="font-size:26px">🧠 Memorize these</div><div class="small mt8">They go face-down for the rest of the game.${s.settings.memory?' Peeking later costs a sip.':''}</div>${countdownHtml(s,'Face-down in')}</div>
-      <div class="cardrow big mt24">${me.cards.map(c=>cardHtml(c,{size:'lg'})).join('')}</div>
-      <div class="small center mt16">${me.cards.map(c=>c?rankWord(c.r):'').join(' · ')}</div>`;
-    if(isLeader) html+=leaderBar(`<button class="bigbtn" data-act="force">Everyone's got it — flip face-down</button>`);
+    const i=dealt(s).findIndex(p=>p.pid===me.pid), flipAt=TM.R_SUS+Math.max(0,i)*TM.R_STAG, end=revealEnd(s);
+    const sus=tl(flipAt-200);
+    html=`${statBar}${drumEl(60, TM.R_SUS-100)}<div class="banner"><div class="q neon pulse gone ${sus.c}"${sus.a}>🥁 ${i>0?'Flipping the table…':'Here we go…'}</div></div>
+      <div class="cardrow big mt24">${me.cards.map((c,j)=> j===s.round-1 && c ? cardHtml(c,{size:'lg', t:tl(flipAt,'myflip','flip'), soon:800}) : cardHtml(c,{size:'lg'})).join('')}</div>`;
+    if(r){ const st=roundStamp(r,true,s), x=tl(flipAt+TM.R_STAMP,'mystamp',st.fx); html+=`<div class="verdict pend ${x.c}"${x.a}><span class="stamp ${st.cls} bigstamp">${st.text}</span><div class="n">${st.sub}</div></div>`; }
+    html+=myDrinkAt(end-300) + drinksPanel(s, me.pid, end-TM.R_TAIL+200, 'Everyone drinking this round');
+    html+= isLeader ? bar(`<button class="btn gold shine" data-act="next">${s.round<4?`Deal round ${s.round+1} →`:'Build the pyramid 🔺'}</button>`, end)
+                    : (x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${leaderName(s)} to deal…</div>`)(tl(end));
     html+=endGameLink;
   }
   else if(s.phase==='pyramid'){
-    html=`${statBar}${pyramidHtml(s,'sm')}${myHandHtml(s, me)}`;
-    const y=s.pyramid, slot=currentSlot(s), x=mult(s);
+    const y=s.pyramid, sl=y.idx>=0?y.slots[y.idx]:null, c=sl&&sl.card;
+    const matchRank = c && (y.step==='assign'||y.step==='result') ? c.r : null;
+    html=`${statBar}${pyramidHtml(s,'sm')}`;
     if(y.step==='ready'){
-      html+= isLeader ? leaderBar(`<button class="bigbtn" data-act="flip">Flip the first card 🃏</button>`) : `<div class="lockmsg">Waiting for ${leaderName(s)} to flip the first card…</div>`;
+      html+=myHandHtml(s, me, null);
+      const nxt=y.slots[y.idx+1];
+      html+= isLeader ? `<div class="center small mt16">Next up: <b>${levelLabel(nxt)}</b></div>`+bar(`<button class="btn gold shine" data-act="flip" style="font-size:20px">🎰 FLIP THE ${y.idx<0?'FIRST':'NEXT'} CARD</button>`)
+                      : `<div class="lockmsg">Waiting for ${leaderName(s)} to pull the lever… next up <b>${levelLabel(nxt)}</b></div>${chipToy()}`;
     }
-    else if(y.step==='claims'){
-      const responded=s.me&&s.me.responded;
-      if(responded){
-        html+=`<div class="lockmsg">${s.me.claimedOn?`🍻 You claimed ${aRank(slot.card.r)} on <b>${nameOf(s,s.me.claimedOn)}</b>. Hope it's true.`:`🙅 You passed on the ${rankWord(slot.card.r)}.`}<br><span class="small">${y.responded.length}/${dealt(s).length} answered</span>${countdownHtml(s,'Claims close in')}</div>`;
+    else if(y.step==='burn'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_BURN_MSG);
+      html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burning it…</div></div></div>${myHandHtml(s, me, null)}`;
+    }
+    else if(y.step==='claim'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
+      html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div>
+        <div class="pend ${m.c}"${m.a}><div class="big neon">Got ${aRank(c.r)}?</div><div class="sub">${sl.finish?'Top card — someone finishes their drink':`Worth ${sips(sl.sips)}`} · check your hand</div></div></div>
+        ${myHandHtml(s, me, null)}`;
+      if(s.me && s.me.claimed) html+=`<div class="lockmsg">✅ <span class="neon-green">Claimed!</span> ${y.remaining>0?`Waiting on ${y.remaining} more…`:''}</div>`;
+      else { const hb=tl(TM.P_CLAIM_UI); html+=`<button class="btn gold haveBtn pend ${hb.c}"${hb.a} data-act="have">✋ I HAVE ${aRank(c.r).toUpperCase()}</button>
+        <div class="small center mt8 pend ${hb.c}"${hb.a}>Don't have it? Just wait — ${y.remaining} ${y.remaining===1?'player has':'players have'} it.</div>`; }
+      if(isLeader){ const fx=tl(TM.P_CLAIM_UI+12000); html+=`<div class="center mt16 pend ${fx.c}"${fx.a}><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Mark it for whoever's asleep</button></div>`; }
+    }
+    else if(y.step==='assign'){
+      const holding=s.me && s.me.holding, assigned=s.me && s.me.assigned;
+      html+=myHandHtml(s, me, matchRank);
+      if(holding && !assigned){
+        const budget=myBudget(s), others=dealt(s).filter(p=>p.pid!==me.pid);
+        if(sl.finish){
+          html+=`<div class="panel" style="border-color:rgba(255,61,95,.6)"><h3 style="color:#ff6b83">🚨 Top of the pyramid</h3>
+            <div style="font-weight:900;font-size:20px">Pick ${budget===1?'someone':budget+' people'} to FINISH their drink</div>
+            <div class="targets mt12">${others.map(p=>`<button class="tchip${UI.finishPick.includes(p.pid)?' sel':''}" data-act="finishPick" data-pid="${p.pid}">${avatar(p)}${esc(p.name)}</button>`).join('')}</div>
+            <button class="btn redb shine" data-act="sendAlloc" ${UI.finishPick.length===budget?'':'disabled'}>🍺 MAKE THEM FINISH IT</button></div>`;
+        } else {
+          const used=Object.values(UI.alloc).reduce((x,y)=>x+y,0);
+          html+=`<div class="panel"><h3>🎁 You have ${aRank(c.r)}${holding>1?` ×${holding}`:''}</h3>
+            <div style="font-weight:900;font-size:20px">Hand out ${sips(budget)}</div><div class="small mt8">Tap someone to give them a sip — stack as many on one person as you like.</div>
+            <div class="targets mt12">${others.map(p=>`<button class="tchip${UI.alloc[p.pid]?' sel':''}" data-act="allocAdd" data-pid="${p.pid}">${avatar(p)}${esc(p.name)}${UI.alloc[p.pid]?`<span class="cnt">${UI.alloc[p.pid]}</span>`:''}</button>`).join('')}</div>
+            <div class="small mt12">${used}/${budget} handed out ${used?`· <button class="linkbtn" data-act="allocReset" style="padding:0">reset</button>`:''}</div>
+            <button class="btn gold shine" data-act="sendAlloc" ${used===budget?'':'disabled'}>🍻 SEND THE DRINKS</button></div>`;
+        }
+        html+=countdownHtml(s,'Auto-picking for you in');
+      } else if(holding){
+        html+=`<div class="lockmsg">✅ Sent! Waiting on the others…</div>`;
       } else {
-        html+=`<div class="panel"><h3>🍻 Give card — ${rankWord(slot.card.r)}</h3>
-          <div style="font-weight:700;font-size:17px">Got ${aRank(slot.card.r)}? Give ${sips(slot.value*x)}.</div>
-          <div class="small mt8">Nobody can see your hand. Bluff if you dare — if you're called on a lie you drink ${sips(slot.value*x*2)}.</div>
-          <div class="lbl2">Who drinks?</div>${targetChips(s,UI.claimTarget,'claimTarget')}
-          <div class="answers"><button class="bigbtn green" style="margin-top:0" data-act="claim" ${UI.claimTarget?'':'disabled'}>🍻 I've got one</button><button class="bigbtn" style="margin-top:0;background:var(--surface-raised);color:var(--foreground)" data-act="pass">Pass</button></div>
-          ${countdownHtml(s,'Auto-pass in')}</div>`;
+        const names=y.holders.map(h=>(player(s,h.pid)||{name:'?'}).name);
+        html+=`<div class="lockmsg">${sl.finish?'🚨':'🎁'} <b>${esc(joinNames(names))}</b> ${names.length===1?'is':'are'} ${sl.finish?'deciding who <span class="neon-red">finishes their drink</span>':'handing out drinks'}… brace yourself</div>${chipToy()}`;
       }
-      if(isLeader) html+=`<div class="center mt16"><button class="secbtn" data-act="force">⏩ Close claims now</button></div>`;
+      if(isLeader){ const fx=tl(15000); html+=`<div class="center mt16 pend ${fx.c}"${fx.a}><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Auto-pick for slow people</button></div>`; }
     }
-    else if(y.step==='calls'){
-      const mine=y.claims.filter(c=>c.to===me.pid);
-      if(mine.length){
-        html+=`<div class="panel"><h3>🚨 Incoming</h3>${mine.map(c=>c.response?`<div class="lockmsg" style="margin-top:8px">${c.response==='call'?'🚨 You called bluff on':'🍺 You accepted from'} <b>${nameOf(s,c.from)}</b></div>`:
-          `<div class="claimcard rise"><div class="who"><b>${nameOf(s,c.from)}</b> says they've got ${aRank(slot.card.r)}.</div>
-            <div class="small mt8">Drink ${sips(slot.value*x)} — or call bluff and whoever's wrong drinks ${sips(slot.value*x*2)}.</div>
-            <div class="btns"><button class="bigbtn" data-act="call" data-id="${c.id}" data-r="drink">🍺 Drink ${slot.value*x}</button><button class="bigbtn redb" data-act="call" data-id="${c.id}" data-r="call">🚨 Bluff!</button></div></div>`).join('')}
-          ${countdownHtml(s,'Unanswered = drink in')}</div>`;
-      } else {
-        html+=`<div class="lockmsg">Nobody pointed at you. Watch the fireworks…${countdownHtml(s,'Calls close in')}</div>`;
-      }
-      html+=`<div class="lines">${y.claims.filter(c=>c.to!==me.pid).map(c=>`<div class="line"><b>${c.from===me.pid?'You':nameOf(s,c.from)}</b> → <b>${nameOf(s,c.to)}</b> ${c.response==='call'?'<span class="tag lie">CALLED</span>':c.response==='drink'?'<span class="tag truth">DRINKING</span>':'<span class="tag wait">…</span>'}</div>`).join('')}</div>`;
-      if(isLeader) html+=`<div class="center mt16"><button class="secbtn" data-act="force">⏩ Close calls now</button></div>`;
-    }
-    else {
-      html+=`<div class="stepbox"><div class="big" style="font-size:20px">${slot.row==='take'?'🥃 TAKE':'🍻 GIVE'} — ${rankWord(slot.card.r)}</div></div>${pyramidResultLines(s, me.pid)}${drinkNow}`;
-      html+= isLeader ? leaderBar(y.idx<7 ? `<button class="bigbtn" data-act="flip">Flip the next card 🃏</button>` : `<button class="bigbtn" data-act="toBus">🚌 Who's riding the bus?</button>`)
-                      : `<div class="small center mt16">Waiting for ${leaderName(s)}…</div>`;
+    else if(y.step==='result'){
+      const end=resultEnd(s);
+      html+=`<div class="status" style="min-height:0"><div class="big neon" style="font-size:22px">${sl.finish?'🚨 The top card':`🍻 ${aRank(c.r)} — served`}</div></div>${resultLines(s, me.pid)}${myDrinkAt(end)}${myHandHtml(s, me, matchRank)}`;
+      html+=takeoverHtml(s, me.pid, true);
+      html+= isLeader ? bar(y.idx<9 ? `<button class="btn gold shine" data-act="flip" style="font-size:20px">🎰 FLIP THE NEXT CARD</button>` : `<button class="btn redb shine" data-act="toRider" style="font-size:20px">🚌 WHO RIDES THE BUS?</button>`, end)
+                      : (x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${leaderName(s)}…</div>`)(tl(end));
     }
     html+=endGameLink;
   }
-  else if(s.phase==='busIntro'){
-    const isRider=s.riderPid===me.pid, r=player(s,s.riderPid);
-    if(isRider){
-      html=`<div class="banner"><div class="q" style="font-size:60px">🚌</div><div class="kick">No way out</div><div class="q" style="font-size:26px">You're riding the bus</div><div class="small mt8">${riderReasonText(s)}</div></div>
-        <div class="lockmsg">${s.settings.busLength} cards. Call higher or lower on each one. Any miss (a tie counts) and you drink for how far you got — then start over.</div>
-        <button class="bigbtn" data-act="boardBus">Board the bus 🚌</button>`;
-    } else {
-      html=`<div class="banner"><div class="q" style="font-size:60px">🚌</div><div class="q" style="font-size:24px">${r?esc(r.name):'Someone'} is riding the bus</div><div class="small mt8">${riderReasonText(s)}</div></div>
-        <div class="lockmsg">Side bets open once they board — call each guess and lose, you drink 1.</div>`;
-      if(isLeader) html+=`<div class="center mt16"><button class="secbtn" data-act="boardBus">Start the bus for them</button></div>`;
-    }
-    html+=busSkipLink(s, me, isRider||isLeader);
+  else if(s.phase==='rider'){
+    const isRider=s.riderPid===me.pid, r=player(s,s.riderPid), won=tl(TM.ROUL+120,'rwin','horn'), sp=tl(TM.ROUL);
+    html=`${drumEl(80, TM.ROUL-250)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🎰 Who rides the bus?</div>
+      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:60px">🚌</div><div class="q ${isRider?'neon-red':'neon'}" style="font-size:28px">${isRider?"YOU'RE RIDING THE BUS":`${r?esc(r.name):'Someone'} rides the bus`}</div><div class="small mt8">${riderReasonText(s)}</div></div></div>
+      ${rouletteGrid(s)}`;
+    const ui=tl(TM.ROUL+900);
+    if(isRider) html+=`<div class="pend ${ui.c}"${ui.a}><div class="lockmsg">${s.settings.busLength} cards. Higher or lower on each one. Any miss (a tie counts) and you drink for how far you got — then start over.</div>
+      <button class="btn redb shine" data-act="boardBus">Board the bus 🚌</button></div>`;
+    else if(isLeader) html+=`<div class="center mt16 pend ${ui.c}"${ui.a}><button class="btn ghost" data-act="boardBus" style="width:auto;padding:10px 16px">Start the bus for them</button></div>`;
+    html+=busSkipLink(s, isRider||isLeader);
   }
   else if(s.phase==='bus'){
-    const b=s.bus, isRider=s.riderPid===me.pid;
+    const b=s.bus, isRider=s.riderPid===me.pid, T=busTiming(b);
     if(isRider){
+      const ui=tl(T.ui);
       html=`<div class="banner"><div class="kick">Attempt ${b.attempt} · card ${Math.min(b.pos+2,b.length)} of ${b.length}</div>
-        <div class="q" style="font-size:24px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'You made it!':'Missed.'}</div></div>
-        ${busTrackHtml(s,'md')}${busStatusHtml(s,me.pid)}`;
-      if(b.status==='guessing') html+=`<div class="hilo"><button class="hi" data-act="busGuess" data-v="higher">⬆️ Higher</button><button class="lo" data-act="busGuess" data-v="lower">⬇️ Lower</button></div>`;
-      if(b.status==='failed') html+=`<button class="bigbtn" data-act="busAgain">Drank it — deal again 🔁</button>`;
+        <div class="q pend ${ui.c}"${ui.a} style="font-size:24px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'You made it!':'Back to the start.'}</div></div>
+        ${busTrackHtml(s,'md')}${busVerdictHtml(s,me.pid)}`;
+      if(b.status==='guessing') html+=`<div class="hilo pend ${ui.c}"${ui.a}><button class="btn greenb" data-act="busGuess" data-v="higher">⬆️ Higher</button><button class="btn redb" data-act="busGuess" data-v="lower">⬇️ Lower</button></div>`;
+      if(b.status==='failed') html+=`<button class="btn gold pend ${ui.c}"${ui.a} data-act="busAgain">Drank it — deal again 🔁</button>`;
     } else {
       html=busSpectatorHtml(s, me);
-      if(isLeader && b.status==='failed') html+=`<div class="center mt16"><button class="secbtn" data-act="busAgain">Deal again for them</button></div>`;
+      if(isLeader && b.status==='failed'){ const ui=tl(T.ui); html+=`<div class="center mt16 pend ${ui.c}"${ui.a}><button class="btn ghost" data-act="busAgain" style="width:auto;padding:10px 16px">Deal again for them</button></div>`; }
     }
-    html+=busSkipLink(s, me, isRider||isLeader);
+    html+=busSkipLink(s, isRider||isLeader);
   }
   else if(s.phase==='gameOver'){
-    html=`<div class="banner"><div class="kick">Game over</div><div class="q" style="font-size:28px">☘️ Sláinte!</div></div>
-      <div class="mystat" style="font-size:14px"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span><span>🧠 <b>${me.correct}</b>/4</span></div>
-      <div class="cardrow big mt16">${me.cards.map((c,j)=>cardHtml(c,{size:'md',key:`g${s.gameId}:end:${me.pid}:${j}`,delay:j*90})).join('')}</div>
+    html=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">Game over</div><div class="q neon" style="font-size:30px">☘️ Sláinte!</div></div>
+      <div class="mystat" style="font-size:14px"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span><span>🥤 finished <b>${me.finishes}</b></span></div>
       <div class="panel">${awardsHtml(s)}</div>
       <div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,me.pid)}</div>`;
-    html+= isLeader ? leaderBar(`<button class="bigbtn green" data-act="start">Deal again ☘️</button><div class="row"><button class="secbtn" data-act="toLobby">Change settings</button></div>`)
-                    : `<div class="small center mt16">Waiting for ${leaderName(s)} to deal again…</div>`;
+    html+= isLeader ? bar(`<button class="btn gold shine" data-act="start">Deal again ☘️</button><button class="btn ghost" data-act="toLobby">Change settings</button>`, 1500)
+                    : `<div class="small center mt16">Waiting for ${leaderName(s)} to deal again…</div>${chipToy()}`;
   }
   setHtml(box, html);
 }
-function myHandHtml(s, me){
-  const peeking = UI.peekCards && Date.now()<UI.peekUntil;
-  const hand = (s.me&&s.me.hand) || (peeking?UI.peekCards:null);
-  const cards = hand ? hand.map(c=>cardHtml(c,{size:'md'})).join('') : me.cards.map(()=>cardHtml(null,{size:'md'})).join('');
-  const peekBtn = s.settings.memory && !peeking ? `<button class="secbtn" data-act="peek" style="margin-left:auto">👀 Peek (+1 sip)</button>` : (peeking?'<span class="small" style="margin-left:auto">peeking…</span>':'');
-  return `<div class="panel" style="padding:12px 14px"><div style="display:flex;align-items:center;gap:10px"><span class="small" style="font-weight:800;letter-spacing:.6px">YOUR HAND</span>${peekBtn}</div><div class="cardrow mt8">${cards}</div></div>`;
-}
 function busSpectatorHtml(s, me){
-  const b=s.bus, r=player(s,s.riderPid);
+  const b=s.bus, r=player(s,s.riderPid), T=busTiming(b), ui=tl(T.ui);
   let html=`<div class="banner"><div class="kick">🚌 ${r?esc(r.name):'?'} · attempt ${b.attempt}</div>
-    <div class="q" style="font-size:22px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'Off the bus!':'Missed!'}</div></div>
-    ${busTrackHtml(s,'md')}${busStatusHtml(s,me.pid)}${((s.stepDrinks||{})[me.pid]||0)>0?`<div class="drinknow">🍺 DRINK ${(s.stepDrinks||{})[me.pid]}</div>`:''}`;
+    <div class="q pend ${ui.c}"${ui.a} style="font-size:22px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'Off the bus!':'Missed!'}</div></div>
+    ${busTrackHtml(s,'md')}${busVerdictHtml(s,me.pid)}`;
+  const mine=(s.stepDrinks||{})[me.pid]||0;
+  if(mine){ const x=tl((T.verdict||0)+600,'betdrink','shake'); html+=`<div class="drinknow pend ${x.c}"${x.a}>🍺 DRINK ${mine}</div>`; }
   if(b.status==='guessing'){
     const bet=s.me&&s.me.bet;
-    html+=`<div class="lbl2 center">Side bet · wrong call drinks 1</div><div class="bets">
+    html+=`<div class="pend ${ui.c}"${ui.a}><div class="lbl2 center">Side bet · wrong call drinks 1</div><div class="answers">
       <button class="ans${bet==='hit'?' sel':''}" data-act="bet" data-v="hit"><span class="ic">👍</span><span class="lb">They'll nail it</span></button>
-      <button class="ans${bet==='miss'?' sel':''}" data-act="bet" data-v="miss"><span class="ic">👎</span><span class="lb">They'll blow it</span></button></div>`;
+      <button class="ans${bet==='miss'?' sel':''}" data-act="bet" data-v="miss"><span class="ic">👎</span><span class="lb">They'll blow it</span></button></div></div>`;
   }
   return html;
 }
 // Deliberately tiny: the bus is mandatory, this is the "genuinely had enough" exit.
-function busSkipLink(s, me, allowed){
+function busSkipLink(s, allowed){
   if(!allowed || (s.bus && s.bus.status==='done')) return '';
   return `<div class="center mt24"><button class="linkbtn${UI.armed==='skipBus'?' armed':''}" data-act="skipBus" data-confirm="1">${armedLabel('skipBus','too hammered? skip the bus','tap again to skip the bus 🥴')}</button></div>`;
 }

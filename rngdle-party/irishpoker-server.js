@@ -7,35 +7,34 @@
 // and the room "leader" — whoever's been connected longest — paces the game
 // from their phone. Every decision happens on phones.
 //
-// A game runs in four acts:
+// A game runs in three acts:
 //
 //   1. THE DEAL (rounds 1-4). Everyone gets four face-down cards. Each round
 //      everyone locks a guess about their next card at the same time —
 //      red/black, higher/lower, inside/outside, then the suit — along with who
-//      drinks if they're right. All cards flip together. Right = give the
-//      round's sips to your pick. Wrong = drink them. Landing exactly on a
-//      boundary card ("the post") = drink double.
+//      drinks if they're right. Right = give the round's sips to your pick.
+//      Wrong = drink them. Landing exactly on a boundary card ("the post") =
+//      drink double.
 //
-//   2. MEMORIZE. Everyone's hand is shown for a few seconds, then every card
-//      goes face-down for the rest of the game.
+//   2. THE PYRAMID. Hands stay face-up. Ten cards sit face-down in a 4-3-2-1
+//      pyramid and flip one at a time from the bottom row up. Everyone holding
+//      that rank has to tap "I have it" — the game waits until every holder
+//      has. Holders then hand out drinks: bottom row 1 sip, next row 2, next 3
+//      (split however they like), and the top card makes someone finish their
+//      drink. A card nobody holds is burned and replaced from the deck until
+//      somebody does, so every card — the top one included — lands on someone.
 //
-//   3. GIVE & TAKE. Eight cards sit in two rows (take row / give row, worth
-//      1-4 each) and flip alternately: take 1, give 1, take 2, give 2, ...
-//      A TAKE card is automatic — anyone holding that rank drinks per match.
-//      A GIVE card opens a claim window: anyone can say "I've got one" and
-//      point at someone. That's a bluffing game — the target either drinks,
-//      or calls bluff, and whoever's wrong drinks double. Hands stay hidden
-//      (memory mode), so even honest claims can be wrong. Peeking costs a sip.
-//
-//   4. RIDE THE BUS (mandatory). Whoever matched the most pyramid cards
-//      rides. A row of cards is dealt with the first one face up; the rider
+//   3. RIDE THE BUS (mandatory). Whoever has the most cards they never got to
+//      play rides. A row of cards is dealt with the first face up; the rider
 //      calls higher/lower through the row. Any miss (a tie is a miss) means
-//      drink for how far they got and a fresh deal. Spectators can place side
-//      bets on each call. A small, deliberately quiet "skip the bus" escape
-//      exists for when someone's genuinely had enough.
+//      drink for how far they got and a fresh deal. Spectators can side-bet
+//      each call. A small, deliberately quiet "skip the bus" escape exists for
+//      when someone's genuinely had enough.
 //
-// No private state ever leaves the server early: unflipped cards, how anyone
-// guessed, and whether a claim is honest stay here until they're resolved.
+// Pacing is deliberately casino-like: inputs resolve instantly here, and every
+// state change carries `stepAt` (server time) so every screen plays the same
+// slow reveal in sync. Timers that must outlast an animation (burns, the bus
+// finish) are sized to match the client's timeline in irishpoker.html.
 
 import { claimCode, releaseCode } from "./rooms-registry.js";
 
@@ -43,29 +42,36 @@ const COLORS = ['#f59e0b','#22c55e','#3b82f6','#ec4899','#a855f7','#ef4444','#14
 
 // ---- tunable constants ----
 const MIN_PLAYERS = 2;
-const MAX_PLAYERS = 10;             // 10 hands + 8 pyramid cards fits one 52-card deck
+const MAX_PLAYERS = 10;
 const HAND_SIZE = 4;
-const PYRAMID_VALUES = [1,2,3,4];
 const RECONNECT_GRACE_MS = 45000;
-const EMPTY_ROOM_TTL_MS = 10*60*1000; // nobody connected at all for this long -> room is torn down
-const GUESS_MS    = 45000;          // undecided players get a random guess + random target
-const CLAIM_MS    = 30000;          // no answer = pass
-const CALL_MS     = 25000;          // no answer = drink
-const MEMORIZE_MS = 15000;
-const BUS_FINISH_HOLD_MS = 4500;    // leave the completed bus on screen before the summary
-const PEEK_SIPS = 1;
+const EMPTY_ROOM_TTL_MS = 10*60*1000;
+const GUESS_MS  = 60000;            // undecided players get a random guess + random target
+const ASSIGN_MS = 75000;            // holders who never hand out drinks get random picks
+// Tests set IRISHPOKER_FAST=1 so server-held animation windows don't slow the suite.
+const FAST = typeof process!=='undefined' && process.env && process.env.IRISHPOKER_FAST==='1';
+const BURN_MS   = FAST ? 150 : 4200;  // must outlast the client's suspense + flip + burn animation
+const MAX_BURNS_BEFORE_FORCED_MATCH = 3;
+const BUS_FINISH_HOLD_MS = FAST ? 150 : 7500;  // celebration on screen before the summary
 const SIDE_BET_SIPS = 1;
 
 export const INTENSITY = { sipping:1, drinking:2, hammered:3 };
 export const BUS_LENGTHS = [4,5,6];
 
-// Sips are per-round base values, multiplied by the intensity setting.
-// Suit is the long shot (25%), so it pays out big but punishes gently.
+// Rounds and the bus scale with intensity; the pyramid's payouts are fixed.
 export const ROUNDS = [
-  { key:'color', options:['red','black'],          wrong:1, give:1 },
-  { key:'hilo',  options:['higher','lower'],       wrong:2, give:2 },
-  { key:'inout', options:['inside','outside'],     wrong:3, give:3 },
-  { key:'suit',  options:['s','h','d','c'],        wrong:2, give:4 },
+  { key:'color', options:['red','black'],      wrong:1, give:1 },
+  { key:'hilo',  options:['higher','lower'],   wrong:2, give:2 },
+  { key:'inout', options:['inside','outside'], wrong:3, give:3 },
+  { key:'suit',  options:['s','h','d','c'],    wrong:2, give:4 },
+];
+
+// Bottom row first. `finish` = the holder picks someone to finish their drink.
+export const LEVELS = [
+  { level:4, cards:4, sips:1 },
+  { level:3, cards:3, sips:2 },
+  { level:2, cards:2, sips:3 },
+  { level:1, cards:1, finish:true },
 ];
 
 // ---- cards ----
@@ -74,8 +80,7 @@ export function newDeck(){ const d=[]; for(const s of SUITS) for(let r=2;r<=14;r
 export function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 export function isRed(card){ return card.s==='h' || card.s==='d'; }
-const RANK_NAMES = {11:'J',12:'Q',13:'K',14:'A'};
-export function rankLabel(r){ return RANK_NAMES[r] || String(r); }
+const same = (a,b) => a && b && a.r===b.r && a.s===b.s;
 
 /** Judge a round-N guess (1-based) against a hand. Returns 'right' | 'wrong' | 'post'. */
 export function judgeGuess(round, cards, guess){
@@ -106,26 +111,48 @@ export function judgeBus(current, next, guess){
   return (next.r>current.r ? 'higher' : 'lower')===guess ? 'right' : 'wrong';
 }
 
-/** Alternating flip order through the two rows, escalating: take 1, give 1, take 2, give 2, ... */
-export function pyramidOrder(cards){
+/** The 10 pyramid slots in flip order: bottom row left→right, then up. */
+export function pyramidSlots(){
   const out=[];
-  PYRAMID_VALUES.forEach((value,i)=>{
-    out.push({ row:'take', value, card:cards[i*2] });
-    out.push({ row:'give', value, card:cards[i*2+1] });
-  });
+  for(const L of LEVELS) for(let col=0; col<L.cards; col++)
+    out.push({ level:L.level, col, sips:L.sips||0, finish:!!L.finish, card:null, burned:[] });
   return out;
 }
 
-/** Who rides: most pyramid matches, then most wrong guesses, then the deck decides. */
+/** Who holds a rank, and how many copies each. */
+export function holdersFor(players, rank){
+  return players.map(p=>({ pid:p.pid, count:p.cards.filter(c=>c.r===rank).length })).filter(h=>h.count>0);
+}
+
+/** Validate one holder's hand-out. Returns a normalised {sips:{pid:n}} / {finish:[pid]} or null. */
+export function validateAssignment(slot, count, fromPid, dealtPids, m){
+  const others=new Set(dealtPids.filter(id=>id!==fromPid));
+  if(slot.finish){
+    if(!Array.isArray(m.finish) || m.finish.length!==count) return null;
+    if(!m.finish.every(id=>others.has(id))) return null;
+    return { finish:m.finish.slice() };
+  }
+  if(!m.sips || typeof m.sips!=='object') return null;
+  let total=0; const sips={};
+  for(const [id,n] of Object.entries(m.sips)){
+    if(!others.has(id) || !Number.isInteger(n) || n<0) return null;
+    if(n>0){ sips[id]=n; total+=n; }
+  }
+  return total===slot.sips*count ? { sips } : null;
+}
+
+/** Who rides: most cards never played in the pyramid, then most wrong guesses, then chance. */
 export function pickRider(players){
-  if(!players.length) return { pid:null, reason:'none' };
-  const topMatches=Math.max(...players.map(p=>p.matches));
-  let pool=players.filter(p=>p.matches===topMatches);
-  if(pool.length===1) return { pid:pool[0].pid, reason:'matches' };
+  if(!players.length) return { pid:null, reason:'none', candidates:[] };
+  const left=p=>HAND_SIZE-p.played.filter(Boolean).length;
+  const topLeft=Math.max(...players.map(left));
+  let pool=players.filter(p=>left(p)===topLeft);
+  if(pool.length===1) return { pid:pool[0].pid, reason:'cardsLeft', candidates:pool.map(p=>p.pid) };
   const topWrong=Math.max(...pool.map(p=>p.wrong));
+  const tied=pool;
   pool=pool.filter(p=>p.wrong===topWrong);
-  if(pool.length===1) return { pid:pool[0].pid, reason:'wrong' };
-  return { pid:pick(pool).pid, reason:'random' };
+  if(pool.length===1) return { pid:pool[0].pid, reason:'wrong', candidates:tied.map(p=>p.pid) };
+  return { pid:pick(pool).pid, reason:'random', candidates:pool.map(p=>p.pid) };
 }
 
 // ---- rooms ----
@@ -136,15 +163,16 @@ function pid(){ return "p"+Math.random().toString(36).slice(2,8); }
 function token(){ return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36); }
 function send(ws,o){ try{ ws.send(JSON.stringify(o)); }catch(e){} }
 
-function defaultSettings(){ return { intensity:'sipping', memory:true, busLength:5 }; }
+function defaultSettings(){ return { intensity:'sipping', busLength:5 }; }
 function mult(room){ return INTENSITY[room.settings.intensity] || 1; }
 function dealtPlayers(room){ return [...room.players.values()].filter(p=>p.dealt); }
 function othersFor(room, p){ return dealtPlayers(room).filter(o=>o.pid!==p.pid); }
+function mark(room){ room.stepAt=Date.now(); }
 
 function freshStats(p){
-  Object.assign(p, { dealt:false, cards:[], guess:null, lastTarget:p.lastTarget||null,
+  Object.assign(p, { dealt:false, cards:[], played:[false,false,false,false], guess:null, lastTarget:p.lastTarget||null,
     sipsTaken:0, sipsGiven:0, correct:0, wrong:0, posts:0, matches:0,
-    bluffsCaught:0, bluffsGotAway:0, callsWon:0, callsLost:0, peeks:0, betsWon:0, betsLost:0 });
+    finishes:0, finishesGiven:0, betsWon:0, betsLost:0 });
 }
 
 function feed(room, text){ room.feed.push({ at:Date.now(), text }); if(room.feed.length>40) room.feed.shift(); }
@@ -152,14 +180,12 @@ function drink(room, p, sips){ if(!p || sips<=0) return; p.sipsTaken+=sips; room
 function give(room, from, to, sips){ if(from) from.sipsGiven+=sips; drink(room, to, sips); }
 
 function clearTimer(room){ clearTimeout(room.timer); room.timer=null; room.deadline=null; }
-function setTimer(room, ms, fn){
+function setTimer(room, ms, fn, showDeadline=true){
   clearTimer(room);
-  room.deadline=Date.now()+ms;
-  room.timer=setTimeout(()=>{ if(rooms.get(room.code)!==room) return; room.timer=null; room.deadline=null; fn(); }, ms);
+  if(showDeadline) room.deadline=Date.now()+ms;
+  room.timer=setTimeout(()=>{ if(rooms.get(room.code)!==room) return; room.timer=null; room.deadline=null; fn(); pushState(room); }, ms);
 }
 
-// The leader is whoever's been connected longest. Only reassigned when the
-// current leader actually drops; reconnecting doesn't reclaim it.
 function reassignLeaderIfNeeded(room){
   const cur = room.leaderPid!=null ? room.players.get(room.leaderPid) : null;
   if(cur && cur.connected) return;
@@ -171,55 +197,61 @@ function reassignLeaderIfNeeded(room){
 function visibleCardCount(room){
   if(room.phase==='guess') return room.round-1;
   if(room.phase==='reveal') return room.round;
-  if(room.phase==='memorize' || room.phase==='gameOver') return HAND_SIZE;
-  return 0;   // pyramid / busIntro / bus: every hand is face-down
+  return HAND_SIZE;   // pyramid onward: hands are face-up for good
 }
 function pyramidPublic(room){
   const y=room.pyr; if(!y) return null;
-  return {
-    idx:y.idx, step:y.step,
-    slots:y.order.map((s,i)=>({ row:s.row, value:s.value, card: i<=y.idx ? s.card : null })),
-    responded: y.step==='claims' ? [...y.responded] : null,
-    claims: y.step==='calls' ? y.claims.map(c=>({ id:c.id, from:c.from, to:c.to, response:c.response })) : null,
-    result:y.result,
-  };
+  const pub={ idx:y.idx, step:y.step,
+    slots:y.slots.map((s,i)=>({ level:s.level, col:s.col, sips:s.sips, finish:s.finish, card: i<=y.idx ? s.card : null, burns:s.burned.length })),
+    lastBurned: y.idx>=0 ? (y.slots[y.idx].burned.slice(-1)[0]||null) : null,
+    result:y.result };
+  if(y.step==='claim'){
+    pub.claimed=[...y.claimed];
+    pub.remaining=y.holders.filter(h=>!y.claimed.has(h.pid)).length;
+  }
+  if(y.step==='assign' || y.step==='result'){
+    pub.holders=y.holders;
+    pub.assigned=[...y.assigned.keys()];
+  }
+  return pub;
 }
 function busPublic(room){
   const b=room.bus; if(!b) return null;
   const shown = b.status==='guessing' ? b.pos+1 : b.status==='failed' ? b.pos+2 : b.length;
   return { length:b.length, attempt:b.attempt, pos:b.pos, status:b.status, bestRun:b.bestRun, totalSips:b.totalSips,
-    cards:b.cards.map((c,i)=>i<shown?c:null),
+    cards:b.cards.map((c,i)=>i<shown?c:null), lastEvent:b.lastEvent,
     lastGuess:b.lastGuess, lastBets:b.lastBets, betCount:b.bets.size };
 }
 function stateMsg(room, viewer){
   const vis=visibleCardCount(room);
-  const showMatches = ['busIntro','bus','gameOver'].includes(room.phase);
   const s = {
     type:"state", phase:room.phase, gameId:room.gameId, round:room.round, settings:room.settings,
     hostConnected:room.hostConnected, leaderPid:room.leaderPid,
-    deadline:room.deadline, serverNow:Date.now(),
+    deadline:room.deadline, stepAt:room.stepAt, serverNow:Date.now(),
     roundResults: room.phase==='reveal' ? room.roundResults : null,
     stepDrinks: room.stepDrinks, feed: room.feed.slice(-12),
     pyramid: pyramidPublic(room), bus: busPublic(room),
-    riderPid: room.riderPid, riderReason: room.riderReason, busSkipped: room.busSkipped,
+    riderPid: room.riderPid, riderReason: room.riderReason, riderCandidates: room.riderCandidates, busSkipped: room.busSkipped,
     players:[...room.players.values()].map(p=>({
       pid:p.pid, name:p.name, color:p.color, connected:p.connected, dealt:p.dealt,
       locked: room.phase==='guess' && p.dealt && !!p.guess,
       cards: p.dealt ? p.cards.map((c,i)=>i<vis?c:null) : [],
-      sipsTaken:p.sipsTaken, sipsGiven:p.sipsGiven, correct:p.correct, wrong:p.wrong, posts:p.posts,
-      matches: showMatches ? p.matches : null,
-      bluffsCaught:p.bluffsCaught, callsWon:p.callsWon, callsLost:p.callsLost, peeks:p.peeks,
-      betsWon:p.betsWon, betsLost:p.betsLost,
-      bluffsGotAway: room.phase==='gameOver' ? p.bluffsGotAway : null,
+      played: p.played,
+      sipsTaken:p.sipsTaken, sipsGiven:p.sipsGiven, correct:p.correct, wrong:p.wrong, posts:p.posts, matches:p.matches,
+      finishes:p.finishes, finishesGiven:p.finishesGiven, betsWon:p.betsWon, betsLost:p.betsLost,
     })),
   };
   if(viewer){
     const p=room.players.get(viewer);
     if(p){
       const me={ guess:p.guess, lastTarget:p.lastTarget };
-      if(p.dealt && !room.settings.memory && ['pyramid','busIntro','bus'].includes(room.phase)) me.hand=p.cards;
-      if(room.pyr && room.pyr.step==='claims') me.responded=room.pyr.responded.has(p.pid);
-      if(room.pyr && room.pyr.step==='claims'){ const c=room.pyr.claims.find(c=>c.from===p.pid); me.claimedOn=c?c.to:null; }
+      const y=room.pyr;
+      if(y && (y.step==='claim' || y.step==='assign')){
+        const h=y.holders.find(h=>h.pid===p.pid);
+        me.holding = h ? h.count : 0;
+        me.claimed = y.claimed.has(p.pid);
+        me.assigned = y.assigned.has(p.pid);
+      }
       if(room.bus && room.bus.status==='guessing') me.bet=room.bus.bets.get(p.pid)||null;
       s.me=me;
     }
@@ -237,21 +269,19 @@ function deal(room){
   pruneGone(room);
   const seats=[...room.players.values()].filter(p=>p.connected).slice(0,MAX_PLAYERS);
   if(seats.length<MIN_PLAYERS) return false;
-  const deck=shuffle(newDeck());
+  room.deck=shuffle(newDeck());
   for(const p of room.players.values()) freshStats(p);
-  for(const p of seats){ p.dealt=true; p.cards=deck.splice(0,HAND_SIZE); }
-  room.pyr={ order:pyramidOrder(deck.splice(0,PYRAMID_VALUES.length*2)), idx:-1, step:'ready', claims:[], responded:new Set(), result:null };
-  room.gameId++; room.round=1; room.roundResults=null; room.stepDrinks={}; room.feed=[];
-  room.bus=null; room.riderPid=null; room.riderReason=null; room.busSkipped=false;
+  for(const p of seats){ p.dealt=true; p.cards=room.deck.splice(0,HAND_SIZE); }
+  room.pyr=null; room.gameId++; room.round=1; room.roundResults=null; room.stepDrinks={}; room.feed=[];
+  room.bus=null; room.riderPid=null; room.riderReason=null; room.riderCandidates=null; room.busSkipped=false;
   beginGuess(room);
   return true;
 }
 function beginGuess(room){
-  room.phase='guess'; room.stepDrinks={};
+  room.phase='guess'; room.stepDrinks={}; mark(room);
   for(const p of dealtPlayers(room)) p.guess=null;
-  setTimer(room, GUESS_MS, ()=>{ resolveGuesses(room); pushState(room); });
+  setTimer(room, GUESS_MS, ()=>resolveGuesses(room));
 }
-// Disconnected players never stall a round — they get auto-picked at resolve.
 function allGuessed(room){ return dealtPlayers(room).every(p=>p.guess || !p.connected); }
 function submitGuess(room, p, m){
   if(room.phase!=='guess' || !p.dealt || p.guess) return;
@@ -281,125 +311,160 @@ function resolveGuesses(room){
     if(auto) feed(room, `🎲 ${p.name} ran out of time — the deck guessed for them`);
     return { pid:p.pid, guess:p.guess.value, target:p.guess.target, verdict, sips, auto, card:p.cards[room.round-1] };
   });
-  room.phase='reveal';
+  room.phase='reveal'; mark(room);
 }
 function nextFromReveal(room){
   if(room.phase!=='reveal') return;
   room.roundResults=null;
   if(room.round<ROUNDS.length){ room.round++; beginGuess(room); return; }
-  room.phase='memorize'; room.stepDrinks={};
-  setTimer(room, MEMORIZE_MS, ()=>{ beginPyramid(room); pushState(room); });
+  beginPyramid(room);
 }
 
-// ---- act 3: give & take ----
+// ---- act 2: the pyramid ----
 function beginPyramid(room){
-  if(room.phase!=='memorize') return;
   clearTimer(room);
-  room.phase='pyramid'; room.stepDrinks={};
-  feed(room, '🙈 Cards are face-down — hope you were paying attention');
+  room.pyr={ slots:pyramidSlots(), idx:-1, step:'ready', holders:[], claimed:new Set(), assigned:new Map(), result:null };
+  room.phase='pyramid'; room.stepDrinks={}; mark(room);
 }
 function flip(room){
   const y=room.pyr;
-  if(room.phase!=='pyramid' || !(y.step==='ready'||y.step==='result') || y.idx>=y.order.length-1) return;
-  y.idx++; room.stepDrinks={}; y.claims=[]; y.responded=new Set(); y.result=null;
-  const slot=y.order[y.idx];
-  const holders=dealtPlayers(room).map(p=>({ p, count:p.cards.filter(c=>c.r===slot.card.r).length })).filter(h=>h.count>0);
-  holders.forEach(h=>{ h.p.matches+=h.count; });
-  if(slot.row==='take'){
-    const sipsEach=slot.value*mult(room);
-    const takers=holders.map(h=>{ drink(room, h.p, sipsEach*h.count); return { pid:h.p.pid, count:h.count, sips:sipsEach*h.count }; });
-    y.result={ row:'take', card:slot.card, value:slot.value, takers };
-    y.step='result';
+  if(room.phase!=='pyramid' || !(y.step==='ready'||y.step==='result') || y.idx>=y.slots.length-1) return;
+  y.idx++; room.stepDrinks={}; y.result=null;
+  drawIntoSlot(room);
+}
+function cardsInPlay(room){
+  const out=[];
+  for(const p of dealtPlayers(room)) out.push(...p.cards);
+  room.pyr.slots.forEach((s,i)=>{ if(i<=room.pyr.idx && s.card) out.push(s.card); });
+  return out;
+}
+function nextCard(room, slot){
+  const held=[...new Set(dealtPlayers(room).flatMap(p=>p.cards.map(c=>c.r)))];
+  const inPlay=cardsInPlay(room);
+  const free=()=>newDeck().filter(c=>!inPlay.some(x=>same(x,c)));
+  // After a few burns in a row, stop teasing: the next card is one somebody holds.
+  if(slot.burned.length>=MAX_BURNS_BEFORE_FORCED_MATCH){
+    const pool=free().filter(c=>held.includes(c.r));
+    if(pool.length) return pick(pool);
+    return { r:pick(held), s:pick(SUITS) };
+  }
+  if(!room.deck.length) room.deck=shuffle(free());
+  return room.deck.pop() || { r:pick(held), s:pick(SUITS) };
+}
+function drawIntoSlot(room){
+  const y=room.pyr, slot=y.slots[y.idx];
+  if(slot.card) slot.burned.push(slot.card);
+  slot.card=nextCard(room, slot);
+  y.holders=holdersFor(dealtPlayers(room), slot.card.r);
+  y.claimed=new Set(); y.assigned=new Map();
+  mark(room);
+  if(!y.holders.length){
+    y.step='burn';
+    feed(room, `🔥 Nobody had a ${slot.card.r} — burned`);
+    setTimer(room, BURN_MS, ()=>drawIntoSlot(room), false);
     return;
   }
-  y.step='claims';
-  setTimer(room, CLAIM_MS, ()=>{ endClaims(room); pushState(room); });
-}
-function allResponded(room){ return dealtPlayers(room).every(p=>room.pyr.responded.has(p.pid) || !p.connected); }
-function submitClaim(room, p, m){
-  const y=room.pyr;
-  if(room.phase!=='pyramid' || y.step!=='claims' || !p.dealt || y.responded.has(p.pid)) return;
-  if(m.pass===true){ y.responded.add(p.pid); }
-  else {
-    const target=room.players.get(m.target);
-    if(!target || !target.dealt || target.pid===p.pid) return;
-    const rank=y.order[y.idx].card.r;
-    y.claims.push({ id:'c'+y.claims.length, from:p.pid, to:target.pid, response:null, truthful:p.cards.some(c=>c.r===rank) });
-    y.responded.add(p.pid);
-    p.lastTarget=target.pid;
-  }
-  if(allResponded(room)) endClaims(room);
-}
-function endClaims(room){
-  const y=room.pyr;
-  if(room.phase!=='pyramid' || y.step!=='claims') return;
   clearTimer(room);
-  if(!y.claims.length){
-    y.result={ row:'give', card:y.order[y.idx].card, value:y.order[y.idx].value, claims:[] };
-    y.step='result';
-    return;
-  }
-  y.step='calls';
-  if(allCalled(room)){ endCalls(room); return; }
-  setTimer(room, CALL_MS, ()=>{ endCalls(room); pushState(room); });
+  y.step='claim';
+  for(const h of y.holders){ const p=room.players.get(h.pid); if(p && !p.connected) claimFor(room, p); }
+  maybeFinishClaims(room);
 }
-function allCalled(room){ return room.pyr.claims.every(c=>c.response || !room.players.get(c.to)?.connected); }
-function submitCall(room, p, m){
-  const y=room.pyr;
-  if(room.phase!=='pyramid' || y.step!=='calls') return;
-  if(m.response!=='drink' && m.response!=='call') return;
-  const c=y.claims.find(c=>c.id===m.claimId);
-  if(!c || c.to!==p.pid || c.response) return;
-  c.response=m.response;
-  if(c.response==='call') feed(room, `🚨 ${p.name} called bluff on ${room.players.get(c.from)?.name||'someone'}`);
-  if(allCalled(room)) endCalls(room);
+function claimFor(room, p){
+  const y=room.pyr, rank=y.slots[y.idx].card.r;
+  if(y.claimed.has(p.pid)) return;
+  y.claimed.add(p.pid);
+  p.cards.forEach((c,i)=>{ if(c.r===rank && !p.played[i]){ p.played[i]=true; p.matches++; } });
 }
-function endCalls(room){
+/** Returns 'ok' | 'nope' (tapped without holding it). */
+function submitHave(room, p){
   const y=room.pyr;
-  if(room.phase!=='pyramid' || y.step!=='calls') return;
+  if(room.phase!=='pyramid' || y.step!=='claim' || !p.dealt) return null;
+  if(!y.holders.some(h=>h.pid===p.pid)) return 'nope';
+  claimFor(room, p);
+  maybeFinishClaims(room);
+  return 'ok';
+}
+function maybeFinishClaims(room){
+  const y=room.pyr;
+  if(y.step!=='claim' || !y.holders.every(h=>y.claimed.has(h.pid))) return;
+  y.step='assign'; mark(room);
+  for(const h of y.holders){ const p=room.players.get(h.pid); if(p && !p.connected) randomAssign(room, p); }
+  if(!maybeFinishAssign(room)) setTimer(room, ASSIGN_MS, ()=>{ assignStragglers(room); maybeFinishAssign(room); });
+}
+function randomAssign(room, p){
+  const y=room.pyr, slot=y.slots[y.idx], h=y.holders.find(h=>h.pid===p.pid);
+  const others=othersFor(room,p); if(!h || !others.length) { y.assigned.set(p.pid, slot.finish?{finish:[]}:{sips:{}}); return; }
+  if(slot.finish){ y.assigned.set(p.pid, { finish:Array.from({length:h.count},()=>pick(others).pid) }); return; }
+  const sips={}; for(let i=0;i<slot.sips*h.count;i++){ const t=pick(others).pid; sips[t]=(sips[t]||0)+1; }
+  y.assigned.set(p.pid, { sips, auto:true });
+}
+function assignStragglers(room){
+  const y=room.pyr;
+  for(const h of y.holders) if(!y.assigned.has(h.pid)){ const p=room.players.get(h.pid); if(p) randomAssign(room, p); else y.assigned.set(h.pid,{sips:{}}); }
+}
+function submitAssign(room, p, m){
+  const y=room.pyr;
+  if(room.phase!=='pyramid' || y.step!=='assign' || y.assigned.has(p.pid)) return;
+  const h=y.holders.find(h=>h.pid===p.pid); if(!h) return;
+  const ok=validateAssignment(y.slots[y.idx], h.count, p.pid, dealtPlayers(room).map(d=>d.pid), m);
+  if(!ok) return;
+  y.assigned.set(p.pid, ok);
+  maybeFinishAssign(room);
+}
+function maybeFinishAssign(room){
+  const y=room.pyr;
+  if(y.step!=='assign' || !y.holders.every(h=>y.assigned.has(h.pid))) return false;
   clearTimer(room);
-  const slot=y.order[y.idx], sips=slot.value*mult(room);
-  const claims=y.claims.map(c=>{
-    const from=room.players.get(c.from), to=room.players.get(c.to);
-    const response=c.response||'drink';
-    if(response==='drink'){
-      give(room, from, to, sips);
-      if(!c.truthful && from) from.bluffsGotAway++;
-      return { from:c.from, to:c.to, response, auto:!c.response, truthful:null, loser:c.to, sips };
+  const slot=y.slots[y.idx];
+  const gives=[], finishes=[];
+  for(const h of y.holders){
+    const from=room.players.get(h.pid), a=y.assigned.get(h.pid);
+    if(a.finish) for(const to of a.finish){
+      const tp=room.players.get(to); if(!tp) continue;
+      tp.finishes++; if(from) from.finishesGiven++;
+      finishes.push({ from:h.pid, to });
     }
-    // A call doubles the stakes for whoever's wrong.
-    if(c.truthful){ give(room, from, to, sips*2); if(to) to.callsLost++; return { from:c.from, to:c.to, response, truthful:true, loser:c.to, sips:sips*2 }; }
-    drink(room, from, sips*2); if(from) from.bluffsCaught++; if(to) to.callsWon++;
-    return { from:c.from, to:c.to, response, truthful:false, loser:c.from, sips:sips*2 };
-  });
-  y.result={ row:'give', card:slot.card, value:slot.value, claims };
-  y.step='result';
+    if(a.sips) for(const [to,n] of Object.entries(a.sips)){
+      give(room, from, room.players.get(to), n);
+      gives.push({ from:h.pid, to, sips:n, auto:!!a.auto });
+    }
+  }
+  y.result={ card:slot.card, level:slot.level, finish:slot.finish, gives, finishes };
+  y.step='result'; mark(room);
+  if(finishes.length) feed(room, `🍺 ${finishes.map(f=>room.players.get(f.to)?.name).join(' & ')} had to finish their drink`);
+  return true;
 }
-function peek(room, p){
-  if(room.phase!=='pyramid' || !p.dealt || !room.settings.memory) return;
-  p.peeks++; p.sipsTaken+=PEEK_SIPS;
-  feed(room, `👀 ${p.name} peeked at their cards (+${PEEK_SIPS} sip)`);
-  if(p.ws) send(p.ws, { type:'hand', cards:p.cards });
+function forceStep(room){
+  const y=room.pyr;
+  if(room.phase==='guess'){ resolveGuesses(room); return true; }
+  if(room.phase!=='pyramid') return false;
+  if(y.step==='claim'){
+    for(const h of y.holders){ const p=room.players.get(h.pid); if(p) claimFor(room,p); else y.claimed.add(h.pid); }
+    maybeFinishClaims(room); return true;
+  }
+  if(y.step==='assign'){ assignStragglers(room); maybeFinishAssign(room); return true; }
+  return false;
 }
 
-// ---- act 4: ride the bus ----
-function toBusIntro(room){
+// ---- act 3: ride the bus ----
+function toRider(room){
   const y=room.pyr;
-  if(room.phase!=='pyramid' || y.step!=='result' || y.idx<y.order.length-1) return;
+  if(room.phase!=='pyramid' || y.step!=='result' || y.idx<y.slots.length-1) return;
   const r=pickRider(dealtPlayers(room));
-  room.riderPid=r.pid; room.riderReason=r.reason; room.stepDrinks={};
-  room.phase='busIntro';
+  room.riderPid=r.pid; room.riderReason=r.reason; room.riderCandidates=r.candidates;
+  room.stepDrinks={}; room.phase='rider'; mark(room);
 }
-function dealBus(room){
+function dealBus(room, event){
   const b=room.bus;
   b.cards=shuffle(newDeck()).slice(0,b.length);
-  b.pos=0; b.status='guessing'; b.lastGuess=null; b.lastBets=null; b.bets=new Map();
+  b.pos=0; b.status='guessing'; b.lastGuess=null; b.lastBets=null; b.bets=new Map(); b.lastEvent=event;
+  mark(room);
 }
 function boardBus(room){
-  if(room.phase!=='busIntro') return;
-  room.bus={ length:room.settings.busLength, attempt:1, bestRun:0, totalSips:0, cards:[], pos:0, status:'guessing', lastGuess:null, lastBets:null, bets:new Map() };
-  dealBus(room);
+  if(room.phase!=='rider') return;
+  room.bus={ length:room.settings.busLength, attempt:1, bestRun:0, totalSips:0, cards:[], pos:0, status:'guessing', lastGuess:null, lastBets:null, bets:new Map(), lastEvent:'deal' };
   room.phase='bus'; room.stepDrinks={};
+  dealBus(room, 'deal');
 }
 function busGuess(room, p, value){
   const b=room.bus;
@@ -415,26 +480,28 @@ function busGuess(room, p, value){
   });
   b.bets=new Map();
   const guessNo=b.pos+1;
+  mark(room);
   if(hit){
     b.pos++;
     b.bestRun=Math.max(b.bestRun, b.pos);
     b.lastGuess={ guess:value, verdict, sips:0 };
+    b.lastEvent='hit';
     if(b.pos>=b.length-1){
-      b.status='done';
+      b.status='done'; b.lastEvent='done';
       feed(room, `🎉 ${p.name} got off the bus after ${b.attempt} ${b.attempt===1?'try':'tries'}`);
-      setTimer(room, BUS_FINISH_HOLD_MS, ()=>{ finishGame(room); pushState(room); });
+      setTimer(room, BUS_FINISH_HOLD_MS, ()=>finishGame(room), false);
     }
     return;
   }
   const sips=guessNo*mult(room);
   drink(room, p, sips); b.totalSips+=sips;
   b.lastGuess={ guess:value, verdict, sips };
-  b.status='failed';
+  b.status='failed'; b.lastEvent='miss';
 }
 function busAgain(room){
   if(room.phase!=='bus' || room.bus.status!=='failed') return;
   room.bus.attempt++; room.stepDrinks={};
-  dealBus(room);
+  dealBus(room, 'redeal');
 }
 function placeBet(room, p, bet){
   const b=room.bus;
@@ -443,34 +510,30 @@ function placeBet(room, p, bet){
   else if(bet===null) b.bets.delete(p.pid);
 }
 function skipBus(room, p){
-  if(room.phase!=='busIntro' && room.phase!=='bus') return;
+  if(room.phase!=='rider' && room.phase!=='bus') return;
   room.busSkipped=true;
   feed(room, `🥴 ${p.name} pulled the emergency stop — bus skipped`);
   finishGame(room);
 }
 function finishGame(room){
   clearTimer(room);
-  room.phase='gameOver'; room.stepDrinks={};
+  room.phase='gameOver'; room.stepDrinks={}; mark(room);
 }
 function toLobby(room){
   clearTimer(room);
   room.phase='lobby'; room.pyr=null; room.bus=null; room.roundResults=null; room.stepDrinks={}; room.feed=[];
-  room.riderPid=null; room.riderReason=null; room.busSkipped=false; room.round=0;
+  room.riderPid=null; room.riderReason=null; room.riderCandidates=null; room.busSkipped=false; room.round=0;
   pruneGone(room);
   for(const p of room.players.values()) freshStats(p);
-  reassignLeaderIfNeeded(room);
+  reassignLeaderIfNeeded(room); mark(room);
 }
-// Seats that timed out mid-game stay put (their cards are still in play);
-// they're only cleared out between games.
 function pruneGone(room){
   for(const [id,p] of room.players) if(p.gone && !p.connected) room.players.delete(id);
 }
-
 function configure(room, m){
   if(room.phase!=='lobby') return;
   const s=room.settings;
   if(INTENSITY[m.intensity]) s.intensity=m.intensity;
-  if(typeof m.memory==='boolean') s.memory=m.memory;
   if(BUS_LENGTHS.includes(+m.busLength)) s.busLength=+m.busLength;
 }
 
@@ -481,8 +544,8 @@ function handle(ws, m){
     if(info.roomCode) return;
     const code=claimCode("irishpoker");
     const room={ code, hostWs:ws, hostToken:token(), hostConnected:true, players:new Map(), phase:"lobby",
-      settings:defaultSettings(), leaderPid:null, gameId:0, round:0, timer:null, deadline:null, emptyTimer:null,
-      pyr:null, bus:null, roundResults:null, stepDrinks:{}, feed:[], riderPid:null, riderReason:null, busSkipped:false };
+      settings:defaultSettings(), leaderPid:null, gameId:0, round:0, timer:null, deadline:null, stepAt:Date.now(), emptyTimer:null,
+      deck:[], pyr:null, bus:null, roundResults:null, stepDrinks:{}, feed:[], riderPid:null, riderReason:null, riderCandidates:null, busSkipped:false };
     rooms.set(code, room); meta.set(ws,{ roomCode:code, isHost:true });
     send(ws,{type:"hosted",code,token:room.hostToken}); pushState(room); return;
   }
@@ -542,19 +605,16 @@ function handle(ws, m){
     case 'start':     if(isLeader && (room.phase==='lobby'||room.phase==='gameOver')){ if(!deal(room)) return; } else return; break;
     case 'guess':     submitGuess(room, p, m); break;
     case 'next':      if(isLeader) nextFromReveal(room); break;
-    case 'force':
-      if(!isLeader) return;
-      if(room.phase==='guess') resolveGuesses(room);
-      else if(room.phase==='memorize') beginPyramid(room);
-      else if(room.phase==='pyramid' && room.pyr.step==='claims') endClaims(room);
-      else if(room.phase==='pyramid' && room.pyr.step==='calls') endCalls(room);
-      else return;
-      break;
+    case 'force':     if(!isLeader || !forceStep(room)) return; break;
     case 'flip':      if(isLeader) flip(room); break;
-    case 'claim':     submitClaim(room, p, m); break;
-    case 'call':      submitCall(room, p, m); break;
-    case 'peek':      peek(room, p); break;
-    case 'toBus':     if(isLeader) toBusIntro(room); break;
+    case 'have': {
+      const r=submitHave(room, p);
+      if(r==='nope'){ send(ws,{type:'nope'}); return; }
+      if(!r) return;
+      break;
+    }
+    case 'assign':    submitAssign(room, p, m); break;
+    case 'toRider':   if(isLeader) toRider(room); break;
     case 'boardBus':  if(isLeader||isRider) boardBus(room); break;
     case 'busGuess':  busGuess(room, p, m.value); break;
     case 'busAgain':  if(isLeader||isRider) busAgain(room); break;
@@ -595,8 +655,8 @@ function handleClose(ws){
   reassignLeaderIfNeeded(room);
   // Whoever just dropped shouldn't be what the table is waiting on.
   if(room.phase==='guess' && allGuessed(room)) resolveGuesses(room);
-  else if(room.phase==='pyramid' && room.pyr.step==='claims' && allResponded(room)) endClaims(room);
-  else if(room.phase==='pyramid' && room.pyr.step==='calls' && allCalled(room)) endCalls(room);
+  else if(room.phase==='pyramid' && room.pyr.step==='claim' && room.pyr.holders.some(h=>h.pid===p.pid)){ claimFor(room, p); maybeFinishClaims(room); }
+  else if(room.phase==='pyramid' && room.pyr.step==='assign' && room.pyr.holders.some(h=>h.pid===p.pid) && !room.pyr.assigned.has(p.pid)){ randomAssign(room, p); maybeFinishAssign(room); }
   if(room.bus) room.bus.bets.delete(p.pid);
   pushState(room);
   scheduleEmptyCleanup(room);
