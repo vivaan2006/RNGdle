@@ -18,6 +18,7 @@ const R = globalThis.RNGDLE;
 const D = globalThis.RNGPARTY_DRINKS;
 
 const PORT = Number(process.env.PORT || 3000);
+const LOCAL_TESTING = process.env.NODE_ENV !== 'production' && !process.env.FLY_APP_NAME;
 // All of these must match index.html — the server holds the round open for as
 // long as the clients spend animating it.
 const PER_DIGIT = 1100, LAST_EXTRA = 900;
@@ -197,6 +198,7 @@ function handle(ws, m){
   const info = meta.get(ws) || {};
   if(m.type==="host"){
     if(info.roomCode) return;
+    if(m.game==='mafia' && m.testMode===true && !LOCAL_TESTING){ send(ws,{type:'error',msg:'Local testing is unavailable on this server.'}); return; }
     const code=makeCode(m.game==='mafia'?'mafia':'rngdle');
     const hostToken=token();
     const room={ code, hostWs:ws, hostToken, hostConnected:true, hostGraceTimer:null, players:new Map(), mode:(m.mode==="endless"?"endless":"rounds"), target:[3,5,10].includes(+m.target)?+m.target:5, round:1, phase:"lobby", revealTimer:null,
@@ -255,7 +257,10 @@ function handle(ws, m){
     const previousPhase=room.phase;
     try {
       const removed=m.type==='mafiaRemove' && info.isHost && room.phase==='lobby'?room.players.get(m.pid):null;
-      if(m.type.startsWith('mafiaTest')) testingAction(room,info,m);
+      if(m.type.startsWith('mafiaTest')) {
+        if(!LOCAL_TESTING) throw new Error('Local testing is unavailable on this server.');
+        testingAction(room,info,m);
+      }
       else mafiaAction(room,info,m);
       if(removed?.ws){ meta.delete(removed.ws); send(removed.ws,{type:'error',msg:'The host removed your seat.',fatal:true}); removed.ws.close(); }
       syncMafiaTimer(room,previousPhase,m.type==='mafiaTimers'); pushState(room);
@@ -368,6 +373,12 @@ const onClose   = ws => { handleClose(ws); };
 /* One place to ask "who owns this code?", so a single join box can send a
    player to whichever game the room belongs to. */
 function apiRoutes(url){
+  if(url.pathname==='/api/mafia-config') return {json:{localTesting:LOCAL_TESTING}};
+  if(url.pathname==='/api/mafia-join' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)) {
+    const addresses=Object.values(networkInterfaces()).flat().filter(n=>n.family==='IPv4'&&!n.internal).map(n=>n.address);
+    const address=addresses.find(ip=>/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)) || addresses[0];
+    return {json:{origin:address ? `http://${address}:${PORT}` : null}};
+  }
   if(url.pathname!=="/api/room") return null;
   const code=(url.searchParams.get("code")||"").toUpperCase().trim();
   const game=gameFor(code);

@@ -143,6 +143,10 @@ in the normal setup. Role counts and difficulty lock until the next lobby.
 Public narration can be enabled
 with the host's sound button; private information is never spoken.
 
+Local testing is available only on development servers. Production builds and
+Fly deployments hide its entry point and reject test-room creation and bot
+commands on the server. Normal games and QR joins remain available.
+
 **Start local test** creates five controllable bots. Adjust the count and cast,
 switch between host and player screens, choose exact targets, or auto-fill
 remaining legal actions and votes. **Pause timers for testing** allows manual

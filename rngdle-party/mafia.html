@@ -26,17 +26,17 @@
         <section class="panel"><span class="large-icon">🕶️</span><h2>Bring the whole table</h2><p>Put the host screen on a laptop or TV. Everyone joins on their own phone, including the host if they want to play.</p><button class="bigbtn" id="host">Create a room →</button><span class="small">4–24 players · no accounts</span></section>
         <form class="panel" id="join"><span class="large-icon">📱</span><h2>Got a room code?</h2><label for="code">Room code</label><input id="code" class="inp mono code-input" maxlength="4" required placeholder="ABCD" autocomplete="off" autocapitalize="characters"><label for="name">Your name</label><input id="name" class="inp" maxlength="18" required placeholder="Your alibi starts here" autocomplete="nickname"><button class="bigbtn ghost" type="submit">Join the room →</button></form>
       </div>
-      <section class="panel test-entry"><div><h2>🧪 Try it on your own</h2><p>Run the real game with five bots. Switch between player screens, choose their moves, or auto-fill a phase. No extra devices needed.</p></div><button class="bigbtn ghost" id="testHost">Start local test →</button></section>
+      <section class="panel test-entry hidden" id="testEntry"><div><h2>🧪 Try it on your own</h2><p>Run the real game with five bots. Switch between player screens, choose their moves, or auto-fill a phase. No extra devices needed.</p></div><button class="bigbtn ghost" id="testHost">Start local test →</button></section>
     </section>
     <section id="room" class="hidden">
-      <section class="room-bar" aria-label="Join this party"><div class="room-invite"><span class="eyebrow">YOUR ROOM CODE</span><button id="copy" class="room-code mono" title="Copy join link">····</button><p id="joinHint" class="small">Open RNGparty on your phone and enter this code.</p><span class="pill" id="joinedCount" aria-live="polite">0 players joined</span></div><div class="room-actions"><button class="secbtn" id="copyLink">Copy join link</button><button class="secbtn" id="leave">Leave</button></div></section>
+      <section class="room-bar" aria-label="Join this party"><div class="room-invite"><span class="eyebrow">YOUR ROOM CODE</span><button id="copy" class="room-code mono" title="Copy join link">····</button><p id="joinHint" class="small">Open RNGparty on your phone and enter this code.</p><span class="pill" id="joinedCount" aria-live="polite">0 players joined</span></div><div class="join-qr" id="joinQR"></div><div class="room-actions"><button class="secbtn" id="copyLink">Copy join link</button><button class="secbtn" id="leave">Leave</button></div></section>
       <div id="phase"></div>
       <div id="testing"></div>
       <div id="settings"></div>
       <div id="private"></div>
       <div id="result" aria-live="polite"></div>
       <div id="action"></div>
-      <section class="panel"><div class="section-head"><h2 id="rosterTitle">At the table</h2><span id="rosterCount" class="small"></span></div><div id="roster" class="roster"></div></section>
+      <details class="panel" id="rosterPanel" open><summary>Players & drink totals</summary><div class="section-head"><h2 id="rosterTitle">At the table</h2><span id="rosterCount" class="small"></span></div><div id="roster" class="roster"></div></details>
       <div id="history"></div>
     </section>
     <details class="panel rulebook" id="rules"><summary>How to play & role guide</summary>
@@ -45,6 +45,7 @@
       <p class="small">Use the role cards to set counts; 0 removes an optional role. Keep at least one Instigator and more town players than Instigator allies. Party Animals do not count as town. Press Start game to apply your cast and difficulty together. Night, discussion, and voting timers can be edited anytime: saving during play restarts the current countdown; 0 means manual pacing. Role reveal and verdict run automatically. Catches and losses default to one shot each. Sips can be any drink.</p>
     </details>
   </main>
+  <script src="/qr.js"></script>
   <script type="module" src="/mafia-client.js"></script>
 </body>
 </html>

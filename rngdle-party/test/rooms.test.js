@@ -8,7 +8,7 @@ test('real rooms: private views, reconnects, timed rounds, rematch, and RNGdle r
   const probe = createServer();
   await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
   const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
-  const server = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), env: { ...process.env, PORT: String(port) }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
+  const server = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), env: { ...process.env, NODE_ENV: 'development', FLY_APP_NAME: '', PORT: String(port) }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
   t.after(() => server.kill());
   await new Promise((resolve,reject) => { server.stdout.on('data', data => { if (String(data).includes('server running')) resolve(); }); server.once('error',reject); server.once('exit',code=>reject(new Error(`Server exited ${code}`))); });
   for (const path of ['/', '/mafia.html', '/mafia-client.js', '/mafia.css', '/mafia-rules.js', '/horsrng', '/imposter', '/rngoldrush', '/qr.js']) assert.equal((await fetch(`http://127.0.0.1:${port}${path}`)).status,200);

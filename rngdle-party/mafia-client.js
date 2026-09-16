@@ -5,6 +5,7 @@ const KEY = 'rngparty_mafia_session';
 let socket, session, state, stopped = false, retry = 0, retryTimer, connectTimer, selected = null, revealed = false, speaking = false, lastPhase = '', settingsKey = '';
 let testPlayer = null;
 let serverOffset = 0;
+let joinOrigin = location.origin;
 const viewerId = () => testPlayer || session?.pid;
 const isHostView = () => session?.role === 'host' && !testPlayer;
 try { session = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch {}
@@ -34,7 +35,7 @@ function connect(message) {
       authenticated = true;
       session = { code: m.code, pid: m.pid || null, token: m.token, role: m.type === 'hosted' ? 'host' : 'player' };
       retry = 0; save(); connection(''); $('#entry').classList.add('hidden'); $('#room').classList.remove('hidden');
-      $('#copy').textContent = session.code;
+      $('#copy').textContent = session.code; renderJoinQR();
       $('#headerCode').textContent = session.code; $('#headerCode').classList.remove('hidden');
     } else if (m.type === 'state' && m.game === 'mafia') {
       state = m; serverOffset = (m.serverNow || Date.now()) - Date.now(); connection(m.hostConnected ? '' : 'The host disconnected. Waiting for them to return…'); render();
@@ -84,8 +85,23 @@ $('#leave').onclick = () => {
   if (state?.phase !== 'lobby' && state?.phase !== 'gameOver' && !confirm('Leave this game? Your seat will be kept, but leaving clears this device’s rejoin key.')) return;
   stopped = true; clearTimeout(retryTimer); sessionStorage.removeItem(KEY); window.speechSynthesis?.cancel(); socket?.close(); location.href = '/mafia.html';
 };
+function renderJoinQR() {
+  if (!session) return;
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  const box = $('#joinQR');
+  if (local && joinOrigin === location.origin) {
+    box.textContent = 'Finding phone join address…';
+    fetch('/api/mafia-join').then(r => r.json()).then(info => {
+      if (!info.origin) throw new Error('No network address');
+      joinOrigin = info.origin; renderJoinQR();
+    }).catch(() => { box.textContent = 'Open this page using your computer’s Wi-Fi address to show a phone QR code.'; });
+    return;
+  }
+  try { box.innerHTML = window.RNGPARTY_QR.svg(joinOrigin + '/mafia.html?room=' + session.code, {quiet:4}) + '<span>Scan to join</span>'; }
+  catch { box.textContent = 'Use the room code to join.'; }
+}
 async function copyLink() {
-  const link = `${location.origin}/mafia.html?room=${session.code}`;
+  const link = `${joinOrigin}/mafia.html?room=${session.code}`;
   try { await navigator.clipboard.writeText(link); $('#copyLink').textContent = 'Copied ✓'; setTimeout(() => $('#copyLink').textContent = 'Copy join link', 1800); }
   catch { prompt('Share this join link:', link); }
 }
@@ -108,15 +124,18 @@ function render() {
   $('#joinedCount').textContent = `${state.players.filter(p => p.connected).length} players joined${session?.role === 'host' && !state.testing ? ' · host display is not a player' : ''}`;
   $('#joinHint').textContent = state.testing ? 'Local test room · bots only' : ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) ? 'Open the server’s Wi-Fi address on your phone, then enter this code.' : `Open ${location.host} on your phone and enter this code.`;
   document.body.classList.toggle('in-room', !!session);
+  document.body.classList.toggle('playing', state.phase !== 'lobby');
+  $('#joinQR').classList.toggle('hidden', !!state.testing || session?.role !== 'host');
   if (state.phase === 'lobby') $('#phase').after($('#action')); else $('#result').after($('#action'));
   if (!state.testing || !state.players.some(p => p.pid === testPlayer)) testPlayer = null;
   if (state.testing) state.private = state.testing.seats.find(p => p.pid === testPlayer)?.private || null;
   const phaseKey = `${state.phase}:${state.round}`;
-  if (lastPhase !== phaseKey) { selected = null; revealed = false; lastPhase = phaseKey; narrate(); }
+  if (lastPhase !== phaseKey) { selected = null; revealed = false; lastPhase = phaseKey; $('#rosterPanel').open = ['lobby', 'gameOver'].includes(state.phase); narrate(); }
   const [title, copy] = phaseCopy(), host = isHostView();
-  $('#phase').innerHTML = `<section class="panel phase-panel"><div class="phase-head"><span class="eyebrow">${state.phase === 'lobby' ? 'MAKE IT YOUR PARTY' : `ROUND ${state.round}`}</span><span class="clock mono" id="clock"></span></div><h1>${title}</h1>${state.phase !== 'lobby' && state.phase !== 'gameOver' ? `<div class="phase-steps">${[['roleReveal','Roles'],['night','Night'],['discussion','Discuss'],['voting','Vote'],['roundEnd','Verdict']].map(([key, label]) => `<span class="phase-step ${state.phase === key ? 'current' : ''}">${label}</span>`).join('')}</div>` : ''}<p>${copy}</p>${['roleReveal','night','voting'].includes(state.phase) ? `<span class="pill">${state.progress.submitted} / ${state.progress.total} locked in</span>` : ''}${host && state.phase === 'lobby' ? '<p class="small">This is the shared host screen. To play too, open the join link on your phone or in another tab.</p>' : ''}</section>`;
-  if (!['lobby', 'gameOver'].includes(state.phase)) $('#phase').insertAdjacentHTML('beforeend', `<p class="notice">${state.nightPlan.attackers ? `Each Instigator can choose up to <b>${state.nightPlan.targetsPerAttacker} different players</b> tonight (${state.nightPlan.players} players, ${state.nightPlan.attackers} active Instigator${state.nightPlan.attackers === 1 ? '' : 's'}).` : 'No active Instigators remain. The town still needs to catch the remaining Mixologists.'} The Instigator team needs <b>3 night hits on every opposing player</b>. Sips and hits are tracked separately.</p>`);
+  $('#phase').innerHTML = `<section class="panel phase-panel"><div class="phase-head"><span class="eyebrow">${state.phase === 'lobby' ? 'MAKE IT YOUR PARTY' : `ROUND ${state.round}`}</span><span class="clock mono" id="clock"></span></div><h1>${title}</h1><p>${copy}</p>${['roleReveal','night','voting'].includes(state.phase) ? `<span class="pill">${state.progress.submitted} / ${state.progress.total} locked in</span>` : ''}${host && state.phase === 'lobby' ? '<p class="small">This is the shared host screen. To play too, open the join link on your phone or in another tab.</p>' : ''}</section>`;
   renderTesting(); renderSettings(); renderPrivate(); renderResult(); renderAction(); renderRoster(); renderHistory(); updateClock();
+  if (state.phase === 'lobby') { $('#testing').after($('#settings')); $('#settings').after($('#private')); }
+  else { $('#phase').after($('#private')); $('#private').after($('#action')); $('#action').after($('#result')); $('#history').after($('#settings')); }
 }
 function testCommand(type, extra = {}) { send({ type, phase: state.phase, round: state.round, ...extra }); }
 function renderTesting() {
@@ -291,3 +310,8 @@ const roomCode = new URLSearchParams(location.search).get('room');
 if (roomCode) $('#code').value = roomCode.toUpperCase().slice(0,4);
 if (session?.token && (!roomCode || session.code === roomCode.toUpperCase())) connect({ type: 'resume', ...session });
 else { session = null; if (roomCode) $('#name').focus(); }
+
+// Keep development controls hidden unless the server explicitly enables them.
+fetch('/api/mafia-config').then(response => response.ok ? response.json() : null).then(config => {
+  if (config?.localTesting === true) $('#testEntry').classList.remove('hidden');
+}).catch(() => {});
