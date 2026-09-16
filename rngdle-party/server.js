@@ -25,7 +25,7 @@ const PER_DIGIT = 1100, LAST_EXTRA = 900;
 const BADGE_LEAD = 750, BADGE_GAP = 520, BADGE_RARITY_HOLD = 170, PAYOFF_HOLD = 1200;
 const AUTO_NEXT_DELAY = 4000;   // pause on the results screen before auto-advancing
 const RARITY_ORDER = ['trash','common','uncommon','rare','epic','anomaly','mythic'];
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/qr.js": "qr.js",
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/engine.js": "engine.js", "/drinks.js": "drinks.js", "/qr.js": "qr.js", "/join-qr.js": "join-qr.js",
   "/mafia.html": "mafia.html", "/mafia-client.js": "mafia-client.js", "/mafia-rules.js": "mafia-rules.js", "/mafia.css": "mafia.css",
   "/horsrng": "horsrng.html", "/horsrng.html": "horsrng.html",
   "/imposter": "imposter.html", "/imposter.html": "imposter.html",
@@ -374,7 +374,7 @@ const onClose   = ws => { handleClose(ws); };
    player to whichever game the room belongs to. */
 function apiRoutes(url){
   if(url.pathname==='/api/mafia-config') return {json:{localTesting:LOCAL_TESTING}};
-  if(url.pathname==='/api/mafia-join' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)) {
+  if(url.pathname==='/api/lan-origin' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)) {
     const addresses=Object.values(networkInterfaces()).flat().filter(n=>n.family==='IPv4'&&!n.internal).map(n=>n.address);
     const address=addresses.find(ip=>/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)) || addresses[0];
     return {json:{origin:address ? `http://${address}:${PORT}` : null}};

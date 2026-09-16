@@ -167,6 +167,7 @@ body:has(#partyView:not(.hidden) #playerGame:not(.hidden)) .wrap{padding-bottom:
 .joinbar{max-width:520px;margin:0 auto 26px;text-align:center}
 .joinbar-lbl{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--prose-3);font-weight:700;margin-bottom:9px}
 .joinbar-row{display:flex;gap:9px;align-items:stretch}
+.joinname{flex:1.4;font-size:15px}
 .joincode{flex:1;text-transform:uppercase;letter-spacing:8px;text-align:center;font-weight:800;font-size:20px;
   font-family:'Space Mono',ui-monospace,monospace}
 .joingo{width:auto;margin:0;padding:0 22px;white-space:nowrap;font-size:15px}
@@ -456,6 +457,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
       <div class="joinbar-row">
         <input class="inp joincode" id="hubCode" placeholder="CODE" maxlength="4" autocomplete="off"
                autocapitalize="characters" spellcheck="false" inputmode="text">
+        <input class="inp joinname" id="hubName" placeholder="Your name" maxlength="18" autocomplete="nickname">
         <button class="bigbtn joingo" id="hubJoin">Join party</button>
       </div>
       <div class="joinbar-msg" id="hubJoinMsg"></div>
@@ -742,6 +744,7 @@ body:has(#partyView:not(.hidden) #hostGame:not(.hidden)) .hbar{max-width:min(160
 </div>
 
 <script src="qr.js"></script>
+<script src="join-qr.js"></script>
 <script src="engine.js"></script>
 <script src="drinks.js"></script>
 <script>
@@ -1395,12 +1398,10 @@ $('#hRevealDigit').addEventListener('click',()=>NET.send({type:'revealStep'}));
 function startHost(){ NET.role='host'; showOnlyOnline('hostView'); $('#hSettings').classList.remove('hidden'); NET.connect(()=>NET.send({type:'host',mode:NET.mode,target:NET.target,revealMode:NET.revealMode,drinking:NET.drinking})); }
 /* A QR of the join link, so people can point a phone at the screen instead of
    typing a code. Encoded locally — a LAN party has no internet to call out to. */
-function renderJoinQR(url){
-  const box=document.querySelector('#qrBox'); if(!box) return;
-  try{ box.innerHTML=window.RNGPARTY_QR.svg(url,{quiet:2,dark:'#0a0a0a',light:'#ffffff'}); }
-  catch(e){ box.innerHTML=''; }   // never let a QR failure break the lobby
+function renderJoinQR(code){
+  window.RNGPARTY_JOINQR.render(document.querySelector('#qrBox'), '/', code, {quiet:2});
 }
-function hostLobbyReady(code){ partyNav(); showRoomChip(code); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); renderJoinQR(url); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+function hostLobbyReady(code){ partyNav(); showRoomChip(code); $('#roomCode').textContent=code; const url=`${location.origin}/?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); renderJoinQR(code); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 function showRoomChip(code){
   const chip=$('#roomChip'); if(!code){ chip.classList.add('hidden'); return; }
   $('#roomChipCode').textContent=code; chip.classList.remove('hidden');
@@ -1878,9 +1879,11 @@ $('#homeLogo').addEventListener('click',goHome);
    every game already understands ?room=CODE. */
 async function hubJoin(){
   const code=$('#hubCode').value.trim().toUpperCase();
+  const name=$('#hubName').value.trim();
   const msg=$('#hubJoinMsg');
   msg.className='joinbar-msg';
   if(!/^[A-Z0-9]{4}$/.test(code)){ msg.classList.add('err'); msg.textContent='Room codes are 4 letters or numbers.'; return; }
+  if(!name){ msg.classList.add('err'); msg.textContent='Enter the name your friends will see.'; $('#hubName').focus(); return; }
   msg.textContent='Looking for that party…';
   let info;
   try{
@@ -1889,10 +1892,13 @@ async function hubJoin(){
   }catch(e){ msg.classList.add('err'); msg.textContent="Couldn't reach the server. Check your connection."; return; }
   if(!info.ok){ msg.classList.add('err'); msg.textContent=info.error||'No party with that code.'; return; }
   msg.classList.add('ok'); msg.textContent='Found '+info.name+' — joining…';
-  location.href = info.path + (info.path.includes('?')?'&':'?') + 'room=' + code;
+  // name travels with the code, so the game joins on arrival instead of
+  // showing a second form asking for the same thing again
+  location.href = info.path + (info.path.includes('?')?'&':'?') + 'room=' + code + '&name=' + encodeURIComponent(name);
 }
 $('#hubJoin').addEventListener('click',hubJoin);
-$('#hubCode').addEventListener('keydown',e=>{ if(e.key==='Enter') hubJoin(); });
+$('#hubCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#hubName').focus(); });
+$('#hubName').addEventListener('keydown',e=>{ if(e.key==='Enter') hubJoin(); });
 $('#hubCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
 
 /* ---------- init / deep-link ---------- */
@@ -1919,7 +1925,10 @@ if(savedSession && savedSession.code && savedSession.role){
   [...$('#tabs').children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='party'));
   $('#soloView').classList.add('hidden'); $('#partyView').classList.remove('hidden');
   $('#partyChoose').classList.add('hidden'); $('#onlineParty').classList.remove('hidden');
-  startJoin(roomParam.toUpperCase()); $('#jName').focus();
+  startJoin(roomParam.toUpperCase());
+  const nameParam=new URLSearchParams(location.search).get('name');
+  if(nameParam){ $('#jName').value=nameParam.slice(0,18); $('#jGo').click(); }
+  else $('#jName').focus();
 }
 </script>
 </body>

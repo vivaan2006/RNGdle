@@ -237,6 +237,7 @@ header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--backg
 </div>
 
 <script src="qr.js"></script>
+<script src="join-qr.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -468,12 +469,10 @@ $('#hostBtn').addEventListener('click',startHost);
 $('#joinBtn').addEventListener('click',()=>startJoin());
 /* A QR of the join link, so people can point a phone at the screen instead of
    typing a code. Encoded locally — a LAN party has no internet to call out to. */
-function renderJoinQR(url){
-  const box=document.querySelector('#qrBox'); if(!box) return;
-  try{ box.innerHTML=window.RNGPARTY_QR.svg(url,{quiet:2,dark:'#0a0a0a',light:'#ffffff'}); }
-  catch(e){ box.innerHTML=''; }   // never let a QR failure break the lobby
+function renderJoinQR(code){
+  window.RNGPARTY_JOINQR.render(document.querySelector('#qrBox'), '/rngoldrush', code, {quiet:2});
 }
-function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/rngoldrush?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); renderJoinQR(url); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
+function hostLobbyReady(code){ $('#roomCode').textContent=code; const url=`${location.origin}/rngoldrush?room=${code}`; $('#joinUrl').textContent=url.replace(/^https?:\/\//,''); renderJoinQR(code); $('#copyLink').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>$('#copyLink').textContent='Copied!'); }
 
 // The whole round view (pot, tile bar, player statuses, log) freezes at
 // whatever it last showed while the reel is mid-spin, then updates all at
@@ -658,7 +657,11 @@ function resumeFromSession(sess){
 const roomParam=new URLSearchParams(location.search).get('room');
 const savedSession=loadSession();
 if(savedSession && savedSession.code && savedSession.role){ resumeFromSession(savedSession); }
-else if(roomParam){ startJoin(roomParam.toUpperCase()); }
+else if(roomParam){
+  startJoin(roomParam.toUpperCase());
+  const nameParam=new URLSearchParams(location.search).get('name');
+  if(nameParam){ $('#jName').value=nameParam.slice(0,18); $('#jGo').click(); }   // arrived from the hub: join straight away
+}
 </script>
 </body>
 </html>
