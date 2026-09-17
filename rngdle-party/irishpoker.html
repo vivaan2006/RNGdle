@@ -158,7 +158,8 @@ header{position:sticky;top:0;z-index:30;background:rgba(4,14,9,.82);backdrop-fil
 .swap{position:relative}
 .cd{font-size:13px;color:var(--muted);font-weight:700;margin-top:8px;min-height:18px}
 
-.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.seat .cardrow{flex-wrap:nowrap}
 .seat{background:rgba(0,0,0,.28);border:1px solid var(--line2);border-radius:16px;padding:12px 14px;transition:box-shadow .4s,border-color .4s}
 .seat.locked{border-color:rgba(247,201,72,.5)}
 .seat.right.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 30px rgba(247,201,72,.35)}
@@ -288,6 +289,44 @@ table.lb td b{font-weight:900;color:var(--gold)}
   .wiptag{font-size:8.5px;padding:2px 6px}.iconbtn{width:30px;height:30px;font-size:13px}
   .banner .q{font-size:26px}.marquee{padding:16px 10px}.codebox .code{font-size:44px}
 }
+/* ---------- host controls, waiting, pause ---------- */
+.dock{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:45;display:flex;gap:8px;padding:8px;border-radius:16px;background:rgba(4,14,9,.95);border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.6);width:max-content;max-width:calc(100vw - 24px);flex-wrap:wrap;justify-content:center}
+.dbtn{border:1px solid var(--line2);background:rgba(255,255,255,.07);border-radius:11px;padding:10px 14px;font-weight:800;font-size:14px;white-space:nowrap;transition:transform .08s}
+.dbtn:active{transform:scale(.95)}
+.dbtn:disabled{opacity:.35}
+.dbtn.go{background:var(--green);color:#032413;border-color:transparent}
+.dbtn.stop{color:#ff8aa0}
+.dbtn.armed{background:var(--red);color:#fff;border-color:transparent}
+.mini{margin-left:auto;border:1px solid var(--line2);background:rgba(255,255,255,.07);border-radius:9px;padding:6px 10px;font-weight:800;font-size:12px;color:var(--ink);white-space:nowrap}
+.mini.armed{background:var(--red);color:#fff;border-color:transparent}
+.waitpanel{border-color:rgba(247,201,72,.55)}
+.dcode{align-self:center;font-size:12px;color:var(--muted);font-weight:700;padding:0 8px;white-space:nowrap}
+.dcode b{color:var(--gold);letter-spacing:2px;font-size:14px}
+.tvpyr .c3.lg{--w:min(86px,20vw,8.4vh)}
+#playerView .bustrack{gap:8px}
+#playerView .bustrack .c3{--w:min(62px, calc((100vw - 40px) / var(--n) - 8px))}
+@media (max-width:420px){.seats{grid-template-columns:1fr}}
+@media (min-width:861px){
+  #hLobby{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:0 20px;align-items:start}
+  #hLobbyBody,#hLobbyBody>.tvgrid{display:contents}
+  #hLobby .codebox{margin-top:18px}
+}
+.tvpyr .marquee{margin-top:18px}
+.tvstatus{margin-top:18px;min-height:0;text-align:left}
+.tvstatus .claimed{justify-content:flex-start}
+@media (max-width:860px){.tvstatus{text-align:center}.tvstatus .claimed{justify-content:center}.dcode{display:none}}
+.waitline{margin-top:10px;font-size:13px;color:var(--gold);font-weight:800}
+.autocd{font-weight:800;color:var(--gold)}
+.pausebar{position:fixed;left:0;right:0;top:0;z-index:85;text-align:center;padding:14px;font-weight:900;letter-spacing:2px;color:var(--gold);border-bottom:2px solid var(--gold);
+  background:repeating-linear-gradient(45deg,#3b2a00 0 14px,#231900 14px 28px)}
+/* Phones: drop the effects that make low-end GPUs stutter mid-reveal. */
+@media (hover:none),(max-width:860px){
+  body{background-attachment:scroll}
+  header{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(4,14,9,.97)}
+  .actionbar{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(4,14,9,.97)}
+  .marquee::before{filter:none;animation-duration:1.8s}
+  .panel{box-shadow:none}
+}
 @media (prefers-reduced-motion: reduce){.marquee::before,.shine::after,.pulse{animation:none}}
 </style>
 </head>
@@ -319,9 +358,10 @@ table.lb td b{font-weight:900;color:var(--gold)}
     <div class="panel rules" style="max-width:900px;margin:18px auto 0">
       <h3>How it plays</h3>
       <ol>
-        <li><b>Guess your cards.</b> Four face-down cards each, four rounds: red or black, higher or lower, inside or outside, then the suit. Right = give sips. Wrong = drink. Hit the post = drink double.</li>
+        <li><b>Guess your cards.</b> Four face-down cards each, four rounds: red or black, higher or lower, inside or outside, then the suit. Right = safe. Wrong = drink 1, 2, 3, then 4 sips. Hit the post = drink double.</li>
         <li><b>The pyramid.</b> Ten cards in a 4‑3‑2‑1 pyramid flip one by one. Got that card? Tap <i>I have it</i> and hand out drinks: 1 sip, 2, 3 — and the top card makes someone finish their drink.</li>
         <li><b>Ride the bus.</b> Most cards left unplayed rides. Higher or lower down the row. Miss and start over.</li>
+        <li><b>The computer deals.</b> Put the host screen on a TV; it runs the game and everyone plays from their phone.</li>
       </ol>
     </div>
   </div>
@@ -355,9 +395,11 @@ table.lb td b{font-weight:900;color:var(--gold)}
   </div>
 </div>
 <div id="overlay"></div>
+<div class="pausebar hidden" id="pauseBar">⏸ PAUSED — hang tight</div>
 
 <script src="qr.js"></script>
 <script src="join-qr.js"></script>
+<script src="irishpoker-rules.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -365,17 +407,13 @@ function sips(n){ return `${n} sip${n===1?'':'s'}`; }
 const buzz = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
 
 /* ==================================================================
-   TIMING — every reveal is scheduled from the server's stepAt, so the TV
-   and every phone play the same slow reveal together. Server holds that
-   depend on these (BURN_MS, BUS_FINISH_HOLD_MS) live in irishpoker-server.js.
+   RULES + TIMING — shared with the server (irishpoker-rules.js). The
+   server is the dealer and waits out every reveal below before it moves
+   on, so every screen plays the same moment together.
    ================================================================== */
-const TM = {
-  R_SUS:1900, R_STAG:1150, R_STAMP:650, R_TAIL:900,      // round reveal
-  P_SUS:1500, P_SUS_BURN:950, P_BURN_MSG:2350, P_CLAIM_UI:2500,   // pyramid flip
-  RES_START:450, RES_STEP:1150,                          // hand-out reveal
-  ROUL:5600,                                             // rider roulette
-  BUS_SUS:1700, BUS_VERDICT:2650, BUS_UI:3200, BUS_DEAL:650,
-};
+const RULES = window.RNGPARTY_IRISHPOKER;
+const TM = RULES.TIMING;
+const NUDGE = 12000;      // waiting this long on someone: name them (and offer sit-out on the TV)
 
 /* ---------- SOUND: synthesized casino (Web Audio, zero deps) ---------- */
 const SFX = (function(){
@@ -462,6 +500,7 @@ const FX = (function(){
 })();
 function shakeScreen(){ document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); setTimeout(()=>document.body.classList.remove('shake'),500); }
 
+
 /* ---------- TIMELINE: data-at elements switch on when their moment arrives ---------- */
 const FIRED = new Set();
 let BASE = 0, STEPKEY = '';
@@ -492,13 +531,11 @@ function runFx(list, el){
 }
 function frame(){
   const t=Date.now();
-  document.querySelectorAll('[data-at]').forEach(el=>{
+  document.querySelectorAll('[data-at]:not(.on)').forEach(el=>{
     const at=+el.dataset.at;
     if(t>=at){
-      if(!el.classList.contains('on')){
-        el.classList.add('on'); el.classList.remove('soon');
-        const k=el.dataset.key; if(k && !FIRED.has(k)){ FIRED.add(k); runFx(el.dataset.fx, el); }
-      }
+      el.classList.add('on'); el.classList.remove('soon');
+      const k=el.dataset.key; if(k && !FIRED.has(k)){ FIRED.add(k); runFx(el.dataset.fx, el); }
     } else if(el.dataset.soon && t>=at-(+el.dataset.soon)) el.classList.add('soon');
   });
   stepRoulette();
@@ -507,64 +544,124 @@ function frame(){
 setInterval(frame, 50);
 
 /* ---------- session persistence (reconnect) ---------- */
-const SESSION_KEY='irishpoker_session';
+const SESSION_KEY='irishpoker_session', NAME_KEY='irishpoker_name';
 function loadSession(){ try{ const raw=sessionStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
-function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify({code:NET.code, role:NET.role, pid:NET.pid, token:NET.token})); }catch(e){} }
+function saveSession(){ try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify({code:NET.code, role:NET.role, pid:NET.pid, token:NET.token, name:NET.name})); if(NET.name) localStorage.setItem(NAME_KEY, NET.name); }catch(e){} }
 function clearSession(){ try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+function savedName(){ try{ return localStorage.getItem(NAME_KEY)||''; }catch(e){ return ''; } }
 
-/* ---------- network ---------- */
-const NET = { ws:null, role:null, code:null, pid:null, token:null, state:null, offset:0, resuming:false,
-  manualClose:false, reconnecting:false, reconnectAttempts:0, reconnectTimer:null, reconnectFailed:false,
-  connect(onOpen){ const proto=location.protocol==='https:'?'wss:':'ws:'; this.ws=new WebSocket(`${proto}//${location.host}/irishpoker-ws`);
-    this.ws.onopen=onOpen; this.ws.onmessage=e=>this.onMsg(JSON.parse(e.data));
-    this.ws.onclose=()=>this.handleClose(); this.ws.onerror=()=>{}; },
-  send(o){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(o)); },
-  handleClose(){
-    if(this.manualClose){ this.manualClose=false; return; }
-    if(!this.role || !this.code) return;
+/* ---------- network ----------
+   Phones lock, tabs sleep, wifi hands over to cellular. The socket is treated as
+   disposable: an in-band ping every few seconds, a forced reconnect when the
+   server goes quiet, and an immediate reconnect when the page becomes visible.
+   The server never plays for a missing phone, so getting back fast matters. */
+const NET = { ws:null, role:null, code:null, pid:null, token:null, name:null, state:null, offset:0,
+  resuming:false, rejoining:false, reconnecting:false, attempts:0, timer:null, lastMsg:0, openedAt:0,
+  connect(onOpen){
+    clearTimeout(this.timer);
+    this.drop(false);
+    const proto=location.protocol==='https:'?'wss:':'ws:';
+    const ws=new WebSocket(`${proto}//${location.host}/irishpoker-ws`);
+    this.ws=ws; this.openedAt=Date.now();
+    ws.onopen=()=>{ if(this.ws!==ws) return; this.lastMsg=Date.now(); onOpen(); };
+    ws.onmessage=e=>{ if(this.ws!==ws) return; this.lastMsg=Date.now(); let m; try{ m=JSON.parse(e.data); }catch(err){ return; } this.onMsg(m); };
+    ws.onclose=()=>{ if(this.ws!==ws) return; this.ws=null; this.dropped(); };
+    ws.onerror=()=>{};
+  },
+  /** Close the current socket without triggering the reconnect path. */
+  drop(){ const ws=this.ws; this.ws=null; if(ws){ ws.onclose=null; ws.onmessage=null; try{ ws.close(); }catch(e){} } },
+  send(o){ if(this.ws&&this.ws.readyState===1){ this.ws.send(JSON.stringify(o)); return true; } return false; },
+  inRoom(){ return !!(this.role && this.code && this.token); },
+  dropped(){
+    if(!this.inRoom()) return;
     this.reconnecting=true; renderConnBar();
-    clearTimeout(this.reconnectTimer);
-    const delay=Math.min(1000*Math.pow(1.6,this.reconnectAttempts),6000);
-    this.reconnectTimer=setTimeout(()=>{ this.reconnectAttempts++; this.connect(()=>this.send({type:'resume',code:this.code,pid:this.pid,token:this.token})); },delay);
+    clearTimeout(this.timer);
+    const delay=Math.min(350*Math.pow(1.7,this.attempts),5000);
+    this.timer=setTimeout(()=>this.reconnectNow(), delay);
+  },
+  reconnectNow(){
+    if(!this.inRoom()) return;
+    this.attempts++; this.resuming=true; this.reconnecting=true; renderConnBar();
+    this.connect(()=>this.send({type:'resume',code:this.code,pid:this.role==='player'?this.pid:null,token:this.token}));
   },
   onMsg(m){
+    if(m.type==='pong'){ this.clock(m.serverNow); return; }
     if(m.type==='hosted'){ this.code=m.code; this.token=m.token; this.connected(); hostLobbyReady(m.code); }
     else if(m.type==='joined'){ this.code=m.code; this.pid=m.pid; this.token=m.token; this.connected(); playerJoined(); }
+    else if(m.type==='kicked'){ const code=this.code; this.leave(); startJoin(code); onNetError('The host removed you from the table.'); }
     else if(m.type==='error'){
-      if(this.reconnecting){ this.reconnecting=false; this.reconnectFailed=true; clearSession(); renderConnBar(); }
-      else if(this.resuming){ this.resuming=false; clearSession(); this.manualClose=true; try{ this.ws.close(); }catch(e){} this.role=null; this.code=null; this.pid=null; showOnly('chooseView'); }
-      else onNetError(m.msg);
+      if(this.resuming){
+        this.resuming=false;
+        // The seat token didn't work — try to take the seat back by name.
+        if(this.role==='player' && this.name && this.code){ this.rejoining=true; this.send({type:'join',code:this.code,name:this.name}); return; }
+        this.leave(); showOnly('chooseView'); toast(m.msg); return;
+      }
+      if(this.rejoining){ this.rejoining=false; const code=this.code, name=this.name; this.leave(); startJoin(code); $('#jName').value=name||''; onNetError(m.msg); return; }
+      if(this.state) toast(m.msg); else onNetError(m.msg);
     }
     else if(m.type==='nope'){ const c=currentSlotCard(); toast(`Nope — no ${c?rankWord(c.r):'match'} in your hand 🙃`); SFX.nope(); buzz([60,40,60]); shakeScreen(); }
-    else if(m.type==='state'){ this.offset=m.serverNow-Date.now(); const prev=this.state; this.state=m; onState(prev,m); }
+    else if(m.type==='state'){ this.clock(m.serverNow); const prev=this.state; this.state=m; onState(prev,m); }
   },
-  connected(){ this.resuming=false; this.reconnecting=false; this.reconnectFailed=false; this.reconnectAttempts=0; saveSession(); renderConnBar(); }
+  /* serverNow - arrival time underestimates the clock offset by the network delay,
+     so the largest recent sample is the best estimate. A laggy message then can't
+     push one phone's reveal later than everyone else's. */
+  samples:[],
+  clock(serverNow){
+    const now=Date.now();
+    this.samples.push({ t:now, v:serverNow-now });
+    this.samples=this.samples.filter(x=>now-x.t<60000).slice(-40);
+    this.offset=Math.max(...this.samples.map(x=>x.v));
+  },
+  connected(){ this.resuming=false; this.rejoining=false; this.reconnecting=false; this.attempts=0; saveSession(); renderConnBar(); },
+  leave(){ clearSession(); clearTimeout(this.timer); this.drop(); this.role=null; this.token=null; this.pid=null; this.state=null; this.resuming=false; this.rejoining=false; this.reconnecting=false; renderConnBar(); }
 };
+setInterval(()=>{
+  if(!NET.inRoom()) return;
+  const ws=NET.ws, now=Date.now();
+  if(ws && ws.readyState===1){
+    NET.send({type:'ping'});
+    if(now-NET.lastMsg>13000){ NET.drop(); NET.dropped(); }            // half-dead socket
+  } else if(ws && ws.readyState===0 && now-NET.openedAt>8000){ NET.drop(); NET.dropped(); }   // stuck connecting
+}, 4000);
+function wakeUp(){
+  requestWakeLock();
+  if(!NET.inRoom()) return;
+  const ws=NET.ws;
+  if(!ws || ws.readyState>1 || Date.now()-NET.lastMsg>5000){ NET.attempts=0; NET.reconnectNow(); }
+  else NET.send({type:'ping'});
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wakeUp(); });
+addEventListener('online', wakeUp);
+addEventListener('pageshow', e=>{ if(e.persisted) wakeUp(); });
+
+/* Keep screens awake: a sleeping phone is a player the table has to wait for. */
+let WAKE=null;
+async function requestWakeLock(){
+  try{
+    if(!('wakeLock' in navigator) || document.visibilityState!=='visible' || (WAKE && !WAKE.released) || !NET.role) return;
+    WAKE=await navigator.wakeLock.request('screen');
+  }catch(e){}
+}
+
 function onNetError(msg){ const box=$('#joinErr'); if(box) box.innerHTML=`<div class="small mt8" style="color:#ff6b83">${esc(msg)}</div>`; }
 function renderConnBar(){
   const bar=$('#connBar');
-  if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting…'; return; }
-  if(NET.reconnectFailed){ bar.className='connbar bad'; bar.textContent="⚠️ Couldn't reconnect — the game may have ended."; return; }
-  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.textContent='📺 Shared screen disconnected — keep playing on your phone.'; return; }
+  if(NET.reconnecting){ bar.className='connbar warn'; bar.innerHTML='<span class="spin"></span> Reconnecting… the table waits for you'; return; }
+  if(NET.role==='player' && NET.state && NET.state.hostConnected===false){ bar.className='connbar warn'; bar.textContent='📺 TV offline — the game carries on; phones can run it.'; return; }
   bar.className='connbar hidden';
 }
 function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2300); }
 
 /* ---------- local UI state ---------- */
-const UI = { key:null, answer:null, target:null, alloc:{}, finishPick:[], armed:null, armedTimer:null, dismissed:new Set(), prevLocked:new Set(), toyStreak:0, toyLast:null };
+const UI = { key:null, pendingGuess:null, alloc:{}, finishPick:[], armed:null, armedTimer:null, dismissed:new Set(), toyStreak:0, toyLast:null, fresh:null };
 
 /* ---------- helpers ---------- */
 const SUIT = { s:'♠', h:'♥', d:'♦', c:'♣' };
 const SUIT_NAME = { s:'Spades', h:'Hearts', d:'Diamonds', c:'Clubs' };
 const RANKS = { 11:'J', 12:'Q', 13:'K', 14:'A' };
 const RANK_WORD = { 11:'Jack', 12:'Queen', 13:'King', 14:'Ace' };
-const MULT = { sipping:1, drinking:2, hammered:3 };
-const ROUNDS = [
-  { wrong:1, give:1, options:['red','black'] },
-  { wrong:2, give:2, options:['higher','lower'] },
-  { wrong:3, give:3, options:['inside','outside'] },
-  { wrong:2, give:4, options:['s','h','d','c'] },
-];
+const MULT = RULES.INTENSITY;
+const ROUNDS = RULES.ROUNDS;
 const INTENSITY_LABEL = { sipping:'🥤 Sipping', drinking:'🍺 Drinking', hammered:'🥴 Hammered' };
 const rank = r => RANKS[r]||String(r);
 const rankWord = r => RANK_WORD[r]||String(r);
@@ -575,14 +672,14 @@ const mult = s => MULT[s.settings.intensity]||1;
 const player = (s,pid) => s.players.find(p=>p.pid===pid);
 const nameOf = (s,pid) => { const p=player(s,pid); return p?esc(p.name):'someone'; };
 const dealt = s => s.players.filter(p=>p.dealt);
-const leaderName = s => s.leaderPid ? nameOf(s,s.leaderPid) : 'the room';
 const cardsLeft = p => 4-(p.played||[]).filter(Boolean).length;
-function avatar(p){ return `<span class="av" style="background:${p.color}">${esc(p.name[0].toUpperCase())}</span>`; }
+function avatar(p){ return `<span class="av" style="background:${p.color}">${esc((p.name||'?')[0].toUpperCase())}</span>`; }
 function offline(p){ return p.connected===false ? '<span class="offlinetag">OFFLINE</span>' : ''; }
 function answerLabel(v){ return ({red:'Red',black:'Black',higher:'Higher',lower:'Lower',inside:'Inside',outside:'Outside'})[v] || `${SUIT[v]} ${SUIT_NAME[v]}`; }
 function currentSlotCard(){ const y=NET.state&&NET.state.pyramid; return y&&y.idx>=0 ? y.slots[y.idx].card : null; }
 function levelLabel(sl){ return sl.finish ? '🍺 FINISH' : sips(sl.sips).toUpperCase(); }
 function joinNames(list){ return list.length<=1 ? (list[0]||'') : list.slice(0,-1).join(', ')+' & '+list[list.length-1]; }
+const isControl = s => NET.role==='host' || (s && s.hostConnected===false);
 
 function cardHtml(c, o){
   o=o||{};
@@ -591,17 +688,31 @@ function cardHtml(c, o){
   const state = !c ? '' : o.t ? o.t.c : 'up';
   return `<div class="c3 ${sz} ${state} ${o.cls||''}"${o.t?o.t.a:''}${o.t&&o.soon?` data-soon="${o.soon}"`:''}><div class="in">${face}<div class="f back"></div></div>${o.burn||''}</div>`;
 }
-function countdownHtml(s, label){ return s.deadline ? `<div class="cd" data-cd="${esc(label)}"></div>` : ''; }
+/** A live countdown to the dealer's next move ("Next round in 7s"). */
+function autoHtml(label){ return `<span class="autocd" data-auto="${esc(label)}"></span>`; }
 function tickCountdowns(){
   const s=NET.state; if(!s) return;
-  document.querySelectorAll('[data-cd]').forEach(el=>{
-    const secs=s.deadline?Math.max(0,Math.ceil((s.deadline-(Date.now()+NET.offset))/1000)):0;
-    el.textContent = secs>0 ? `⏱ ${el.dataset.cd} ${secs}s` : '';
+  const now=Date.now()+NET.offset;
+  document.querySelectorAll('[data-auto]').forEach(el=>{
+    let txt='';
+    if(s.paused){ if(s.autoLeft!=null) txt=`${el.dataset.auto} — paused`.trim(); }
+    else if(s.autoAt){ txt=`${el.dataset.auto} ${Math.max(0,Math.ceil((s.autoAt-now)/1000))}s`.trim(); }
+    if(el.textContent!==txt) el.textContent=txt;
   });
 }
 function setHtml(el, html){ if(el._html===html) return; el._html=html; el.innerHTML=html; }
 function drumEl(ms, dur){ const x=tl(ms,'drum'+ms,'drum'); return `<i class="fxonly"${x.a} data-dur="${dur}"></i>`; }
 function fxEl(ms, key, fx){ const x=tl(ms,key,fx); return `<i class="fxonly"${x.a}></i>`; }
+function armedLabel(key, normal, armed){ return UI.armed===key ? armed : normal; }
+
+/** "Waiting on Sam & Priya" — shown straight away for offline phones, otherwise after a nudge. */
+function waitLine(s, excludePid){
+  const ids=(s.waitingOn||[]).filter(pid=>pid!==excludePid); if(!ids.length) return '';
+  const ps=ids.map(pid=>player(s,pid)).filter(Boolean);
+  const anyOff=ps.some(p=>!p.connected);
+  const x=tl(anyOff?0:NUDGE);
+  return `<div class="waitline pend ${x.c}"${x.a}>⏳ Waiting on ${joinNames(ps.map(p=>esc(p.name)+(p.connected?'':' 💤')))}</div>`;
+}
 
 function questionFor(s, cards){
   const r=s.round;
@@ -614,22 +725,22 @@ function questionFor(s, cards){
 }
 function stakesFor(s){
   const d=ROUNDS[s.round-1], x=mult(s);
-  return `Right: give ${sips(d.give*x)} · Wrong: drink ${sips(d.wrong*x)}${s.round===2||s.round===3?` · Post: drink ${sips(d.wrong*x*2)}`:''}`;
+  return `Right: safe · Wrong: drink ${sips(d.wrong*x)}${s.round===2||s.round===3?` · Post: drink ${sips(d.wrong*x*2)}`:''}`;
 }
 function drinksPanel(s, meId, startMs, title){
   const rows=Object.entries(s.stepDrinks||{}).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
   const head=tl(startMs);
-  if(!rows.length) return `<div class="panel pend ${head.c}"${head.a}><h3>${title||'🍺 Drink up'}</h3><div class="small">Nobody drinks. Suspicious.</div></div>`;
+  if(!rows.length) return `<div class="panel pend ${head.c}"${head.a}><h3>${title||'🍺 Drink up'}</h3><div class="small">Nobody drinks. The house is furious.</div></div>`;
   return `<div class="panel pend ${head.c}"${head.a}><h3>${title||'🍺 Drink up'}</h3><div class="drinks">${rows.map(([pid,n],i)=>{ const p=player(s,pid); if(!p) return '';
     const x=tl(startMs+250+i*260,'dr'+pid,'chip');
     return `<div class="drow pend ${x.c}${pid===meId?' me':''}"${x.a}>${avatar(p)}${esc(p.name)}${pid===meId?' (you)':''}<span class="n">${sips(n)}</span></div>`; }).join('')}</div></div>`;
 }
-function roundStamp(r, forMe, s){
-  if(r.verdict==='right') return { cls:'win', text:'WIN', fx:'win', sub:`${forMe?'You give':'gives'} <b>${nameOf(s,r.target)}</b> ${sips(r.sips)}` };
-  if(r.verdict==='post') return { cls:'lose', text:`POST ×2`, fx:'post shake', sub:`${forMe?'Drink':'drinks'} ${sips(r.sips)}` };
+function roundStamp(r, forMe){
+  if(r.verdict==='right') return { cls:'win', text:'SAFE', fx:'win', sub: forMe ? `${answerLabel(r.guess)} — no drink for you` : `${answerLabel(r.guess)} ✓` };
+  if(r.verdict==='post') return { cls:'lose', text:'POST ×2', fx:'post shake', sub:`${forMe?'Drink':'drinks'} ${sips(r.sips)}` };
   return { cls:'lose', text:`DRINK ${r.sips}`, fx:'lose', sub:`${answerLabel(r.guess)} was wrong` };
 }
-function revealEnd(s){ return TM.R_SUS + dealt(s).length*TM.R_STAG + TM.R_STAMP + TM.R_TAIL; }
+function revealEnd(s){ return RULES.roundRevealMs((s.roundResults||[]).length); }
 
 /* Pyramid: rows top (finish) to bottom (1 sip); flip order runs bottom-left upward. */
 function pyramidHtml(s, size){
@@ -641,12 +752,12 @@ function pyramidHtml(s, size){
     if(i===y.idx && sl.card){
       if(y.step==='burn' || y.step==='claim'){
         const sus = sl.burns ? TM.P_SUS_BURN : TM.P_SUS;
-        const burn = y.step==='burn' ? (x=>`<div class="burnx ${x.c}"${x.a}>🔥</div>`)(tl(TM.P_BURN_MSG,'burn'+i+'_'+sl.burns,'burn')) : '';
+        const burn = y.step==='burn' ? (x=>`<div class="burnx ${x.c}"${x.a}>🔥</div>`)(tl(RULES.burnMsgMs(sl.burns),'burn'+i+'_'+sl.burns,'burn')) : '';
         return cardHtml(sl.card,{size, t:tl(sus,'pf'+i+'_'+sl.burns,'flip'), soon:sus-150, cls:'glow', burn});
       }
       return cardHtml(sl.card,{size, cls:'glow'});
     }
-    const next = (y.step==='ready'||y.step==='result') && i===y.idx+1;
+    const next = (y.step==='intro'||y.step==='result') && i===y.idx+1;
     return cardHtml(null,{size, cls: next?'nextup':''});
   };
   const rows=[1,2,3,4].map(level=>{
@@ -666,7 +777,7 @@ function resultLines(s, meId){
   pairs.forEach((g,i)=>{ const x=tl(TM.RES_START+(res.finishes.length+i)*TM.RES_STEP,'give'+i,'give'); lines.push(`<div class="line pend ${x.c}"${x.a}>${avatar(player(s,g.from)||{color:'#999',name:'?'})}<b>${you(g.from,true)}</b><span class="arrow">➜</span><b>${you(g.to,true)}</b><span class="amt">🍺 ×${g.sips}</span></div>`); });
   return `<div class="lines">${lines.join('')}</div>`;
 }
-function resultEnd(s){ const r=s.pyramid.result; if(!r) return 0; const pairs=new Set(r.gives.map(g=>g.from+'>'+g.to)).size; return TM.RES_START + (r.finishes.length+pairs)*TM.RES_STEP + 300; }
+function resultEnd(s){ return RULES.resultRevealMs(s.pyramid.result); }
 function takeoverHtml(s, meId, allowDismiss){
   const y=s.pyramid, res=y&&y.result;
   if(!res || !res.finishes.length) return '';
@@ -694,18 +805,18 @@ let ROUL=null;
 function setupRoulette(s){
   const key=s.gameId+':'+s.stepAt;
   if(ROUL && ROUL.key===key) return;
-  const ps=dealt(s).map(p=>p.pid), ri=Math.max(0,ps.indexOf(s.riderPid)), n=ps.length;
+  const ps=dealt(s).map(p=>p.pid), ri=Math.max(0,ps.indexOf(s.riderPid)), n=Math.max(1,ps.length);
   let K=n*4+ri; if(K<14) K+=n*Math.ceil((14-K)/n);
   const seq=[]; for(let k=0;k<=K;k++) seq.push({ t:TM.ROUL*(1-Math.pow(1-k/K,2.4)), pid:ps[k%n] });
-  ROUL={ key, base:BASE, seq, lastK:-1 };
+  ROUL={ key, seq, lastK:-1 };
 }
 function stepRoulette(){
   const s=NET.state; if(!ROUL || !s || s.phase!=='rider') return;
-  const el=Date.now()-ROUL.base, done=el>=TM.ROUL;
+  const el=Date.now()-BASE, done=el>=TM.ROUL;
   let k=0; while(k+1<ROUL.seq.length && ROUL.seq[k+1].t<=el) k++;
   const pid=ROUL.seq[k].pid, last=ROUL.seq[ROUL.seq.length-1].pid;
   document.querySelectorAll('[data-rpid]').forEach(x=>{ x.classList.toggle('spot', !done && x.dataset.rpid===pid); x.classList.toggle('win', done && x.dataset.rpid===last); });
-  if(!done && k!==ROUL.lastK){ ROUL.lastK=k; SFX.tick(1+k/ROUL.seq.length*.8); buzz(8); }
+  if(!done && k!==ROUL.lastK){ if(ROUL.lastK>=0){ SFX.tick(1+k/ROUL.seq.length*.8); buzz(8); } ROUL.lastK=k; }
 }
 function rouletteGrid(s){
   return `<div class="rgrid">${dealt(s).map(p=>`<div class="rseat" data-rpid="${p.pid}">${avatar(p)}<div class="nm">${esc(p.name)}</div><div class="left">${cardsLeft(p)} card${cardsLeft(p)===1?'':'s'} left · ${p.wrong} wrong</div></div>`).join('')}</div>`;
@@ -713,10 +824,9 @@ function rouletteGrid(s){
 
 /* ---------- bus ---------- */
 function busTiming(b){
-  if(b.lastEvent==='deal'||b.lastEvent==='redeal') return { idx:0, flip:TM.BUS_DEAL, verdict:null, ui:TM.BUS_DEAL+800 };
-  if(b.lastEvent==='hit') return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
+  if(b.lastEvent==='deal'||b.lastEvent==='redeal') return { idx:0, flip:TM.BUS_DEAL, verdict:null, ui:TM.BUS_DEAL_UI };
   if(b.lastEvent==='miss') return { idx:b.pos+1, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
-  return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };   // done
+  return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };   // hit / done
 }
 function busTrackHtml(s, size){
   const b=s.bus; if(!b) return '';
@@ -728,7 +838,7 @@ function busTrackHtml(s, size){
   }).join('');
   const progress = b.status==='done' ? 100 : (b.pos/(b.length-1))*100;
   const drum = (b.lastEvent==='hit'||b.lastEvent==='miss'||b.lastEvent==='done') ? drumEl(60, TM.BUS_SUS-80) : '';
-  return `${drum}<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*52}px)">🚌</span></div><div class="bustrack">${cards}</div>`;
+  return `${drum}<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*52}px)">🚌</span></div><div class="bustrack" style="--n:${b.length}">${cards}</div>`;
 }
 function busVerdictHtml(s, meId){
   const b=s.bus, T=busTiming(b); if(T.verdict==null) return '';
@@ -757,9 +867,10 @@ function awardsHtml(s){
     ['🃏','Pyramid shark', best('matches'), v=>`played ${v} card${v===1?'':'s'}`],
   ].filter(a=>a[2]);
   const r=player(s,s.riderPid), b=s.bus;
-  const busLine = !r ? '' : s.busSkipped ? `${esc(r.name)} pulled the emergency stop 🥴` : b ? `${esc(r.name)} got off after ${b.attempt} ${b.attempt===1?'try':'tries'} (${sips(b.totalSips)})` : '';
+  const busLine = !r ? '' : s.busSkipped ? `${esc(r.name)} pulled the emergency stop 🥴` : b && b.status==='done' ? `${esc(r.name)} got off after ${b.attempt} ${b.attempt===1?'try':'tries'} (${sips(b.totalSips)})` : '';
   const items=[]; if(busLine) items.push(['🚌','The bus',busLine,'']);
   list.forEach(([ic,t,a,fmt])=>items.push([ic,t,a.names,fmt(a.v)]));
+  if(!items.length) return '';
   return `<div class="awards">${items.map(([ic,t,w,sub],i)=>{ const x=tl(700+i*550,'aw'+i,'chip'); return `<div class="award pend ${x.c}"${x.a}><span class="ic">${ic}</span><div><div class="t">${t}</div><div class="w">${w}</div>${sub?`<div class="small">${sub}</div>`:''}</div></div>`; }).join('')}</div>`;
 }
 function leaderboardHtml(s, meId){
@@ -767,7 +878,15 @@ function leaderboardHtml(s, meId){
   return `<table class="lb"><tr><th>Player</th><th>Drank</th><th>Gave</th><th>Finished</th><th>Right</th></tr>${ps.map(p=>`<tr><td>${esc(p.name)}${p.pid===meId?' (you)':''}</td><td><b>${p.sipsTaken}</b></td><td>${p.sipsGiven}</td><td>${p.finishes}</td><td>${p.correct}/4</td></tr>`).join('')}</table>`;
 }
 function settingsSummary(s){ return `${INTENSITY_LABEL[s.settings.intensity]} rounds · 🚌 ${s.settings.busLength}-card bus`; }
-function chipToy(){ return `<div class="toy"><button class="chip" data-act="toy" aria-label="Flip a chip"><span class="disc" id="toyDisc"><span class="cf a">☘️</span><span class="cf b">🍺</span></span></button><div class="toycount" id="toyCount">tap the chip while you wait</div></div>`; }
+function settingsHtml(s){
+  const st=s.settings;
+  return `<div class="lbl2" style="margin-top:0">Round &amp; bus sips</div>
+    <div class="seg mt8">${Object.keys(INTENSITY_LABEL).map(k=>`<button class="${st.intensity===k?'sel':''}" data-act="setting" data-k="intensity" data-v="${k}">${INTENSITY_LABEL[k]}<div class="small">×${MULT[k]}</div></button>`).join('')}</div>
+    <div class="lbl2">Ride the bus</div>
+    <div class="seg mt8">${RULES.BUS_LENGTHS.map(n=>`<button class="${st.busLength===n?'sel':''}" data-act="setting" data-k="busLength" data-v="${n}">${n} cards</button>`).join('')}</div>
+    <div class="small mt12">Wrong guesses drink 1 · 2 · 3 · 4 (×intensity). The pyramid is always 1 · 2 · 3 sips, and the top card = finish your drink.</div>`;
+}
+function chipToy(){ return `<div class="toy"><button class="chip" data-act="toy" aria-label="Flip a chip"><span class="disc"><span class="cf a">☘️</span><span class="cf b">🍺</span></span></button><div class="toycount" id="toyCount">tap the chip while you wait</div></div>`; }
 
 /* ==================================================================
    STATE -> render
@@ -775,18 +894,22 @@ function chipToy(){ return `<div class="toy"><button class="chip" data-act="toy"
 function onState(prev, s){
   BASE = s.stepAt - NET.offset;
   STEPKEY = `${s.gameId}:${s.stepAt}:`;
-  const key=`${s.gameId}:${s.phase}:${s.round}:${s.pyramid?s.pyramid.idx+':'+s.pyramid.step:''}`;
-  if(UI.key!==key){ UI.key=key; UI.answer=null; UI.alloc={}; UI.finishPick=[]; UI.armed=null; }
+  const key=`${s.gameId}:${s.phase}:${s.round}:${s.pyramid?s.pyramid.idx+':'+s.pyramid.step:''}:${s.bus?s.bus.attempt+':'+s.bus.pos+':'+s.bus.status:''}`;
+  if(UI.key!==key){ UI.key=key; UI.pendingGuess=null; UI.alloc={}; UI.finishPick=[]; }   // a two-tap confirm survives the game moving on; its own timer disarms it
   if(s.phase==='rider') setupRoulette(s);
-  if(prev){
+  UI.fresh=null;
+  if(prev && prev.gameId===s.gameId){
     // Instant feedback for the fast parts: locks and claims clack in as they land.
-    if(s.phase==='guess' && prev.phase==='guess'){ const newly=dealt(s).filter(p=>p.locked && !(prev.players.find(q=>q.pid===p.pid)||{}).locked); if(newly.length){ SFX.chip(); UI.fresh=new Set(newly.map(p=>p.pid)); } else UI.fresh=null; }
+    if(s.phase==='guess' && prev.phase==='guess'){ const newly=dealt(s).filter(p=>p.locked && !(prev.players.find(q=>q.pid===p.pid)||{}).locked); if(newly.length){ SFX.chip(); UI.fresh=new Set(newly.map(p=>p.pid)); } }
     const pc=prev.pyramid&&prev.pyramid.claimed, nc=s.pyramid&&s.pyramid.claimed;
-    if(nc && pc && nc.length>pc.length) SFX.have();
+    if(nc && pc && prev.pyramid.idx===s.pyramid.idx && nc.length>pc.length) SFX.have();
     if(s.phase==='pyramid' && s.pyramid.step==='assign' && prev.pyramid && prev.pyramid.step==='assign' && s.pyramid.assigned.length>prev.pyramid.assigned.length) SFX.give();
+    if((s.ready||[]).length>(prev.ready||[]).length && prev.stepAt===s.stepAt) SFX.tap();
+    if(s.paused && !prev.paused){ SFX.nope(); buzz(80); }
   }
+  $('#pauseBar').classList.toggle('hidden', !s.paused || s.phase==='lobby');
   rerender();
-  if(NET.role==='player') renderConnBar();
+  renderConnBar();
 }
 function rerender(){
   const s=NET.state; if(!s) return;
@@ -795,14 +918,21 @@ function rerender(){
 }
 
 /* ==================================================================
-   HOST (shared/TV screen) — a pure spectator, never has a button
+   HOST (shared/TV screen) — owns the room: settings, start, pause, skip,
+   end, new game, and sitting out a phone that has gone quiet.
    ================================================================== */
 function showOnly(id){ ['chooseView','hostView','playerView'].forEach(x=>$('#'+x).classList.toggle('hidden',x!==id)); }
-function startHost(){ NET.role='host'; showOnly('hostView'); SFX.resume(); NET.connect(()=>NET.send({type:'host'})); }
-function startJoin(prefill){ NET.role='player'; showOnly('playerView'); $('#pMain').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden'); if(prefill)$('#jCode').value=prefill; }
+function startHost(){ NET.leave(); NET.role='host'; showOnly('hostView'); SFX.resume(); requestWakeLock(); NET.connect(()=>NET.send({type:'host'})); }
+function startJoin(prefill){
+  NET.role='player'; showOnly('playerView'); $('#pMain').classList.add('hidden'); $('#pJoinForm').classList.remove('hidden');
+  if(prefill) $('#jCode').value=prefill;
+  if(!$('#jName').value) $('#jName').value=savedName();
+  $('#joinErr').innerHTML='';
+}
 $('#hostBtn').addEventListener('click',startHost);
 $('#joinBtn').addEventListener('click',()=>startJoin());
 function hostLobbyReady(code){
+  showOnly('hostView');
   $('#roomCode').textContent=code;
   const url=`${location.origin}/irishpoker?room=${code}`;
   $('#joinUrl').textContent=url.replace(/^https?:\/\//,'');
@@ -814,6 +944,23 @@ function hostHands(s, highlightRank){
     <span class="cardrow">${p.cards.map((c,i)=>cardHtml(c,{size:'xs', cls:[p.played[i]?'played':'', c&&highlightRank&&c.r===highlightRank?'match':''].join(' ')})).join('')}</span>
     <span class="left">🍺${p.sipsTaken}</span></div>`).join('')}</div>`;
 }
+/** Who the table is waiting on, with a two-tap "sit out" for a phone that's gone quiet. */
+function hostWaitPanel(s){
+  const ps=(s.waitingOn||[]).map(pid=>player(s,pid)).filter(Boolean); if(!ps.length) return '';
+  const x=tl(ps.some(p=>!p.connected)?0:NUDGE);
+  return `<div class="panel waitpanel pend ${x.c}"${x.a}><h3>⏳ The table is waiting on</h3><div class="plist">${ps.map(p=>{ const k='sitOut:'+p.pid;
+    return `<div class="pchip">${avatar(p)}${esc(p.name)}${p.connected?'':'<span class="offlinetag">PHONE ASLEEP</span>'}<button class="mini${UI.armed===k?' armed':''}" data-act="sitOut" data-pid="${p.pid}" data-confirm="1">${armedLabel(k,'Sit out','Tap again')}</button></div>`; }).join('')}</div>
+    <div class="small mt8">Lost their session? They can rejoin with the same name. Sitting out only removes them from this game.</div></div>`;
+}
+function hostDock(s){
+  if(s.phase==='lobby' || s.phase==='gameOver') return '';
+  return `<div class="dock"><span class="dcode" title="Late? Join with this code — dealt in next game">${esc(location.host)}/irishpoker · <b class="mono">${esc(NET.code||'')}</b></span>
+    ${s.paused ? `<button class="dbtn go" data-act="unpause">▶ Resume</button>` : `<button class="dbtn" data-act="pause">⏸ Pause</button>`}
+    <button class="dbtn" data-act="skip" ${s.autoAt&&!s.paused?'':'disabled'}>⏭ Skip wait ${autoHtml('')}</button>
+    <button class="dbtn${UI.armed==='newGame'?' armed':''}" data-act="newGame" data-confirm="1">${armedLabel('newGame','🔄 New game','Tap to re-deal')}</button>
+    <button class="dbtn stop${UI.armed==='endGame'?' armed':''}" data-act="endGame" data-confirm="1">${armedLabel('endGame','⏹ End game','Tap to end it')}</button>
+  </div>`;
+}
 function hostRender(s){
   $('#hLobby').classList.toggle('hidden', s.phase!=='lobby');
   $('#hMain').classList.toggle('hidden', s.phase==='lobby');
@@ -822,14 +969,16 @@ function hostRender(s){
   if(s.phase==='lobby'){
     const connected=s.players.filter(p=>p.connected).length;
     setHtml($('#hLobbyBody'), `<div class="tvgrid">
-      <div class="panel"><h3>At the table (${s.players.length}/10)</h3><div class="plist">${s.players.map(p=>`<div class="pchip">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')||'<div class="small">Waiting for players to join…</div>'}</div>
-        <div class="small mt16">${connected<2?`Need at least 2 players (${connected} connected).`:`<span class="neon">Ready</span> — ${leaderName(s)} deals from their phone.`}</div>
-        <div class="small mt8">${settingsSummary(s)}</div></div>
+      <div class="panel"><h3>At the table (${s.players.length}/${RULES.MAX_PLAYERS})</h3><div class="plist">${s.players.map(p=>{ const k='kick:'+p.pid;
+          return `<div class="pchip">${avatar(p)}${esc(p.name)}${offline(p)}<button class="mini${UI.armed===k?' armed':''}" data-act="kick" data-pid="${p.pid}" data-confirm="1" title="Remove">${armedLabel(k,'✕','Remove?')}</button></div>`; }).join('')||'<div class="small">Scan the code to take a seat…</div>'}</div>
+        <button class="btn gold shine" data-act="start" ${connected>=RULES.MIN_PLAYERS?'':'disabled'} style="font-size:20px">☘️ Deal the cards</button>
+        <div class="small mt8 center">${connected<RULES.MIN_PLAYERS?`Need at least ${RULES.MIN_PLAYERS} players (${connected} here).`:`${connected} players ready. The computer deals — just play from your phones.`}</div></div>
+      <div><div class="panel">${settingsHtml(s)}</div>
       <div class="panel rules"><h3>How it plays</h3><ol>
-        <li><b>Guess your cards.</b> Red/black → higher/lower → inside/outside → suit. Right: give. Wrong: drink.</li>
+        <li><b>Guess your cards.</b> Red/black → higher/lower → inside/outside → suit. Right: safe. Wrong: drink.</li>
         <li><b>The pyramid.</b> Got the flipped card? Tap it. Hand out 1, 2, 3 sips — top card: someone finishes their drink.</li>
         <li><b>Ride the bus.</b> Most cards left rides. Higher or lower to the end.</li>
-      </ol></div></div>`);
+      </ol></div></div></div>`);
     return;
   }
 
@@ -837,30 +986,30 @@ function hostRender(s){
   if(s.phase==='guess'){
     const locked=ps.filter(p=>p.locked).length;
     html+=`<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q neon">${['Red or black?','Higher or lower?','Inside or outside?','Name the suit'][s.round-1]}</div>
-      <div class="sub">${stakesFor(s)}</div><div class="cd" style="font-size:15px;color:var(--gold)">${locked}/${ps.length} locked in</div>${countdownHtml(s,'Auto-picking stragglers in')}</div>`;
-    html+=`<div class="marquee"><div class="seats">${ps.map(p=>`<div class="seat ${p.locked?'locked':''}"><div class="hd">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
+      <div class="sub">${stakesFor(s)}</div><div class="cd" style="font-size:15px;color:var(--gold)">${locked}/${ps.length} locked in</div></div>`;
+    html+=hostWaitPanel(s);
+    html+=`<div class="marquee"><div class="seats">${ps.map(p=>`<div class="seat ${p.locked?'locked':''}"><div class="hd">${avatar(p)}${esc(p.name)}${offline(p)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
       <div class="cardrow">${p.cards.map((c,j)=>cardHtml(c,{size:'md', cls:j===s.round-1?'q':''})).join('')}</div>
-      <div class="st">${p.locked?`<span class="lockchip ${UI.fresh&&UI.fresh.has(p.pid)?'fresh':''}">🔒 LOCKED</span>`:(p.connected?'<span class="small pulse">🤔 thinking…</span>':'<span class="small">💤 auto-pick</span>')}</div></div>`).join('')}</div></div>`;
+      <div class="st">${p.locked?`<span class="lockchip ${UI.fresh&&UI.fresh.has(p.pid)?'fresh':''}">🔒 LOCKED</span>`:(p.connected?'<span class="small pulse">🤔 thinking…</span>':'<span class="small">💤 phone asleep — waiting</span>')}</div></div>`).join('')}</div></div>`;
   }
   else if(s.phase==='reveal'){
-    const sus=tl(TM.R_SUS);
+    const sus=tl(TM.R_SUS), end=revealEnd(s);
     html+=`${drumEl(60, TM.R_SUS-100)}<div class="banner"><div class="kick">Round ${s.round} of 4</div>
       <div class="q neon pulse gone ${sus.c}"${sus.a}>🥁 All bets are in…</div><div class="q neon pend ${sus.c}"${sus.a}>The flip</div></div>`;
-    html+=`<div class="tvgrid"><div class="marquee"><div class="seats">${ps.map((p,i)=>{ const r=(s.roundResults||[]).find(x=>x.pid===p.pid); if(!r) return '';
-      const flipAt=TM.R_SUS+i*TM.R_STAG, st=roundStamp(r,false,s), sx=tl(flipAt+TM.R_STAMP,'st'+p.pid,st.fx), seatT=tl(flipAt+TM.R_STAMP);
+    html+=`<div class="marquee"><div class="seats">${ps.map((p,i)=>{ const r=(s.roundResults||[]).find(x=>x.pid===p.pid); if(!r) return '';
+      const idx=(s.roundResults||[]).indexOf(r), flipAt=RULES.roundFlipAt(s.roundResults.length, idx), st=roundStamp(r,false), sx=tl(flipAt+TM.R_STAMP,'st'+p.pid,st.fx), seatT=tl(flipAt+TM.R_STAMP);
       return `<div class="seat ${r.verdict==='right'?'right':'wrong'} ${seatT.c}"${seatT.a}><div class="hd">${avatar(p)}${esc(p.name)}<span class="sips">🍺 ${p.sipsTaken}</span></div>
         <div class="cardrow">${p.cards.map((c,j)=> j===s.round-1 ? cardHtml(c,{size:'md', t:tl(flipAt,'f'+p.pid,'flip'), soon:700}) : cardHtml(c,{size:'md'})).join('')}</div>
         <div class="st pend ${sx.c}"${sx.a}><span class="stamp ${st.cls}">${st.text}</span><span class="small">${st.sub}</span></div></div>`; }).join('')}</div></div>
-      <div>${drinksPanel(s,null,revealEnd(s)-TM.R_TAIL+200)}${(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>${s.round<4?`${leaderName(s)} deals the next round`:`${leaderName(s)} builds the pyramid`}</div>`)(tl(revealEnd(s)))}</div></div>`;
+      <div class="tvgrid"><div>${drinksPanel(s,null,end-TM.R_TAIL+200)}</div>${(x=>`<div class="status pend ${x.c}"${x.a} style="min-height:0;margin-top:30px"><div class="big neon" style="font-size:24px">${autoHtml(s.round<4?`Round ${s.round+1} deals in`:'The pyramid goes up in')}</div><div class="sub mt8">${(s.ready||[]).length}/${ps.filter(p=>p.connected).length} phones ready — tap ready once you've drunk</div></div>`)(tl(end))}</div>`;
   }
   else if(s.phase==='pyramid'){
     const y=s.pyramid, sl=y.idx>=0?y.slots[y.idx]:null, c=sl&&sl.card;
     let status='';
-    if(y.step==='ready'){
-      const nxt=y.slots[y.idx+1];
-      status=`<div class="big neon">🎰 ${y.idx<0?'The pyramid is set':'Next card'}</div><div class="sub">${leaderName(s)} pulls the lever · next up: <b>${levelLabel(nxt)}</b></div>`;
+    if(y.step==='intro'){
+      status=`${fxEl(80,'intro','coins')}<div class="big neon">🎰 The pyramid is set</div><div class="sub">Hands are face up. Got the card that flips? Claim it on your phone.</div><div class="sub mt8">${autoHtml('First card flips in')}</div>`;
     } else if(y.step==='burn'){
-      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_BURN_MSG);
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns));
       status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burn it — dealing another</div></div>`;
     } else if(y.step==='claim'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
@@ -872,23 +1021,23 @@ function hostRender(s){
       const names=y.holders.map(h=>(player(s,h.pid)||{name:'?'}).name);
       status=`<div class="big neon">${sl.finish?'🚨':'🎁'} ${esc(joinNames(names))} ${names.length===1?'has':'have'} ${aRank(c.r)}</div>
         <div class="sub">${sl.finish?'Choosing who has to <b>finish their drink</b>…':`Handing out ${sips(sl.sips)} per card…`}</div>
-        <div class="claimed">${y.holders.map(h=>{ const p=player(s,h.pid); return p?`<div class="pchip">${avatar(p)}${esc(p.name)}${h.count>1?` ×${h.count}`:''} ${y.assigned.includes(h.pid)?'✅':'<span class="pulse">…</span>'}</div>`:''; }).join('')}</div>${countdownHtml(s,'Auto-picking in')}`;
+        <div class="claimed">${y.holders.map(h=>{ const p=player(s,h.pid); return p?`<div class="pchip">${avatar(p)}${esc(p.name)}${h.count>1?` ×${h.count}`:''} ${y.assigned.includes(h.pid)?'✅':'<span class="pulse">…</span>'}</div>`:''; }).join('')}</div>`;
     } else if(y.step==='result'){
       const end=resultEnd(s), nx=tl(end);
       status=`<div class="big neon">${sl.finish?'🚨 The top card':'🍻 Drinks are served'}</div>${resultLines(s,null)}
-        <div class="sub mt12 pend ${nx.c}"${nx.a}>${y.idx<9?`${leaderName(s)} flips the next card`:`Pyramid done — ${leaderName(s)} spins for the bus rider`}</div>`;
+        <div class="sub mt12 pend ${nx.c}"${nx.a}>${autoHtml(y.idx<9?'Next card flips in':'Spinning for the bus rider in')}</div>`;
       html+=takeoverHtml(s,null,false);
     }
     const highlight = c && (y.step==='assign'||y.step==='result') ? c.r : null;
-    html+=`<div class="tvgrid"><div>${pyramidHtml(s,'lg')}<div class="status">${status}</div></div>
-      <div>${y.step==='result'&&y.result.gives.length?drinksPanel(s,null,resultEnd(s)-200):''}${hostHands(s, highlight)}</div></div>`;
+    html+=`<div class="tvgrid tvpyr"><div>${pyramidHtml(s,'lg')}</div>
+      <div><div class="status tvstatus">${status}</div>${hostWaitPanel(s)}${y.step==='result'&&y.result.gives.length?drinksPanel(s,null,resultEnd(s)-200):''}${hostHands(s, highlight)}</div></div>`;
   }
   else if(s.phase==='rider'){
     const r=player(s,s.riderPid), sp=tl(TM.ROUL), won=tl(TM.ROUL+120,'rwin','horn');
     html+=`${drumEl(80, TM.ROUL-250)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🎰 Spinning for a rider…</div>
       <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:72px">🚌</div><div class="q neon-red">${r?esc(r.name):'Someone'} rides the bus</div><div class="sub">${riderReasonText(s)}</div></div></div>
       <div class="marquee">${rouletteGrid(s)}</div>
-      ${(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${r?esc(r.name):'the rider'} to board…</div>`)(tl(TM.ROUL+900))}`;
+      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${autoHtml('The bus leaves in')}</div>`)(tl(TM.ROUL+900))}`;
   }
   else if(s.phase==='bus'){
     const b=s.bus, r=player(s,s.riderPid), T=busTiming(b), qx=tl(T.ui);
@@ -898,38 +1047,50 @@ function hostRender(s){
       <div class="sub">Card ${Math.min(b.pos+2,b.length)} of ${b.length} · best run ${b.bestRun}/${b.length-1} · ${sips(b.totalSips)} on the bus so far</div></div>
       <div class="marquee">${busTrackHtml(s,'xl')}</div>
       <div class="phone" style="max-width:600px">${busVerdictHtml(s,null)}
-      ${b.status==='guessing'?(x=>`<div class="small center mt16 pend ${x.c}"${x.a}>${b.betCount} side bet${b.betCount===1?'':'s'} placed</div>`)(tl(T.ui)):''}</div>`;
+      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${b.status==='guessing'?`${b.betCount} side bet${b.betCount===1?'':'s'} placed`:autoHtml(b.status==='done'?'Final tally in':'Re-dealing in')}</div>`)(tl(T.ui))}
+      ${b.status==='guessing'?hostWaitPanel(s):''}</div>`;
   }
   else if(s.phase==='gameOver'){
-    html+=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">Game over</div><div class="q neon">☘️ Sláinte!</div><div class="sub">${leaderName(s)} can deal again from their phone.</div></div>
-      <div class="marquee">${awardsHtml(s)}</div>
-      <div class="tvgrid"><div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,null)}</div>${hostHands(s,null)}</div>`;
+    html+=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">${s.endedEarly?'Game ended early':'Game over'}</div><div class="q neon">☘️ Sláinte!</div></div>
+      <div class="marquee">${awardsHtml(s)||'<div class="center small">No awards — that game barely started.</div>'}</div>
+      <div class="tvgrid"><div><div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,null)}</div>${hostHands(s,null)}</div>
+      <div class="panel"><h3>Next game</h3>${settingsHtml(s)}
+        <button class="btn gold shine" data-act="newGame" style="font-size:20px">☘️ Deal a new game</button>
+        <button class="btn ghost" data-act="toLobby">Back to the lobby (see the join code)</button></div></div>`;
   }
-  html+=`<div class="small center mt24">Late? Join at <b>${esc(location.host)}/irishpoker</b> with code <b class="mono">${esc(NET.code||'')}</b> — you'll be dealt in next game.</div>`;
+  if(s.phase==='gameOver') html+=`<div class="small center mt24">Join at <b>${esc(location.host)}/irishpoker</b> with code <b class="mono">${esc(NET.code||'')}</b></div>`;
+  html+=hostDock(s);
   setHtml($('#hMain'), html);
 }
 
 /* ==================================================================
-   PLAYER (phone)
+   PLAYER (phone) — only ever your own moves; the computer deals.
    ================================================================== */
-$('#jGo').addEventListener('click',()=>{ const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.trim(); if(!code||!name){onNetError('Enter a code and your name');return;} SFX.resume(); if(!NET.ws||NET.ws.readyState>1) NET.connect(()=>NET.send({type:'join',code,name})); else NET.send({type:'join',code,name}); });
+$('#jGo').addEventListener('click',()=>{
+  const code=$('#jCode').value.trim().toUpperCase(); const name=$('#jName').value.replace(/\s+/g,' ').trim();
+  if(!code||!name){ onNetError('Enter a code and your name'); return; }
+  SFX.resume(); NET.role='player'; NET.name=name; $('#joinErr').innerHTML='';
+  if(NET.ws && NET.ws.readyState===1 && !NET.token) NET.send({type:'join',code,name});
+  else NET.connect(()=>NET.send({type:'join',code,name}));
+});
 $('#jName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#jGo').click();});
-function playerJoined(){ $('#pJoinForm').classList.add('hidden'); $('#pMain').classList.remove('hidden'); rerender(); }
+function playerJoined(){ showOnly('playerView'); $('#pJoinForm').classList.add('hidden'); $('#pMain').classList.remove('hidden'); requestWakeLock(); rerender(); }
 
 document.addEventListener('click', e=>{
   const el=e.target.closest('[data-act]'); if(!el || el.disabled) return;
-  SFX.resume(); buzz(10);
+  SFX.resume(); requestWakeLock(); buzz(10);
   const a=el.dataset.act, d=el.dataset, s=NET.state;
-  if(d.confirm==='1' && UI.armed!==a){ UI.armed=a; clearTimeout(UI.armedTimer); UI.armedTimer=setTimeout(()=>{ UI.armed=null; rerender(); },3500); SFX.tap(); rerender(); return; }
-  UI.armed=null;
+  const armKey=a+(d.pid?':'+d.pid:'');
+  if(d.confirm==='1' && UI.armed!==armKey){ UI.armed=armKey; clearTimeout(UI.armedTimer); UI.armedTimer=setTimeout(()=>{ UI.armed=null; rerender(); },3500); SFX.tap(); rerender(); return; }
+  UI.armed=null; clearTimeout(UI.armedTimer);
+  const paused = s && s.paused && ['answer','have','sendAlloc','busGuess','bet','boardBus','busAgain'].includes(a);
+  if(paused){ toast('⏸ Paused — the host will resume'); return; }
   switch(a){
-    case 'answer': UI.answer=d.v; SFX.chip(); rerender(); return;
-    case 'target': UI.target=d.pid; SFX.tap(); rerender(); return;
-    case 'lock': { if(!UI.answer) return; NET.send({type:'guess',value:UI.answer,target:resolveTarget(s)}); SFX.chip(); buzz(30); return; }
+    case 'answer': UI.pendingGuess=d.v; NET.send({type:'guess',value:d.v}); SFX.chip(); buzz(30); rerender(); return;
     case 'have': NET.send({type:'have'}); return;
     case 'allocAdd': {
       const budget=myBudget(s), used=Object.values(UI.alloc).reduce((x,y)=>x+y,0);
-      if(used>=budget) { SFX.nope(); return; }
+      if(used>=budget){ SFX.nope(); return; }
       UI.alloc[d.pid]=(UI.alloc[d.pid]||0)+1; SFX.chip(); rerender(); return; }
     case 'allocReset': UI.alloc={}; SFX.tap(); rerender(); return;
     case 'finishPick': {
@@ -940,14 +1101,22 @@ document.addEventListener('click', e=>{
       const sl=s.pyramid.slots[s.pyramid.idx];
       if(sl.finish) NET.send({type:'assign', finish:UI.finishPick}); else NET.send({type:'assign', sips:UI.alloc});
       SFX.give(); FX.at(el,'coins',30); return; }
-    case 'flip': SFX.lever(); NET.send({type:'flip'}); return;
+    case 'ready': NET.send({type:'ready'}); SFX.chip(); return;
     case 'bet': NET.send({type:'bet',bet:(s.me&&s.me.bet===d.v)?null:d.v}); SFX.chip(); return;
     case 'busGuess': NET.send({type:'busGuess',value:d.v}); SFX.chip(); return;
     case 'setting': { const m={type:'configure'}; m[d.k]=d.k==='busLength'?+d.v:d.v; NET.send(m); SFX.tap(); return; }
+    case 'sitOut': case 'kick': NET.send({type:a,pid:d.pid}); SFX.tap(); rerender(); return;
+    case 'start': case 'newGame': SFX.lever(); NET.send({type:a}); rerender(); return;
     case 'dismiss': UI.dismissed.add(d.k); rerender(); return;
     case 'toy': flipChip(el); return;
-    default: NET.send({type:a});
+    default: NET.send({type:a}); rerender();
   }
+});
+document.addEventListener('keydown', e=>{
+  // TV shortcuts: space pauses/resumes, → skips the wait.
+  const s=NET.state; if(NET.role!=='host' || !s || s.phase==='lobby' || s.phase==='gameOver' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if(e.code==='Space'){ e.preventDefault(); NET.send({type:s.paused?'unpause':'pause'}); }
+  else if(e.code==='ArrowRight' && s.autoAt && !s.paused) NET.send({type:'skip'});
 });
 function flipChip(btn){
   const disc=btn.querySelector('.disc'); if(!disc) return;
@@ -962,119 +1131,101 @@ function flipChip(btn){
     if(UI.toyStreak>=3){ FX.at(btn,'coins',20); SFX.coins(8); }
   }, 950);
 }
-function resolveTarget(s){
-  const others=dealt(s).filter(p=>p.pid!==NET.pid);
-  if(others.length===1) return others[0].pid;
-  if(UI.target && others.some(p=>p.pid===UI.target)) return UI.target;
-  if(s.me && s.me.lastTarget && others.some(p=>p.pid===s.me.lastTarget)) return s.me.lastTarget;
-  return null;
-}
 function myBudget(s){ const y=s.pyramid, sl=y.slots[y.idx], h=(y.holders||[]).find(h=>h.pid===NET.pid); if(!h) return 0; return sl.finish ? h.count : sl.sips*h.count; }
-function armedLabel(act, normal, armed){ return UI.armed===act ? armed : normal; }
-function bar(inner, ms){ const x=ms==null?{c:'on',a:''}:tl(ms); return `<div class="actionbar pend ${x.c}"${x.a}>${inner}</div>`; }
 function myHandHtml(s, me, matchRank){
   return `<div class="panel" style="padding:12px 14px"><div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl2" style="margin:0">Your hand</span><span class="small">${cardsLeft(me)} left to play</span></div>
     <div class="cardrow mt8" style="justify-content:space-between">${me.cards.map((c,i)=>cardHtml(c,{size:'md', cls:[me.played[i]?'played':'', c&&matchRank&&c.r===matchRank?'match':''].join(' ')})).join('')}</div></div>`;
 }
+/** The break after a reveal: tap when you've drunk, or the dealer moves on anyway. */
+function readyBar(s, me, ms, label){
+  if(!me.dealt || !s.readyable) return '';
+  const x=tl(ms), n=dealt(s).filter(p=>p.connected).length, r=(s.ready||[]).length, mine=s.me&&s.me.ready;
+  const btn = mine ? `<button class="btn ghost" disabled>✓ Ready — waiting on ${Math.max(0,n-r)} more</button>` : `<button class="btn gold shine" data-act="ready">🍺 Drank it — I'm ready</button>`;
+  return `<div class="actionbar pend ${x.c}"${x.a}>${btn}<div class="small">${autoHtml(label)}</div></div>`;
+}
 
 function playerRender(s){
   const me=player(s,NET.pid); if(!me) return;
-  const isLeader=me.pid===s.leaderPid;
+  const control=isControl(s);
   const box=$('#pMain');
   let html='';
-  const statBar = me.dealt && s.phase!=='lobby' ? `<div class="mystat"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span>${isLeader?'<span>👑 dealer</span>':''}</div>` : '';
-  const endGameLink = isLeader && s.phase!=='lobby' && s.phase!=='gameOver' ? `<div class="center mt16"><button class="linkbtn${UI.armed==='toLobby'?' armed':''}" data-act="toLobby" data-confirm="1">${armedLabel('toLobby','end game for everyone','tap again to end the game')}</button></div>` : '';
+  const statBar = me.dealt && s.phase!=='lobby' ? `<div class="mystat"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span></div>` : '';
+  const endLink = control && s.phase!=='lobby' && s.phase!=='gameOver' ? `<div class="center mt16"><button class="linkbtn${UI.armed==='endGame'?' armed':''}" data-act="endGame" data-confirm="1">${armedLabel('endGame','TV is offline · end the game','tap again to end the game')}</button></div>` : '';
   const myDrinkAt = (ms, label) => { const n=(s.stepDrinks||{})[me.pid]||0; if(!n) return ''; const x=tl(ms,'mydrink','shake'); return `<div class="drinknow pend ${x.c}"${x.a}>🍺 ${label||'DRINK'} ${n}<div class="small">${sips(n)} — no skipping</div></div>`; };
 
   if(s.phase==='lobby'){
     const connected=s.players.filter(p=>p.connected).length;
-    if(isLeader){
-      const st=s.settings;
-      html=`<div class="panel"><h3>You're the dealer 👑</h3>
-        <div class="lbl2" style="margin-top:0">Round &amp; bus sips</div>
-        <div class="seg mt8">${Object.keys(INTENSITY_LABEL).map(k=>`<button class="${st.intensity===k?'sel':''}" data-act="setting" data-k="intensity" data-v="${k}">${INTENSITY_LABEL[k]}<div class="small">×${MULT[k]}</div></button>`).join('')}</div>
-        <div class="lbl2">Ride the bus</div>
-        <div class="seg mt8">${[4,5,6].map(n=>`<button class="${st.busLength===n?'sel':''}" data-act="setting" data-k="busLength" data-v="${n}">${n} cards</button>`).join('')}</div>
-        <div class="small mt16">Pyramid is always 1 · 2 · 3 sips, and the top card = finish your drink.</div>
-        <div class="small mt8">${connected} player${connected===1?'':'s'} here${connected<2?' — need at least 2.':'.'}</div>
+    if(control){
+      html=`<div class="panel"><h3>📺 The TV is offline</h3><div class="small" style="margin-bottom:14px">Anyone can deal until it's back.</div>${settingsHtml(s)}
         <button class="btn gold shine" data-act="start" ${connected>=2?'':'disabled'}>Deal the cards ☘️</button></div>`;
     } else {
       html=`<div class="panel center"><div style="font-size:44px">☘️</div><div class="mt8" style="font-weight:900;font-size:18px">You're in, ${esc(me.name)}.</div>
-        <div class="small mt8">Waiting for ${leaderName(s)} to deal…</div><div class="small mt8">${settingsSummary(s)}</div>${chipToy()}</div>`;
+        <div class="small mt8">The game starts from the TV — the computer deals.</div><div class="small mt8">${settingsSummary(s)}</div>${chipToy()}</div>`;
     }
-    html+=`<div class="panel"><h3>At the table</h3><div class="plist">${s.players.map(p=>`<div class="pchip${p.pid===me.pid?' me':''}">${avatar(p)}${esc(p.name)}${p.pid===s.leaderPid?' 👑':''}${offline(p)}</div>`).join('')}</div></div>`;
+    html+=`<div class="panel"><h3>At the table</h3><div class="plist">${s.players.map(p=>`<div class="pchip${p.pid===me.pid?' me':''}">${avatar(p)}${esc(p.name)}${p.pid===me.pid?' (you)':''}${offline(p)}</div>`).join('')}</div></div>`;
     setHtml(box, html); return;
   }
 
   if(!me.dealt && s.phase!=='gameOver'){
-    html=`<div class="lockmsg">⏳ A game's already running — you're dealt in next game.<br><span class="small">Watch the TV${s.phase==='bus'?' — you can side-bet on the bus below':''}.</span></div>`;
+    html=`<div class="lockmsg">${me.satOut?'🪑 You were sat out of this game':'⏳ A game is already running'} — you're dealt in next game.<br><span class="small">Watch the TV${s.phase==='bus'?' — you can side-bet on the bus below':''}.</span></div>`;
     if(s.phase==='bus') html+=busSpectatorHtml(s, me);
     else html+=chipToy();
+    html+=endLink;
     setHtml(box, html); return;
   }
 
   if(s.phase==='guess'){
-    const g=s.me&&s.me.guess, d=ROUNDS[s.round-1];
+    const server=s.me&&s.me.guess, chosen=server?server.value:UI.pendingGuess, d=ROUNDS[s.round-1];
+    const ps=dealt(s), locked=ps.filter(p=>p.locked).length;
     html=`${statBar}<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q" style="font-size:25px">${questionFor(s,me.cards)}</div><div class="small mt8">${stakesFor(s)}</div></div>
       <div class="cardrow big mt16">${me.cards.map((c,j)=>cardHtml(c,{size:'lg', cls:j===s.round-1?'q':''})).join('')}</div>`;
-    if(g){
-      html+=`<div class="lockmsg">🔒 <span class="neon">${answerLabel(g.value)}</span>${g.target?` — if right, <b>${nameOf(s,g.target)}</b> drinks`:''}<br><span class="small">${dealt(s).filter(p=>p.locked).length}/${dealt(s).length} locked in</span>${countdownHtml(s,'Flipping in')}</div>${chipToy()}`;
-    } else {
-      const opts=d.options.map(v=>{
+    html+=`<div class="answers">${d.options.map(v=>{
         const cls = v==='red'||v==='h'||v==='d' ? ' redc' : '';
         const icon = v==='red'?'♥♦':v==='black'?'♠♣':v==='higher'?'⬆️':v==='lower'?'⬇️':v==='inside'?'↔️':v==='outside'?'⬅️➡️':SUIT[v];
-        return `<button class="ans${cls}${UI.answer===v?' sel':''}" data-act="answer" data-v="${v}"><span class="ic">${icon}</span><span class="lb">${answerLabel(v).replace(/^[♠♥♦♣] /,'')}</span></button>`;
-      }).join('');
-      const others=dealt(s).filter(p=>p.pid!==me.pid), tgt=resolveTarget(s);
-      html+=`<div class="answers">${opts}</div>`;
-      if(others.length>1) html+=`<div class="lbl2">If you're right, who drinks ${sips(d.give*mult(s))}?</div><div class="targets">${others.map(p=>`<button class="tchip${tgt===p.pid?' sel':''}" data-act="target" data-pid="${p.pid}">${avatar(p)}${esc(p.name)}</button>`).join('')}</div>`;
-      else if(others.length===1) html+=`<div class="small mt16 center">If you're right, ${esc(others[0].name)} drinks ${sips(d.give*mult(s))}.</div>`;
-      html+=`<button class="btn gold shine" data-act="lock" ${UI.answer&&(tgt||!others.length)?'':'disabled'}>Lock it in 🔒</button>${countdownHtml(s,'Random pick in')}`;
-    }
-    if(isLeader) html+=`<div class="center mt16"><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Flip now (auto-picks stragglers)</button></div>`;
-    html+=endGameLink;
+        return `<button class="ans${cls}${chosen===v?' sel':''}" data-act="answer" data-v="${v}"><span class="ic">${icon}</span><span class="lb">${answerLabel(v).replace(/^[♠♥♦♣] /,'')}</span></button>`;
+      }).join('')}</div>`;
+    if(server) html+=`<div class="lockmsg">🔒 Locked: <span class="neon">${answerLabel(server.value)}</span> <span class="small">· tap another to change</span><br><span class="small">${locked}/${ps.length} locked in — it flips the moment everyone's in</span>${waitLine(s, me.pid)}</div>${chipToy()}`;
+    else html+=`<div class="small center mt16">Tap your call — it locks in instantly.</div>${waitLine(s, me.pid)}`;
+    html+=endLink;
   }
   else if(s.phase==='reveal'){
-    const r=(s.roundResults||[]).find(x=>x.pid===me.pid);
-    const i=dealt(s).findIndex(p=>p.pid===me.pid), flipAt=TM.R_SUS+Math.max(0,i)*TM.R_STAG, end=revealEnd(s);
+    const results=s.roundResults||[], r=results.find(x=>x.pid===me.pid);
+    const i=results.indexOf(r), flipAt=RULES.roundFlipAt(results.length, Math.max(0,i)), end=revealEnd(s);
     const sus=tl(flipAt-200);
     html=`${statBar}${drumEl(60, TM.R_SUS-100)}<div class="banner"><div class="q neon pulse gone ${sus.c}"${sus.a}>🥁 ${i>0?'Flipping the table…':'Here we go…'}</div></div>
       <div class="cardrow big mt24">${me.cards.map((c,j)=> j===s.round-1 && c ? cardHtml(c,{size:'lg', t:tl(flipAt,'myflip','flip'), soon:800}) : cardHtml(c,{size:'lg'})).join('')}</div>`;
-    if(r){ const st=roundStamp(r,true,s), x=tl(flipAt+TM.R_STAMP,'mystamp',st.fx); html+=`<div class="verdict pend ${x.c}"${x.a}><span class="stamp ${st.cls} bigstamp">${st.text}</span><div class="n">${st.sub}</div></div>`; }
+    if(r){ const st=roundStamp(r,true), x=tl(flipAt+TM.R_STAMP,'mystamp',st.fx); html+=`<div class="verdict pend ${x.c}"${x.a}><span class="stamp ${st.cls} bigstamp">${st.text}</span><div class="n">${st.sub}</div></div>`; }
     html+=myDrinkAt(end-300) + drinksPanel(s, me.pid, end-TM.R_TAIL+200, 'Everyone drinking this round');
-    html+= isLeader ? bar(`<button class="btn gold shine" data-act="next">${s.round<4?`Deal round ${s.round+1} →`:'Build the pyramid 🔺'}</button>`, end)
-                    : (x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${leaderName(s)} to deal…</div>`)(tl(end));
-    html+=endGameLink;
+    html+=readyBar(s, me, end, s.round<4?`Round ${s.round+1} deals in`:'The pyramid goes up in');
+    html+=endLink;
   }
   else if(s.phase==='pyramid'){
     const y=s.pyramid, sl=y.idx>=0?y.slots[y.idx]:null, c=sl&&sl.card;
     const matchRank = c && (y.step==='assign'||y.step==='result') ? c.r : null;
     html=`${statBar}${pyramidHtml(s,'sm')}`;
-    if(y.step==='ready'){
-      html+=myHandHtml(s, me, null);
-      const nxt=y.slots[y.idx+1];
-      html+= isLeader ? `<div class="center small mt16">Next up: <b>${levelLabel(nxt)}</b></div>`+bar(`<button class="btn gold shine" data-act="flip" style="font-size:20px">🎰 FLIP THE ${y.idx<0?'FIRST':'NEXT'} CARD</button>`)
-                      : `<div class="lockmsg">Waiting for ${leaderName(s)} to pull the lever… next up <b>${levelLabel(nxt)}</b></div>${chipToy()}`;
+    if(y.step==='intro'){
+      html+=`<div class="status" style="min-height:0"><div class="big neon" style="font-size:22px">🎰 The pyramid is set</div><div class="sub">If the card that flips is in your hand, claim it fast.</div><div class="sub mt8">${autoHtml('First flip in')}</div></div>${myHandHtml(s, me, null)}${chipToy()}`;
     }
     else if(y.step==='burn'){
-      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_BURN_MSG);
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns));
       html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burning it…</div></div></div>${myHandHtml(s, me, null)}`;
     }
     else if(y.step==='claim'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
       html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div>
-        <div class="pend ${m.c}"${m.a}><div class="big neon">Got ${aRank(c.r)}?</div><div class="sub">${sl.finish?'Top card — someone finishes their drink':`Worth ${sips(sl.sips)}`} · check your hand</div></div></div>
-        ${myHandHtml(s, me, null)}`;
-      if(s.me && s.me.claimed) html+=`<div class="lockmsg">✅ <span class="neon-green">Claimed!</span> ${y.remaining>0?`Waiting on ${y.remaining} more…`:''}</div>`;
+        <div class="pend ${m.c}"${m.a}><div class="big neon">Got ${aRank(c.r)}?</div><div class="sub">${sl.finish?'Top card — someone finishes their drink':`Worth ${sips(sl.sips)}`} · check your hand</div></div></div>`;
+      if(s.me && s.me.claimed) html+=`<div class="lockmsg">✅ <span class="neon-green">Claimed!</span> ${y.remaining>0?`Waiting on ${y.remaining} more…`:''}${waitLine(s, me.pid)}</div>`;
       else { const hb=tl(TM.P_CLAIM_UI); html+=`<button class="btn gold haveBtn pend ${hb.c}"${hb.a} data-act="have">✋ I HAVE ${aRank(c.r).toUpperCase()}</button>
-        <div class="small center mt8 pend ${hb.c}"${hb.a}>Don't have it? Just wait — ${y.remaining} ${y.remaining===1?'player has':'players have'} it.</div>`; }
-      if(isLeader){ const fx=tl(TM.P_CLAIM_UI+12000); html+=`<div class="center mt16 pend ${fx.c}"${fx.a}><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Mark it for whoever's asleep</button></div>`; }
+        <div class="small center mt8 pend ${hb.c}"${hb.a}>Don't have it? Sit tight — ${y.remaining} ${y.remaining===1?'player has':'players have'} it.</div>${waitLine(s, me.pid)}`; }
+      html+=myHandHtml(s, me, null);
     }
     else if(y.step==='assign'){
       const holding=s.me && s.me.holding, assigned=s.me && s.me.assigned;
-      html+=myHandHtml(s, me, matchRank);
       if(holding && !assigned){
         const budget=myBudget(s), others=dealt(s).filter(p=>p.pid!==me.pid);
+        // Drop anyone who was sat out since we started picking.
+        for(const k of Object.keys(UI.alloc)) if(!others.some(p=>p.pid===k)) delete UI.alloc[k];
+        UI.finishPick=UI.finishPick.filter(k=>others.some(p=>p.pid===k));
         if(sl.finish){
           html+=`<div class="panel" style="border-color:rgba(255,61,95,.6)"><h3 style="color:#ff6b83">🚨 Top of the pyramid</h3>
             <div style="font-weight:900;font-size:20px">Pick ${budget===1?'someone':budget+' people'} to FINISH their drink</div>
@@ -1088,23 +1239,21 @@ function playerRender(s){
             <div class="small mt12">${used}/${budget} handed out ${used?`· <button class="linkbtn" data-act="allocReset" style="padding:0">reset</button>`:''}</div>
             <button class="btn gold shine" data-act="sendAlloc" ${used===budget?'':'disabled'}>🍻 SEND THE DRINKS</button></div>`;
         }
-        html+=countdownHtml(s,'Auto-picking for you in');
+        html+=myHandHtml(s, me, matchRank);
       } else if(holding){
-        html+=`<div class="lockmsg">✅ Sent! Waiting on the others…</div>`;
+        html+=`<div class="lockmsg">✅ Sent! Waiting on the others…${waitLine(s, me.pid)}</div>${myHandHtml(s, me, matchRank)}`;
       } else {
         const names=y.holders.map(h=>(player(s,h.pid)||{name:'?'}).name);
-        html+=`<div class="lockmsg">${sl.finish?'🚨':'🎁'} <b>${esc(joinNames(names))}</b> ${names.length===1?'is':'are'} ${sl.finish?'deciding who <span class="neon-red">finishes their drink</span>':'handing out drinks'}… brace yourself</div>${chipToy()}`;
+        html+=`<div class="lockmsg">${sl.finish?'🚨':'🎁'} <b>${esc(joinNames(names))}</b> ${names.length===1?'is':'are'} ${sl.finish?'deciding who <span class="neon-red">finishes their drink</span>':'handing out drinks'}… brace yourself${waitLine(s, me.pid)}</div>${myHandHtml(s, me, matchRank)}${chipToy()}`;
       }
-      if(isLeader){ const fx=tl(15000); html+=`<div class="center mt16 pend ${fx.c}"${fx.a}><button class="btn ghost" data-act="force" style="width:auto;padding:10px 16px">⏩ Auto-pick for slow people</button></div>`; }
     }
     else if(y.step==='result'){
       const end=resultEnd(s);
       html+=`<div class="status" style="min-height:0"><div class="big neon" style="font-size:22px">${sl.finish?'🚨 The top card':`🍻 ${aRank(c.r)} — served`}</div></div>${resultLines(s, me.pid)}${myDrinkAt(end)}${myHandHtml(s, me, matchRank)}`;
       html+=takeoverHtml(s, me.pid, true);
-      html+= isLeader ? bar(y.idx<9 ? `<button class="btn gold shine" data-act="flip" style="font-size:20px">🎰 FLIP THE NEXT CARD</button>` : `<button class="btn redb shine" data-act="toRider" style="font-size:20px">🚌 WHO RIDES THE BUS?</button>`, end)
-                      : (x=>`<div class="small center mt16 pend ${x.c}"${x.a}>Waiting for ${leaderName(s)}…</div>`)(tl(end));
+      html+=readyBar(s, me, end, y.idx<9?'Next card flips in':'Spinning for the rider in');
     }
-    html+=endGameLink;
+    html+=endLink;
   }
   else if(s.phase==='rider'){
     const isRider=s.riderPid===me.pid, r=player(s,s.riderPid), won=tl(TM.ROUL+120,'rwin','horn'), sp=tl(TM.ROUL);
@@ -1113,9 +1262,9 @@ function playerRender(s){
       ${rouletteGrid(s)}`;
     const ui=tl(TM.ROUL+900);
     if(isRider) html+=`<div class="pend ${ui.c}"${ui.a}><div class="lockmsg">${s.settings.busLength} cards. Higher or lower on each one. Any miss (a tie counts) and you drink for how far you got — then start over.</div>
-      <button class="btn redb shine" data-act="boardBus">Board the bus 🚌</button></div>`;
-    else if(isLeader) html+=`<div class="center mt16 pend ${ui.c}"${ui.a}><button class="btn ghost" data-act="boardBus" style="width:auto;padding:10px 16px">Start the bus for them</button></div>`;
-    html+=busSkipLink(s, isRider||isLeader);
+      <button class="btn redb shine" data-act="boardBus">Board the bus 🚌</button><div class="small center mt8">${autoHtml('Leaving without asking in')}</div></div>`;
+    else html+=`<div class="sub center mt16 pend ${ui.c}"${ui.a}>${autoHtml('The bus leaves in')}</div>`;
+    html+=busSkipLink(s, isRider||control)+endLink;
   }
   else if(s.phase==='bus'){
     const b=s.bus, isRider=s.riderPid===me.pid, T=busTiming(b);
@@ -1125,20 +1274,20 @@ function playerRender(s){
         <div class="q pend ${ui.c}"${ui.a} style="font-size:24px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'You made it!':'Back to the start.'}</div></div>
         ${busTrackHtml(s,'md')}${busVerdictHtml(s,me.pid)}`;
       if(b.status==='guessing') html+=`<div class="hilo pend ${ui.c}"${ui.a}><button class="btn greenb" data-act="busGuess" data-v="higher">⬆️ Higher</button><button class="btn redb" data-act="busGuess" data-v="lower">⬇️ Lower</button></div>`;
-      if(b.status==='failed') html+=`<button class="btn gold pend ${ui.c}"${ui.a} data-act="busAgain">Drank it — deal again 🔁</button>`;
+      if(b.status==='failed') html+=`<div class="pend ${ui.c}"${ui.a}><button class="btn gold" data-act="busAgain">Drank it — deal again 🔁</button><div class="small center mt8">${autoHtml('Re-dealing in')}</div></div>`;
+      if(b.status==='done') html+=`<div class="small center mt16">${autoHtml('Final tally in')}</div>`;
     } else {
       html=busSpectatorHtml(s, me);
-      if(isLeader && b.status==='failed'){ const ui=tl(T.ui); html+=`<div class="center mt16 pend ${ui.c}"${ui.a}><button class="btn ghost" data-act="busAgain" style="width:auto;padding:10px 16px">Deal again for them</button></div>`; }
     }
-    html+=busSkipLink(s, isRider||isLeader);
+    html+=busSkipLink(s, isRider||control)+endLink;
   }
   else if(s.phase==='gameOver'){
-    html=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">Game over</div><div class="q neon" style="font-size:30px">☘️ Sláinte!</div></div>
-      <div class="mystat" style="font-size:14px"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span><span>🥤 finished <b>${me.finishes}</b></span></div>
-      <div class="panel">${awardsHtml(s)}</div>
-      <div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,me.pid)}</div>`;
-    html+= isLeader ? bar(`<button class="btn gold shine" data-act="start">Deal again ☘️</button><button class="btn ghost" data-act="toLobby">Change settings</button>`, 1500)
-                    : `<div class="small center mt16">Waiting for ${leaderName(s)} to deal again…</div>${chipToy()}`;
+    html=`${fxEl(120,'go','cheer')}<div class="banner"><div class="kick">${s.endedEarly?'Game ended early':'Game over'}</div><div class="q neon" style="font-size:30px">☘️ Sláinte!</div></div>
+      ${me.dealt?`<div class="mystat" style="font-size:14px"><span>🍺 drank <b>${me.sipsTaken}</b></span><span>🎁 gave <b>${me.sipsGiven}</b></span><span>🥤 finished <b>${me.finishes}</b></span></div>`:''}
+      ${(x=>x?`<div class="panel">${x}</div>`:'')(awardsHtml(s))}
+      ${dealt(s).length?`<div class="panel"><h3>Final tally</h3>${leaderboardHtml(s,me.pid)}</div>`:''}`;
+    html+= control ? `<div class="panel"><h3>📺 TV offline — deal from here</h3><button class="btn gold shine" data-act="newGame">Deal again ☘️</button><button class="btn ghost" data-act="toLobby">Back to the lobby</button></div>`
+                   : `<div class="small center mt16">The next game deals from the TV.</div>${chipToy()}`;
   }
   setHtml(box, html);
 }
@@ -1154,7 +1303,7 @@ function busSpectatorHtml(s, me){
     html+=`<div class="pend ${ui.c}"${ui.a}><div class="lbl2 center">Side bet · wrong call drinks 1</div><div class="answers">
       <button class="ans${bet==='hit'?' sel':''}" data-act="bet" data-v="hit"><span class="ic">👍</span><span class="lb">They'll nail it</span></button>
       <button class="ans${bet==='miss'?' sel':''}" data-act="bet" data-v="miss"><span class="ic">👎</span><span class="lb">They'll blow it</span></button></div></div>`;
-  }
+  } else html+=`<div class="small center mt16">${autoHtml(b.status==='done'?'Final tally in':'Re-dealing in')}</div>`;
   return html;
 }
 // Deliberately tiny: the bus is mandatory, this is the "genuinely had enough" exit.
@@ -1165,15 +1314,15 @@ function busSkipLink(s, allowed){
 
 /* ---------- init / deep-link ---------- */
 function resumeFromSession(sess){
-  NET.role=sess.role; NET.code=sess.code; NET.pid=sess.pid; NET.token=sess.token; NET.resuming=true;
+  NET.role=sess.role; NET.code=sess.code; NET.pid=sess.pid; NET.token=sess.token; NET.name=sess.name||null;
   showOnly(sess.role==='host'?'hostView':'playerView');
   if(sess.role==='player'){ $('#pJoinForm').classList.add('hidden'); $('#pMain').classList.remove('hidden'); }
-  NET.connect(()=>NET.send({type:'resume',code:sess.code,pid:sess.pid,token:sess.token}));
+  NET.attempts=0; NET.reconnectNow();
 }
 const params=new URLSearchParams(location.search);
 const roomParam=params.get('room');
 const savedSession=loadSession();
-if(savedSession && savedSession.code && savedSession.role && (!roomParam || roomParam.toUpperCase()===savedSession.code)){ resumeFromSession(savedSession); }
+if(savedSession && savedSession.code && savedSession.role && savedSession.token && (!roomParam || roomParam.toUpperCase()===savedSession.code)){ resumeFromSession(savedSession); }
 else if(roomParam){
   clearSession();
   startJoin(roomParam.toUpperCase());

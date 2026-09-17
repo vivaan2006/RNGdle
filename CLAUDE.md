@@ -39,6 +39,7 @@ imposter-server.js    > one room map each, own ws path
 rngoldrush-server.js  |
 irishpoker-server.js /
 rngoldrush-rules.js  SHARED: RNGold Rush wheel, rarities, settings (browser+server)
+irishpoker-rules.js  SHARED: Irish Poker rules + reveal timeline (browser+server)
 rooms-registry.js    SHARED: mints globally unique room codes, maps code -> game
 qr.js                SHARED: QR encoder (byte mode, EC M, versions 1-10)
 join-qr.js           SHARED: renders a join QR, resolving a LAN-reachable origin
@@ -46,8 +47,8 @@ drinks.js            SHARED: drinking rules, loaded by browser AND server
 engine.js            vendored rngdle scoring engine — do not read or edit
 ```
 
-`drinks.js`, `qr.js`, `join-qr.js`, `rngoldrush-rules.js` and
-`rooms-registry.js` are loaded by both the browser and the server on purpose,
+`drinks.js`, `qr.js`, `join-qr.js`, `rngoldrush-rules.js`,
+`irishpoker-rules.js` and `rooms-registry.js` are loaded by both the browser and the server on purpose,
 so rules exist in exactly one place. RNGold Rush needs this twice over: the
 server draws from the wheel, and the local party mode plays a whole game in the
 browser off the same file.
@@ -63,9 +64,9 @@ browser off the same file.
 - **Reveal timing is duplicated on purpose.** `PER_DIGIT`, `LAST_EXTRA`,
   `BADGE_*` and `PAYOFF_HOLD` exist in both `index.html` and `server.js`. The
   server holds the round open for as long as clients animate. Change both or
-  rounds end mid-animation. Same idea in Irish Poker: `BURN_MS` and
-  `BUS_FINISH_HOLD_MS` in `irishpoker-server.js` must outlast the `TM` timeline
-  in `irishpoker.html`.
+  rounds end mid-animation. Irish Poker avoids the duplication: its whole
+  reveal timeline lives in `TIMING` in `irishpoker-rules.js`, which the page
+  animates from and the server's auto-dealer waits out.
 - **Rooms are in memory.** Any restart or deploy drops every live room.
 - **New shared files need a static route.** A file loaded by the browser must
   be added to `STATIC` in `server.js` or it 404s — and a server already running

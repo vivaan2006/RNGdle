@@ -164,15 +164,15 @@ integration including the existing RNGdle flow.
 
 ## Irish Poker (in progress)
 
-`/irishpoker` — online only: a host screen (the TV, a pure spectator) plus
-2–10 phones. The room leader (first to join) deals and paces everything from
-their phone.
+`/irishpoker` — online only: a host screen (the TV) plus 2–10 phones. **The
+computer is the dealer.** It deals, flips, burns, spins for the rider and
+re-deals the bus on its own; nobody on a phone paces anything.
 
 1. **Guess your cards.** Four face-down cards each. Four rounds, everyone
    guessing at once: red/black, higher/lower, inside/outside, then the suit.
-   You lock in your guess *and* who drinks if you're right. Right = give
-   1/2/3/4 sips; wrong = drink 1/2/3/2; landing exactly on a boundary card (the
-   post) = drink double. Intensity (×1/×2/×3) scales rounds and the bus.
+   Right = safe. Wrong = drink 1/2/3/4 sips; landing exactly on a boundary card
+   (the post) = drink double. Intensity (×1/×2/×3) scales rounds and the bus.
+   A guess can be changed until the last player locks in — then it flips.
 2. **The pyramid.** Hands stay face-up. Ten cards sit face-down in a 4‑3‑2‑1
    pyramid and flip from the bottom row up. Everyone holding that rank taps
    *I have it* (a wrong tap just gets a "nope") and the game waits for every
@@ -183,19 +183,34 @@ their phone.
 3. **Ride the bus** — mandatory. Most cards left unplayed rides (ties: most
    wrong guesses, then chance), revealed with a roulette spin. Call
    higher/lower through a 4–6 card row; a miss or a tie means drink the guess
-   number and redeal. Spectators can side-bet each call (wrong bet = 1 sip). A
-   deliberately small two-tap *skip the bus* link exists for the rider or leader.
+   number and a fresh deal. Spectators can side-bet each call (wrong bet = 1
+   sip). A deliberately small two-tap *skip the bus* link exists for the rider
+   or the host.
+
+**The dealer only ever waits on whoever's move it is**, and never moves for
+them: no timers pick guesses, claim cards or hand out drinks. Breaks between
+reveals run on a countdown that everyone tapping *ready* cuts short.
+
+**The host screen runs the room:** settings, start, remove a player (lobby),
+and an in-game dock with pause/resume, skip the wait, new game and end game
+(space and → work as shortcuts). When a phone goes quiet the TV names who the
+table is waiting on and offers a two-tap *sit out* for this game. If the TV
+itself drops, phones get the start / new game / end controls so a room is
+never stranded, and a paused game un-pauses.
+
+**Phones drop, so reconnecting is cheap.** Clients ping in-band every 4s and
+reconnect when the server goes quiet or the page becomes visible again; the
+server treats a pinging socket that goes silent for 25s as disconnected. A
+player whose session is gone can rejoin with the same name to take their seat
+back. Phones also hold a screen wake lock while in a room.
 
 **Pacing is casino-style: inputs are instant, reveals are slow.** Every state
 carries `stepAt` (server time) and the page schedules drumrolls, card wobble,
 flips, stamps, coin bursts and payouts from it, so the TV and every phone reveal
-together. Server holds that must outlast an animation — `BURN_MS` and
-`BUS_FINISH_HOLD_MS` in `irishpoker-server.js` — are sized against the `TM`
-table in `irishpoker.html`; change both together. Tests run with
-`IRISHPOKER_FAST=1` to shrink those holds.
-
-Stragglers are auto-picked after 60s (guesses) and 75s (hand-outs); the leader
-can also force a step. Disconnected players never block a step.
+together. The whole timeline lives in `TIMING` in `irishpoker-rules.js`, loaded
+by both the page and the server, and the auto-dealer waits it out before moving
+on. Tests run with `IRISHPOKER_FAST=1` (and optionally `IRISHPOKER_FAST_MS`) to
+shrink the dealer's holds.
 
 ## Files
 
@@ -209,6 +224,9 @@ mafia.css    – Mafia styles using the existing site's colors and typography
 mafia-client.js – Mafia UI, narration, and room reconnection
 mafia-rules.js  – shared role descriptions and rule validation
 mafia-engine.js – server-only role assignment, actions, voting, and victory logic
+irishpoker.html – Irish Poker host screen + phone view (casino reveal, sound, particles)
+irishpoker-server.js – Irish Poker rooms and the computer dealer
+irishpoker-rules.js  – Irish Poker rules + reveal timing, shared by page and server
 test/        – game rules and live room integration tests
 _reference/  – provenance: original bundles + the extraction/validation scripts (safe to delete)
 ```
