@@ -165,7 +165,7 @@ integration including the existing RNGdle flow.
 ## Irish Poker (in progress)
 
 `/irishpoker` — online only: a host screen (the TV) plus 2–10 phones. **The
-computer is the dealer.** It deals, flips, burns, spins for the rider and
+computer is the dealer.** It deals, flips, burns, reveals the rider and
 re-deals the bus on its own; nobody on a phone paces anything.
 
 1. **Guess your cards.** Four face-down cards each. Four rounds, everyone
@@ -174,18 +174,23 @@ re-deals the bus on its own; nobody on a phone paces anything.
    (the post) = drink double. Intensity (×1/×2/×3) scales rounds and the bus.
    A guess can be changed until the last player locks in — then it flips.
 2. **The pyramid.** Hands stay face-up. Ten cards sit face-down in a 4‑3‑2‑1
-   pyramid and flip from the bottom row up. Everyone holding that rank taps
-   *I have it* (a wrong tap just gets a "nope") and the game waits for every
-   holder. Holders then hand out drinks — bottom row 1 sip, then 2, then 3,
-   stacked on anyone — and the top card makes someone finish their drink. A
-   card nobody holds burns and is replaced until someone does (after three
-   burns the next card is guaranteed to match).
-3. **Ride the bus** — mandatory. Most cards left unplayed rides (ties: most
-   wrong guesses, then chance), revealed with a roulette spin. Call
-   higher/lower through a 4–6 card row; a miss or a tie means drink the guess
-   number and a fresh deal. Spectators can side-bet each call (wrong bet = 1
-   sip). A deliberately small two-tap *skip the bus* link exists for the rider
-   or the host.
+   pyramid and flip from the bottom row up, and **no number ever appears
+   twice** (burned cards included). Everyone holding that rank taps *I have
+   it* (a wrong tap just gets a "nope") and the game waits for every holder.
+   Holders then hand out drinks — bottom row 1 sip, then 2, then 3, stacked on
+   anyone — and the top card makes someone finish their drink. A card nobody
+   holds is burned and replaced while spare ranks last (13 ranks, 10 slots, so
+   at most three burns); after that a card nobody holds stays up and nobody
+   drinks. One held rank is kept back so the top card always lands on someone.
+   The rank logic is `drawPyramidRank` in `irishpoker-rules.js`.
+3. **Ride the bus** — mandatory, and never chance. Whoever has the most cards
+   they never got to play rides; ties go to most wrong guesses, then to whoever
+   has drunk the least, and anyone still tied rides too, one after another. The
+   bus replays the four rounds on four fresh face-down cards — red/black,
+   higher/lower, inside/outside, suit. Any miss (the post counts) drinks that
+   round's sips and re-deals from card 1. Spectators can side-bet each call
+   (wrong bet = 1 sip). A deliberately small two-tap *skip the bus* link exists
+   for the rider or the host.
 
 **The dealer only ever waits on whoever's move it is**, and never moves for
 them: no timers pick guesses, claim cards or hand out drinks. Breaks between
