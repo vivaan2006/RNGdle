@@ -251,10 +251,13 @@ header{position:sticky;top:0;z-index:30;background:rgba(4,14,9,.82);backdrop-fil
 .rseat .nm{font-weight:900;margin-top:8px}
 .rseat .left{font-size:12px;color:var(--muted);font-weight:700;margin-top:3px}
 .rseat.spot{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold),0 0 30px rgba(247,201,72,.6);transform:scale(1.05)}
+.rseat.hot.on{border-color:var(--red);box-shadow:0 0 0 3px var(--red),0 0 50px rgba(255,61,95,.7);animation:throb .8s ease-in-out infinite}
 .rseat.win{border-color:var(--red);box-shadow:0 0 0 3px var(--red),0 0 50px rgba(255,61,95,.7);animation:throb .8s ease-in-out infinite}
 .busroad{position:relative;height:52px;overflow:hidden;margin-top:6px}
 .busroad .bus{position:absolute;top:0;font-size:42px;transition:left 1s cubic-bezier(.3,1.3,.4,1)}
 .busroad::after{content:'';position:absolute;left:0;right:0;bottom:5px;border-bottom:3px dashed rgba(247,201,72,.4)}
+.bcol{display:flex;flex-direction:column;align-items:center;gap:8px}
+.bl{font-size:10.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--dim);white-space:nowrap}.bl.ok{color:var(--green)}.bl.now{color:var(--gold)}
 .bustrack{display:flex;gap:12px;justify-content:center;align-items:flex-end;flex-wrap:nowrap;margin-top:12px}
 .hilo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
 .hilo .btn{margin-top:0;font-size:22px;padding:24px 8px}
@@ -359,8 +362,8 @@ table.lb td b{font-weight:900;color:var(--gold)}
       <h3>How it plays</h3>
       <ol>
         <li><b>Guess your cards.</b> Four face-down cards each, four rounds: red or black, higher or lower, inside or outside, then the suit. Right = safe. Wrong = drink 1, 2, 3, then 4 sips. Hit the post = drink double.</li>
-        <li><b>The pyramid.</b> Ten cards in a 4‑3‑2‑1 pyramid flip one by one. Got that card? Tap <i>I have it</i> and hand out drinks: 1 sip, 2, 3 — and the top card makes someone finish their drink.</li>
-        <li><b>Ride the bus.</b> Most cards left unplayed rides. Higher or lower down the row. Miss and start over.</li>
+        <li><b>The pyramid.</b> Ten cards in a 4‑3‑2‑1 pyramid flip one by one — never the same number twice. Got that card? Tap <i>I have it</i> and hand out drinks: 1 sip, 2, 3 — and the top card makes someone finish their drink.</li>
+        <li><b>Ride the bus.</b> Whoever has the most cards they never got to play rides — red or black, higher or lower, inside or outside, then the suit, on fresh cards. Miss and start over.</li>
         <li><b>The computer deals.</b> Put the host screen on a TV; it runs the game and everyone plays from their phone.</li>
       </ol>
     </div>
@@ -538,7 +541,6 @@ function frame(){
       const k=el.dataset.key; if(k && !FIRED.has(k)){ FIRED.add(k); runFx(el.dataset.fx, el); }
     } else if(el.dataset.soon && t>=at-(+el.dataset.soon)) el.classList.add('soon');
   });
-  stepRoulette();
   tickCountdowns();
 }
 setInterval(frame, 50);
@@ -750,14 +752,14 @@ function pyramidHtml(s, size){
     const sl=y.slots[i];
     if(i<y.idx) return cardHtml(sl.card,{size});
     if(i===y.idx && sl.card){
-      if(y.step==='burn' || y.step==='claim'){
+      if(y.step==='burn' || y.step==='claim' || y.step==='dead'){
         const sus = sl.burns ? TM.P_SUS_BURN : TM.P_SUS;
         const burn = y.step==='burn' ? (x=>`<div class="burnx ${x.c}"${x.a}>🔥</div>`)(tl(RULES.burnMsgMs(sl.burns),'burn'+i+'_'+sl.burns,'burn')) : '';
         return cardHtml(sl.card,{size, t:tl(sus,'pf'+i+'_'+sl.burns,'flip'), soon:sus-150, cls:'glow', burn});
       }
       return cardHtml(sl.card,{size, cls:'glow'});
     }
-    const next = (y.step==='intro'||y.step==='result') && i===y.idx+1;
+    const next = (y.step==='intro'||y.step==='result'||y.step==='dead') && i===y.idx+1;
     return cardHtml(null,{size, cls: next?'nextup':''});
   };
   const rows=[1,2,3,4].map(level=>{
@@ -793,60 +795,67 @@ function takeoverHtml(s, meId, allowDismiss){
     ${allowDismiss?`<button class="btn gold" data-act="dismiss" data-k="${key}">${mine?'Done. Glass is empty 🍺':'Close'}</button>`:''}
   </div></div></div>`;
 }
+const riderList = s => (s.riders||[]).map(pid=>player(s,pid)).filter(Boolean);
 function riderReasonText(s){
-  const r=player(s,s.riderPid);
-  if(s.riderReason==='cardsLeft') return `Most cards left unplayed (${r?cardsLeft(r):'?'}).`;
-  if(s.riderReason==='wrong') return `Tied on cards left — most wrong guesses rides.`;
-  return `Dead even on everything — the wheel decided.`;
+  const rs=riderList(s), r=rs[0], n=r?cardsLeft(r):0;
+  const cards=`${n} card${n===1?'':'s'} never played`;
+  if(s.riderReason==='cardsLeft') return n ? `Most cards left in hand — ${cards}.` : 'Everyone played every card.';
+  if(s.riderReason==='wrong') return `${n?`Tied on ${cards}`:'Everyone played every card'} — most wrong guesses rides.`;
+  if(s.riderReason==='sips') return `${n?`Tied on ${cards}`:'Everyone played every card'} and on wrong guesses — whoever's drunk the least rides.`;
+  return `Dead even on cards left, wrong guesses and sips — you all ride, one after another.`;
 }
-
-/* ---------- rider roulette (spotlight sweeps, slows, lands) ---------- */
-let ROUL=null;
-function setupRoulette(s){
-  const key=s.gameId+':'+s.stepAt;
-  if(ROUL && ROUL.key===key) return;
-  const ps=dealt(s).map(p=>p.pid), ri=Math.max(0,ps.indexOf(s.riderPid)), n=Math.max(1,ps.length);
-  let K=n*4+ri; if(K<14) K+=n*Math.ceil((14-K)/n);
-  const seq=[]; for(let k=0;k<=K;k++) seq.push({ t:TM.ROUL*(1-Math.pow(1-k/K,2.4)), pid:ps[k%n] });
-  ROUL={ key, seq, lastK:-1 };
+function riderNames(s, meId){ return joinNames(riderList(s).map(p=>p.pid===meId?'YOU':esc(p.name))); }
+/* Every seat's leftover count lands in turn — fewest first — so the rider is the last one standing. */
+function riderOrder(s){
+  const riders=new Set(s.riders||[]);
+  return dealt(s).slice().sort((a,b)=>(riders.has(a.pid)-riders.has(b.pid)) || (cardsLeft(a)-cardsLeft(b)) || (a.wrong-b.wrong) || (b.sipsTaken-a.sipsTaken));
 }
-function stepRoulette(){
-  const s=NET.state; if(!ROUL || !s || s.phase!=='rider') return;
-  const el=Date.now()-BASE, done=el>=TM.ROUL;
-  let k=0; while(k+1<ROUL.seq.length && ROUL.seq[k+1].t<=el) k++;
-  const pid=ROUL.seq[k].pid, last=ROUL.seq[ROUL.seq.length-1].pid;
-  document.querySelectorAll('[data-rpid]').forEach(x=>{ x.classList.toggle('spot', !done && x.dataset.rpid===pid); x.classList.toggle('win', done && x.dataset.rpid===last); });
-  if(!done && k!==ROUL.lastK){ if(ROUL.lastK>=0){ SFX.tick(1+k/ROUL.seq.length*.8); buzz(8); } ROUL.lastK=k; }
-}
-function rouletteGrid(s){
-  return `<div class="rgrid">${dealt(s).map(p=>`<div class="rseat" data-rpid="${p.pid}">${avatar(p)}<div class="nm">${esc(p.name)}</div><div class="left">${cardsLeft(p)} card${cardsLeft(p)===1?'':'s'} left · ${p.wrong} wrong</div></div>`).join('')}</div>`;
+function riderReveal(){ const s=NET.state; return RULES.riderRevealMs(dealt(s).length); }
+function riderGrid(s){
+  const riders=new Set(s.riders||[]), order=riderOrder(s);
+  const end=riderReveal();
+  return `<div class="rgrid">${order.map((p,i)=>{
+    const x=tl(TM.RIDER_SUS+i*TM.RIDER_STEP,'rc'+p.pid,'chip'), hot=riders.has(p.pid), w=tl(end-TM.RIDER_TAIL+120, hot?'rw'+p.pid:'', hot?'horn':'');
+    const n=cardsLeft(p);
+    return `<div class="rseat ${hot?'hot':''} ${w.c}"${w.a}>${avatar(p)}<div class="nm">${esc(p.name)}</div>
+      <div class="left pend ${x.c}"${x.a}><b class="${n?'neon-red':'neon-green'}" style="font-size:22px">${n}</b> card${n===1?'':'s'} left<br>${p.wrong} wrong · 🍺${p.sipsTaken}</div></div>`; }).join('')}</div>`;
 }
 
 /* ---------- bus ---------- */
 function busTiming(b){
-  if(b.lastEvent==='deal'||b.lastEvent==='redeal') return { idx:0, flip:TM.BUS_DEAL, verdict:null, ui:TM.BUS_DEAL_UI };
-  if(b.lastEvent==='miss') return { idx:b.pos+1, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
-  return { idx:b.pos, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };   // hit / done
+  if(b.lastEvent==='deal'||b.lastEvent==='redeal') return { idx:-1, flip:0, verdict:null, ui:TM.BUS_DEAL_UI };
+  return { idx:(b.lastGuess&&b.lastGuess.step||1)-1, flip:TM.BUS_SUS, verdict:TM.BUS_VERDICT, ui:TM.BUS_UI };
+}
+function busQuestion(b){
+  const shown=b.cards.slice(0, b.pos);
+  return questionFor({ round:b.pos+1 }, shown);
+}
+function busStakes(s){
+  const step=s.bus.pos+1, x=mult(s), d=ROUNDS[step-1];
+  return `Card ${step} of 4 · miss = drink ${sips(d.wrong*x)}${step===2||step===3?` · post = ${sips(d.wrong*x*2)}`:''}`;
 }
 function busTrackHtml(s, size){
   const b=s.bus; if(!b) return '';
   const T=busTiming(b);
+  const LABELS=['Color','Hi / Lo','In / Out','Suit'];
   const cards=b.cards.map((c,i)=>{
-    if(c && i===T.idx){ return cardHtml(c,{size, t:tl(T.flip,'bf'+b.attempt+'_'+i+'_'+b.lastEvent,'flip'), soon:T.flip>1000?T.flip-100:0, cls:'glow'}); }
-    const cls = b.status==='guessing' && i===b.pos+1 ? 'q' : '';
-    return c ? cardHtml(c,{size}) : cardHtml(null,{size,cls});
+    const lcls = i<b.pos||b.status==='done' ? 'ok' : i===b.pos&&b.status==='guessing' ? 'now' : '';
+    let card;
+    if(c && i===T.idx) card=cardHtml(c,{size, t:tl(T.flip,'bf'+b.attempt+'_'+i+'_'+b.lastEvent,'flip'), soon:T.flip-100, cls:'glow'});
+    else card = c ? cardHtml(c,{size}) : cardHtml(null,{size, cls: b.status==='guessing' && i===b.pos ? 'q' : ''});
+    return `<div class="bcol">${card}<span class="bl ${lcls}">${LABELS[i]}</span></div>`;
   }).join('');
-  const progress = b.status==='done' ? 100 : (b.pos/(b.length-1))*100;
-  const drum = (b.lastEvent==='hit'||b.lastEvent==='miss'||b.lastEvent==='done') ? drumEl(60, TM.BUS_SUS-80) : '';
-  return `${drum}<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*52}px)">🚌</span></div><div class="bustrack" style="--n:${b.length}">${cards}</div>`;
+  const done=b.status==='done' ? 4 : b.pos, progress=done/4*100;
+  const drum = T.verdict!=null ? drumEl(60, TM.BUS_SUS-80) : '';
+  return `${drum}<div class="busroad"><span class="bus" style="left:calc(${progress}% - ${progress/100*52}px)">🚌</span></div><div class="bustrack" style="--n:4">${cards}</div>`;
 }
 function busVerdictHtml(s, meId){
   const b=s.bus, T=busTiming(b); if(T.verdict==null) return '';
-  const riderName=nameOf(s,s.riderPid), isMe=s.riderPid===meId;
+  const riderName=nameOf(s,s.riderPid), isMe=s.riderPid===meId, g=b.lastGuess;
   let inner='';
   if(b.status==='done'){ const x=tl(T.verdict,'bv','cheer'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp win bigstamp">OFF THE BUS</span><div class="verdict"><div class="n">🎉 ${isMe?'You made it':riderName+' made it'} — attempt ${b.attempt}</div></div></div>`; }
-  else if(b.status==='failed'){ const x=tl(T.verdict,'bv','lose shake'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp lose bigstamp">${b.lastGuess.verdict==='post'?'SAME CARD':'MISS'}</span><div class="verdict"><div class="n">🍺 ${isMe?'Drink':riderName+' drinks'} ${sips(b.lastGuess.sips)} — back to the start</div></div></div>`; }
-  else { const x=tl(T.verdict,'bv','win'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp win">${answerLabel(b.lastGuess.guess).toUpperCase()} ✓</span></div>`; }
+  else if(b.status==='failed'){ const x=tl(T.verdict,'bv','lose shake'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp lose bigstamp">${g.verdict==='post'?'POST ×2':'MISS'}</span><div class="verdict"><div class="n">🍺 ${isMe?'Drink':riderName+' drinks'} ${sips(g.sips)} — ${answerLabel(g.guess)} was wrong · back to card 1</div></div></div>`; }
+  else { const x=tl(T.verdict,'bv','win'); inner=`<div class="pend ${x.c}"${x.a}><span class="stamp win">${answerLabel(g.guess).toUpperCase()} ✓</span></div>`; }
   let bets='';
   if(b.lastBets && b.lastBets.length){
     const losers=b.lastBets.filter(x=>!x.won).map(x=>x.pid===meId?'you':nameOf(s,x.pid));
@@ -855,6 +864,18 @@ function busVerdictHtml(s, meId){
     bets=`<div class="small center mt8 pend ${x.c}"${x.a}>${mine?(mine.won?'🎲 Your side bet hit. ':'🎲 Your side bet missed — drink 1. '):''}${losers.length?`Side-bet losers drink 1: ${losers.join(', ')}`:'Every side bet hit.'}</div>`;
   }
   return `<div class="center mt16">${inner}${bets}</div>`;
+}
+function busHeadline(s, meId){
+  const b=s.bus, r=player(s,s.riderPid), order=(s.riders||[]).length>1 ? ` · rider ${s.riderIdx+1} of ${s.riders.length}` : '';
+  const who=s.riderPid===meId ? 'You are' : `${r?esc(r.name):'?'} is`;
+  return `🚌 ${who} riding the bus · attempt ${b.attempt}${order}`;
+}
+function answersHtml(options, chosen, act){
+  return `<div class="answers">${options.map(v=>{
+    const cls = v==='red'||v==='h'||v==='d' ? ' redc' : '';
+    const icon = v==='red'?'♥♦':v==='black'?'♠♣':v==='higher'?'⬆️':v==='lower'?'⬇️':v==='inside'?'↔️':v==='outside'?'⬅️➡️':SUIT[v];
+    return `<button class="ans${cls}${chosen===v?' sel':''}" data-act="${act}" data-v="${v}"><span class="ic">${icon}</span><span class="lb">${answerLabel(v).replace(/^[♠♥♦♣] /,'')}</span></button>`;
+  }).join('')}</div>`;
 }
 function awardsHtml(s){
   const ps=dealt(s); if(!ps.length) return '';
@@ -866,9 +887,9 @@ function awardsHtml(s){
     ['🥤','Chugged', best('finishes'), v=>`finished ${v} drink${v===1?'':'s'}`],
     ['🃏','Pyramid shark', best('matches'), v=>`played ${v} card${v===1?'':'s'}`],
   ].filter(a=>a[2]);
-  const r=player(s,s.riderPid), b=s.bus;
-  const busLine = !r ? '' : s.busSkipped ? `${esc(r.name)} pulled the emergency stop 🥴` : b && b.status==='done' ? `${esc(r.name)} got off after ${b.attempt} ${b.attempt===1?'try':'tries'} (${sips(b.totalSips)})` : '';
-  const items=[]; if(busLine) items.push(['🚌','The bus',busLine,'']);
+  const items=[];
+  for(const res of (s.busResults||[])){ const r=player(s,res.pid); if(!r) continue;
+    items.push(['🚌','The bus', esc(r.name), res.skipped ? 'pulled the emergency stop 🥴' : `off after ${res.attempts} ${res.attempts===1?'try':'tries'} · ${sips(res.sips)}`]); }
   list.forEach(([ic,t,a,fmt])=>items.push([ic,t,a.names,fmt(a.v)]));
   if(!items.length) return '';
   return `<div class="awards">${items.map(([ic,t,w,sub],i)=>{ const x=tl(700+i*550,'aw'+i,'chip'); return `<div class="award pend ${x.c}"${x.a}><span class="ic">${ic}</span><div><div class="t">${t}</div><div class="w">${w}</div>${sub?`<div class="small">${sub}</div>`:''}</div></div>`; }).join('')}</div>`;
@@ -877,14 +898,12 @@ function leaderboardHtml(s, meId){
   const ps=dealt(s).slice().sort((a,b)=>b.sipsTaken-a.sipsTaken);
   return `<table class="lb"><tr><th>Player</th><th>Drank</th><th>Gave</th><th>Finished</th><th>Right</th></tr>${ps.map(p=>`<tr><td>${esc(p.name)}${p.pid===meId?' (you)':''}</td><td><b>${p.sipsTaken}</b></td><td>${p.sipsGiven}</td><td>${p.finishes}</td><td>${p.correct}/4</td></tr>`).join('')}</table>`;
 }
-function settingsSummary(s){ return `${INTENSITY_LABEL[s.settings.intensity]} rounds · 🚌 ${s.settings.busLength}-card bus`; }
+function settingsSummary(s){ return `${INTENSITY_LABEL[s.settings.intensity]} · 🚌 4-card bus`; }
 function settingsHtml(s){
   const st=s.settings;
   return `<div class="lbl2" style="margin-top:0">Round &amp; bus sips</div>
     <div class="seg mt8">${Object.keys(INTENSITY_LABEL).map(k=>`<button class="${st.intensity===k?'sel':''}" data-act="setting" data-k="intensity" data-v="${k}">${INTENSITY_LABEL[k]}<div class="small">×${MULT[k]}</div></button>`).join('')}</div>
-    <div class="lbl2">Ride the bus</div>
-    <div class="seg mt8">${RULES.BUS_LENGTHS.map(n=>`<button class="${st.busLength===n?'sel':''}" data-act="setting" data-k="busLength" data-v="${n}">${n} cards</button>`).join('')}</div>
-    <div class="small mt12">Wrong guesses drink 1 · 2 · 3 · 4 (×intensity). The pyramid is always 1 · 2 · 3 sips, and the top card = finish your drink.</div>`;
+    <div class="small mt12">Wrong guesses drink 1 · 2 · 3 · 4 (×intensity), on the deal and on the bus. The pyramid is always 1 · 2 · 3 sips, and the top card = finish your drink.</div>`;
 }
 function chipToy(){ return `<div class="toy"><button class="chip" data-act="toy" aria-label="Flip a chip"><span class="disc"><span class="cf a">☘️</span><span class="cf b">🍺</span></span></button><div class="toycount" id="toyCount">tap the chip while you wait</div></div>`; }
 
@@ -896,7 +915,6 @@ function onState(prev, s){
   STEPKEY = `${s.gameId}:${s.stepAt}:`;
   const key=`${s.gameId}:${s.phase}:${s.round}:${s.pyramid?s.pyramid.idx+':'+s.pyramid.step:''}:${s.bus?s.bus.attempt+':'+s.bus.pos+':'+s.bus.status:''}`;
   if(UI.key!==key){ UI.key=key; UI.pendingGuess=null; UI.alloc={}; UI.finishPick=[]; }   // a two-tap confirm survives the game moving on; its own timer disarms it
-  if(s.phase==='rider') setupRoulette(s);
   UI.fresh=null;
   if(prev && prev.gameId===s.gameId){
     // Instant feedback for the fast parts: locks and claims clack in as they land.
@@ -977,7 +995,7 @@ function hostRender(s){
       <div class="panel rules"><h3>How it plays</h3><ol>
         <li><b>Guess your cards.</b> Red/black → higher/lower → inside/outside → suit. Right: safe. Wrong: drink.</li>
         <li><b>The pyramid.</b> Got the flipped card? Tap it. Hand out 1, 2, 3 sips — top card: someone finishes their drink.</li>
-        <li><b>Ride the bus.</b> Most cards left rides. Higher or lower to the end.</li>
+        <li><b>Ride the bus.</b> Most cards left rides: color → higher/lower → inside/outside → suit. Miss and start over.</li>
       </ol></div></div></div>`);
     return;
   }
@@ -1011,6 +1029,9 @@ function hostRender(s){
     } else if(y.step==='burn'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns));
       status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burn it — dealing another</div></div>`;
+    } else if(y.step==='dead'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns),'dead','chip');
+      status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon">🃏 Nobody has ${aRank(c.r)}</div><div class="sub">No numbers left to burn — it stays, and nobody drinks</div><div class="sub mt8">${autoHtml(y.idx<9?'Next card flips in':'Rider reveal in')}</div></div>`;
     } else if(y.step==='claim'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
       status=`${drumEl(60, sus-100)}<div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div>
@@ -1033,21 +1054,20 @@ function hostRender(s){
       <div><div class="status tvstatus">${status}</div>${hostWaitPanel(s)}${y.step==='result'&&y.result.gives.length?drinksPanel(s,null,resultEnd(s)-200):''}${hostHands(s, highlight)}</div></div>`;
   }
   else if(s.phase==='rider'){
-    const r=player(s,s.riderPid), sp=tl(TM.ROUL), won=tl(TM.ROUL+120,'rwin','horn');
-    html+=`${drumEl(80, TM.ROUL-250)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🎰 Spinning for a rider…</div>
-      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:72px">🚌</div><div class="q neon-red">${r?esc(r.name):'Someone'} rides the bus</div><div class="sub">${riderReasonText(s)}</div></div></div>
-      <div class="marquee">${rouletteGrid(s)}</div>
-      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${autoHtml('The bus leaves in')}</div>`)(tl(TM.ROUL+900))}`;
+    const end=riderReveal(), sp=tl(end-TM.RIDER_TAIL), won=tl(end-TM.RIDER_TAIL+120), many=(s.riders||[]).length>1;
+    html+=`${drumEl(80, end-TM.RIDER_TAIL-150)}<div class="banner"><div class="kick">The pyramid is done</div><div class="q neon pulse gone ${sp.c}"${sp.a}>🃏 Who's still holding cards?</div>
+      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:72px">🚌</div><div class="q neon-red">${riderNames(s)} ${many?'ride':'rides'} the bus</div><div class="sub">${riderReasonText(s)}</div></div></div>
+      <div class="marquee">${riderGrid(s)}</div>
+      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${autoHtml('The bus leaves in')}</div>`)(tl(end))}`;
   }
   else if(s.phase==='bus'){
-    const b=s.bus, r=player(s,s.riderPid), T=busTiming(b), qx=tl(T.ui);
-    const cur=b.cards[b.pos];
-    html+=`<div class="banner"><div class="kick">🚌 ${r?esc(r.name):'?'} is riding the bus · attempt ${b.attempt}</div>
-      <div class="q neon pend ${qx.c}"${qx.a}>${b.status==='guessing'?`Higher or lower than ${cardName(cur)}?`:b.status==='done'?'🎉 Off the bus!':'💥 Back to the start'}</div>
-      <div class="sub">Card ${Math.min(b.pos+2,b.length)} of ${b.length} · best run ${b.bestRun}/${b.length-1} · ${sips(b.totalSips)} on the bus so far</div></div>
+    const b=s.bus, T=busTiming(b), qx=tl(T.ui);
+    html+=`<div class="banner"><div class="kick">${busHeadline(s,null)}</div>
+      <div class="q neon pend ${qx.c}"${qx.a}>${b.status==='guessing'?busQuestion(b):b.status==='done'?'🎉 Off the bus!':'💥 Back to card 1'}</div>
+      <div class="sub">${b.status==='guessing'?busStakes(s)+' · ':''}best run ${b.bestRun}/4 · ${sips(b.totalSips)} on the bus so far</div></div>
       <div class="marquee">${busTrackHtml(s,'xl')}</div>
       <div class="phone" style="max-width:600px">${busVerdictHtml(s,null)}
-      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${b.status==='guessing'?`${b.betCount} side bet${b.betCount===1?'':'s'} placed`:autoHtml(b.status==='done'?'Final tally in':'Re-dealing in')}</div>`)(tl(T.ui))}
+      ${(x=>`<div class="sub center mt16 pend ${x.c}"${x.a}>${b.status==='guessing'?`${b.betCount} side bet${b.betCount===1?'':'s'} placed`:autoHtml(b.status==='done'?((s.riderIdx+1<(s.riders||[]).length)?'Next rider boards in':'Final tally in'):'Re-dealing in')}</div>`)(tl(T.ui))}
       ${b.status==='guessing'?hostWaitPanel(s):''}</div>`;
   }
   else if(s.phase==='gameOver'){
@@ -1104,7 +1124,7 @@ document.addEventListener('click', e=>{
     case 'ready': NET.send({type:'ready'}); SFX.chip(); return;
     case 'bet': NET.send({type:'bet',bet:(s.me&&s.me.bet===d.v)?null:d.v}); SFX.chip(); return;
     case 'busGuess': NET.send({type:'busGuess',value:d.v}); SFX.chip(); return;
-    case 'setting': { const m={type:'configure'}; m[d.k]=d.k==='busLength'?+d.v:d.v; NET.send(m); SFX.tap(); return; }
+    case 'setting': { const m={type:'configure'}; m[d.k]=d.v; NET.send(m); SFX.tap(); return; }
     case 'sitOut': case 'kick': NET.send({type:a,pid:d.pid}); SFX.tap(); rerender(); return;
     case 'start': case 'newGame': SFX.lever(); NET.send({type:a}); rerender(); return;
     case 'dismiss': UI.dismissed.add(d.k); rerender(); return;
@@ -1179,11 +1199,7 @@ function playerRender(s){
     const ps=dealt(s), locked=ps.filter(p=>p.locked).length;
     html=`${statBar}<div class="banner"><div class="kick">Round ${s.round} of 4</div><div class="q" style="font-size:25px">${questionFor(s,me.cards)}</div><div class="small mt8">${stakesFor(s)}</div></div>
       <div class="cardrow big mt16">${me.cards.map((c,j)=>cardHtml(c,{size:'lg', cls:j===s.round-1?'q':''})).join('')}</div>`;
-    html+=`<div class="answers">${d.options.map(v=>{
-        const cls = v==='red'||v==='h'||v==='d' ? ' redc' : '';
-        const icon = v==='red'?'♥♦':v==='black'?'♠♣':v==='higher'?'⬆️':v==='lower'?'⬇️':v==='inside'?'↔️':v==='outside'?'⬅️➡️':SUIT[v];
-        return `<button class="ans${cls}${chosen===v?' sel':''}" data-act="answer" data-v="${v}"><span class="ic">${icon}</span><span class="lb">${answerLabel(v).replace(/^[♠♥♦♣] /,'')}</span></button>`;
-      }).join('')}</div>`;
+    html+=answersHtml(d.options, chosen, 'answer');
     if(server) html+=`<div class="lockmsg">🔒 Locked: <span class="neon">${answerLabel(server.value)}</span> <span class="small">· tap another to change</span><br><span class="small">${locked}/${ps.length} locked in — it flips the moment everyone's in</span>${waitLine(s, me.pid)}</div>${chipToy()}`;
     else html+=`<div class="small center mt16">Tap your call — it locks in instantly.</div>${waitLine(s, me.pid)}`;
     html+=endLink;
@@ -1209,6 +1225,10 @@ function playerRender(s){
     else if(y.step==='burn'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns));
       html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon-red">🔥 Nobody has ${aRank(c.r)}</div><div class="sub">Burning it…</div></div></div>${myHandHtml(s, me, null)}`;
+    }
+    else if(y.step==='dead'){
+      const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(RULES.burnMsgMs(sl.burns),'dead','chip');
+      html+=`${drumEl(60, sus-100)}<div class="status"><div class="big neon pulse gone ${a.c}"${a.a}>🥁 Flipping…</div><div class="pend ${m.c}"${m.a}><div class="big neon">🃏 Nobody has ${aRank(c.r)}</div><div class="sub">It stays — nobody drinks · ${autoHtml(y.idx<9?'next in':'rider in')}</div></div></div>${myHandHtml(s, me, null)}`;
     }
     else if(y.step==='claim'){
       const sus=sl.burns?TM.P_SUS_BURN:TM.P_SUS, a=tl(sus), m=tl(TM.P_CLAIM_UI,'call','claimcall');
@@ -1256,12 +1276,13 @@ function playerRender(s){
     html+=endLink;
   }
   else if(s.phase==='rider'){
-    const isRider=s.riderPid===me.pid, r=player(s,s.riderPid), won=tl(TM.ROUL+120,'rwin','horn'), sp=tl(TM.ROUL);
-    html=`${drumEl(80, TM.ROUL-250)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🎰 Who rides the bus?</div>
-      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:60px">🚌</div><div class="q ${isRider?'neon-red':'neon'}" style="font-size:28px">${isRider?"YOU'RE RIDING THE BUS":`${r?esc(r.name):'Someone'} rides the bus`}</div><div class="small mt8">${riderReasonText(s)}</div></div></div>
-      ${rouletteGrid(s)}`;
-    const ui=tl(TM.ROUL+900);
-    if(isRider) html+=`<div class="pend ${ui.c}"${ui.a}><div class="lockmsg">${s.settings.busLength} cards. Higher or lower on each one. Any miss (a tie counts) and you drink for how far you got — then start over.</div>
+    const isRider=s.riderPid===me.pid, riding=(s.riders||[]).includes(me.pid), many=(s.riders||[]).length>1;
+    const end=riderReveal(), sp=tl(end-TM.RIDER_TAIL), won=tl(end-TM.RIDER_TAIL+120);
+    html=`${drumEl(80, end-TM.RIDER_TAIL-150)}<div class="banner"><div class="q neon pulse gone ${sp.c}"${sp.a}>🃏 Who's still holding cards?</div>
+      <div class="pend ${won.c}"${won.a}><div class="q" style="font-size:60px">🚌</div><div class="q ${riding?'neon-red':'neon'}" style="font-size:28px">${riding&&!many?"YOU'RE RIDING THE BUS":`${riderNames(s, me.pid)} ${many?'ride':'rides'} the bus`}</div><div class="small mt8">${riderReasonText(s)}</div></div></div>
+      ${riderGrid(s)}`;
+    const ui=tl(end);
+    if(isRider) html+=`<div class="pend ${ui.c}"${ui.a}><div class="lockmsg">Four fresh cards, face down: red or black → higher or lower → inside or outside → the suit. Miss any (the post counts as a miss) and drink that round's sips — then start over.</div>
       <button class="btn redb shine" data-act="boardBus">Board the bus 🚌</button><div class="small center mt8">${autoHtml('Leaving without asking in')}</div></div>`;
     else html+=`<div class="sub center mt16 pend ${ui.c}"${ui.a}>${autoHtml('The bus leaves in')}</div>`;
     html+=busSkipLink(s, isRider||control)+endLink;
@@ -1270,12 +1291,12 @@ function playerRender(s){
     const b=s.bus, isRider=s.riderPid===me.pid, T=busTiming(b);
     if(isRider){
       const ui=tl(T.ui);
-      html=`<div class="banner"><div class="kick">Attempt ${b.attempt} · card ${Math.min(b.pos+2,b.length)} of ${b.length}</div>
-        <div class="q pend ${ui.c}"${ui.a} style="font-size:24px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'You made it!':'Back to the start.'}</div></div>
+      html=`<div class="banner"><div class="kick">${busHeadline(s,me.pid)}</div>
+        <div class="q pend ${ui.c}"${ui.a} style="font-size:24px">${b.status==='guessing'?busQuestion(b):b.status==='done'?'You made it!':'Back to card 1.'}</div>${b.status==='guessing'?`<div class="small mt8 pend ${ui.c}"${ui.a}>${busStakes(s)}</div>`:''}</div>
         ${busTrackHtml(s,'md')}${busVerdictHtml(s,me.pid)}`;
-      if(b.status==='guessing') html+=`<div class="hilo pend ${ui.c}"${ui.a}><button class="btn greenb" data-act="busGuess" data-v="higher">⬆️ Higher</button><button class="btn redb" data-act="busGuess" data-v="lower">⬇️ Lower</button></div>`;
+      if(b.status==='guessing') html+=`<div class="pend ${ui.c}"${ui.a}>${answersHtml(ROUNDS[b.pos].options, null, 'busGuess')}</div>`;
       if(b.status==='failed') html+=`<div class="pend ${ui.c}"${ui.a}><button class="btn gold" data-act="busAgain">Drank it — deal again 🔁</button><div class="small center mt8">${autoHtml('Re-dealing in')}</div></div>`;
-      if(b.status==='done') html+=`<div class="small center mt16">${autoHtml('Final tally in')}</div>`;
+      if(b.status==='done') html+=`<div class="small center mt16">${autoHtml(s.riderIdx+1<(s.riders||[]).length?'Next rider boards in':'Final tally in')}</div>`;
     } else {
       html=busSpectatorHtml(s, me);
     }
@@ -1292,9 +1313,9 @@ function playerRender(s){
   setHtml(box, html);
 }
 function busSpectatorHtml(s, me){
-  const b=s.bus, r=player(s,s.riderPid), T=busTiming(b), ui=tl(T.ui);
-  let html=`<div class="banner"><div class="kick">🚌 ${r?esc(r.name):'?'} · attempt ${b.attempt}</div>
-    <div class="q pend ${ui.c}"${ui.a} style="font-size:22px">${b.status==='guessing'?`Higher or lower than ${cardName(b.cards[b.pos])}?`:b.status==='done'?'Off the bus!':'Missed!'}</div></div>
+  const b=s.bus, T=busTiming(b), ui=tl(T.ui);
+  let html=`<div class="banner"><div class="kick">${busHeadline(s,me.pid)}</div>
+    <div class="q pend ${ui.c}"${ui.a} style="font-size:22px">${b.status==='guessing'?busQuestion(b):b.status==='done'?'Off the bus!':'Missed!'}</div></div>
     ${busTrackHtml(s,'md')}${busVerdictHtml(s,me.pid)}`;
   const mine=(s.stepDrinks||{})[me.pid]||0;
   if(mine){ const x=tl((T.verdict||0)+600,'betdrink','shake'); html+=`<div class="drinknow pend ${x.c}"${x.a}>🍺 DRINK ${mine}</div>`; }
@@ -1303,7 +1324,7 @@ function busSpectatorHtml(s, me){
     html+=`<div class="pend ${ui.c}"${ui.a}><div class="lbl2 center">Side bet · wrong call drinks 1</div><div class="answers">
       <button class="ans${bet==='hit'?' sel':''}" data-act="bet" data-v="hit"><span class="ic">👍</span><span class="lb">They'll nail it</span></button>
       <button class="ans${bet==='miss'?' sel':''}" data-act="bet" data-v="miss"><span class="ic">👎</span><span class="lb">They'll blow it</span></button></div></div>`;
-  } else html+=`<div class="small center mt16">${autoHtml(b.status==='done'?'Final tally in':'Re-dealing in')}</div>`;
+  } else html+=`<div class="small center mt16">${autoHtml(b.status==='done'?(s.riderIdx+1<(s.riders||[]).length?'Next rider boards in':'Final tally in'):'Re-dealing in')}</div>`;
   return html;
 }
 // Deliberately tiny: the bus is mandatory, this is the "genuinely had enough" exit.
